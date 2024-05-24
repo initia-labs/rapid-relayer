@@ -1,0 +1,32 @@
+{
+  "name": "ibc-relayer",
+  "version": "0.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --stack_size=4096 --max-old-space-size=4096 -r ts-node/register/transpile-only -r tsconfig-paths/register src/index.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@confio/ics23": "^0.6.8",
+    "@cosmjs/encoding": "^0.32.3",
+    "@cosmjs/stargate": "^0.32.3",
+    "@cosmjs/tendermint-rpc": "^0.32.3",
+    "@initia/initia.js": "^0.2.5",
+    "@initia/initia.proto": "^0.2.0",
+    "axios": "^1.7.2",
+    "bech32": "^2.0.0",
+    "bluebird": "^3.7.2",
+    "http": "^0.0.1-security",
+    "https": "^1.0.0",
+    "long": "^5.2.3",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.4.5",
+    "winston": "^3.13.0"
+  },
+  "devDependencies": {
+    "@types/bluebird": "^3.5.42"
+  }
+}

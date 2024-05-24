@@ -1,0 +1,28 @@
+[
+  {
+    "chainA": {
+      "bech32Prefix": "init",
+      "chainId": "chain-1",
+      "gasPrice": "0.2uinit",
+      "lcdUri": "http://rest.chain-1.com",
+      "rpcUri": "http://rpc.chain-1.com",
+      "key": {
+        "type": "raw",
+        "privateKey": "12af.."
+      },
+      "connectionId": "connection-1"
+    },
+    "chainB": {
+      "bech32Prefix": "init",
+      "chainId": "chain-2",
+      "gasPrice": "0umin",
+      "lcdUri": "http://rest.chain-2.com",
+      "rpcUri": "http://rpc.chain-2.com",
+      "key": {
+        "type": "mnemonic",
+        "privateKey": "bus ..."
+      },
+      "connectionId": "connection-0"
+    }
+  }
+]
