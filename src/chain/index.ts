@@ -44,6 +44,8 @@ export class Chain {
     this.workers = {};
   }
 
+  // initializer
+
   static async init(config: ChainConfig): Promise<Chain> {
     const lcd = new LCDClient(
       config.lcdUri,
@@ -95,6 +97,8 @@ export class Chain {
     this.handlePackets();
     this.feedEvents();
   }
+
+  // workers
 
   private async handlePackets() {
     // to prevent rerun
@@ -279,6 +283,52 @@ export class Chain {
     }
   }
 
+  private async latestHeightWorker() {
+    // to prevent rerun
+    if (
+      (this.workers["latest_height_worekr"] ?? 0) >
+      new Date().valueOf() - 5 * 60 * 1000
+    ) {
+      return;
+    }
+
+    this.debug("Activate latest height worekr");
+
+    // TODO add websocket options
+    const MAX_RETRY = 10;
+    let retried = 0;
+    while (true) {
+      try {
+        const blockInfo = await this.lcd.tendermint.blockInfo();
+        const height = blockInfo.block.header.height;
+        const timestamp = blockInfo.block.header.time;
+        this.latestHeight = Number(height);
+        this.latestTimestamp = new Date(timestamp).valueOf();
+        this.debug(
+          `Set latest height. Height - ${height}, Timestamp - ${timestamp}`
+        );
+        retried = 0;
+      } catch (e) {
+        this.error(
+          `[latestHeightWorker] Got error while fetching latest height (${JSON.stringify(
+            e
+          )})`
+        );
+        retried++;
+        if (retried >= MAX_RETRY) {
+          throw Error(
+            `<${this.chainId()}> [latestHeightWorker] Max retry exceeded`
+          );
+        }
+      } finally {
+        this.workers["latest_height_worekr"] = new Date().valueOf();
+        await delay(1000);
+      }
+    }
+  }
+
+  // filters
+
   // split and filter
   private async splitSendPackets(packets: SendPacketEventWithIndex[]): Promise<{
     timeoutPackets: SendPacketEventWithIndex[];
@@ -405,58 +455,11 @@ export class Chain {
     );
   }
 
-  private syncFilePath(): string {
-    return `./.syncInfo/${this.lcd.config.chainId}_${this.connectionId}.json`;
-  }
-
   private validateConfig(config: ChainConfig) {}
 
   private updatesyncInfo(syncInfo: SyncInfo) {
     fs.writeFileSync(this.syncFilePath(), JSON.stringify(syncInfo));
     this.syncInfo = syncInfo;
-  }
-
-  private async latestHeightWorker() {
-    // to prevent rerun
-    if (
-      (this.workers["latest_height_worekr"] ?? 0) >
-      new Date().valueOf() - 5 * 60 * 1000
-    ) {
-      return;
-    }
-
-    this.debug("Activate latest height worekr");
-
-    const MAX_RETRY = 10;
-    let retried = 0;
-    while (true) {
-      try {
-        const blockInfo = await this.lcd.tendermint.blockInfo();
-        const height = blockInfo.block.header.height;
-        const timestamp = blockInfo.block.header.time;
-        this.latestHeight = Number(height);
-        this.latestTimestamp = new Date(timestamp).valueOf();
-        this.debug(
-          `Set latest height. Height - ${height}, Timestamp - ${timestamp}`
-        );
-        retried = 0;
-      } catch (e) {
-        this.error(
-          `[latestHeightWorker] Got error while fetching latest height (${JSON.stringify(
-            e
-          )})`
-        );
-        retried++;
-        if (retried >= MAX_RETRY) {
-          throw Error(
-            `<${this.chainId()}> [latestHeightWorker] Max retry exceeded`
-          );
-        }
-      } finally {
-        this.workers["latest_height_worekr"] = new Date().valueOf();
-        await delay(1000);
-      }
-    }
   }
 
   private async fetchBlockResult(
@@ -495,9 +498,15 @@ export class Chain {
     return packetEvents;
   }
 
+  private syncFilePath(): string {
+    return `./.syncInfo/${this.lcd.config.chainId}_${this.connectionId}.json`;
+  }
+
   private chainId(): string {
     return this.lcd.config.chainId;
   }
+
+  // logs
 
   private info(log: string) {
     info(`<${this.chainId()}/${this.connectionId}> ${log}`);
