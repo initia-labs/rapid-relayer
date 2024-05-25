@@ -1,4 +1,3 @@
-import { Comet38Client } from "@cosmjs/tendermint-rpc";
 import {
   LCDClient,
   Wallet,
@@ -19,6 +18,7 @@ import { WalletManager } from "./wallet";
 import { generateMsgUpdateClient } from "src/msgs/updateClient";
 import { generateMsgRecvPacket } from "src/msgs/recvPacket";
 import { generateMsgTimeout } from "src/msgs/timeout";
+import { RPCClient } from "src/lib/rpcClient";
 
 export class Chain {
   private syncInfo: {
@@ -36,7 +36,7 @@ export class Chain {
 
   private constructor(
     public lcd: LCDClient,
-    public rpc: Comet38Client,
+    public rpc: RPCClient,
     public wallet: WalletManager,
     public connectionId: string
   ) {
@@ -58,7 +58,7 @@ export class Chain {
         httpsAgent: new https.Agent({ keepAlive: true }),
       })
     );
-    const rpc = await Comet38Client.connect(config.rpcUri);
+    const rpc = new RPCClient(config.rpcUri);
     const wallet = new Wallet(lcd, config.key);
     const walletManager = new WalletManager(wallet, config.bech32Prefix);
 
@@ -228,6 +228,8 @@ export class Chain {
           this.updatesyncInfo(syncInfo);
           this.packetsToHandle = this.packetsToHandle.slice(50);
         }
+      } catch (e) {
+        this.error(`Fail to handle packet. resonse - ${e}`);
       } finally {
         this.workers["packet_handler"] = new Date().valueOf();
         await delay(1000);

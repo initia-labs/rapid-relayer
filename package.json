@@ -11,6 +11,7 @@
   "dependencies": {
     "@confio/ics23": "^0.6.8",
     "@cosmjs/encoding": "^0.32.3",
+    "@cosmjs/json-rpc": "^0.32.3",
     "@cosmjs/stargate": "^0.32.3",
     "@cosmjs/tendermint-rpc": "^0.32.3",
     "@initia/initia.js": "^0.2.5",
