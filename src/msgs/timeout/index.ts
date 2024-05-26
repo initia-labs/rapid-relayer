@@ -35,7 +35,7 @@ async function getNextSequenceRecv(
 ) {
   const key = new Uint8Array(
     Buffer.from(
-      `nextSequenceRecv/ports/${packet.source_port}/channels/${packet.source_channel}`
+      `nextSequenceRecv/ports/${packet.destination_port}/channels/${packet.destination_channel}`
     )
   );
 
