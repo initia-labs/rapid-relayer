@@ -82,13 +82,13 @@ export class WalletManager {
   private async runRequestWorker() {
     const MAX_RETRY = 10;
     let retried = 0;
+    const request = this.requests[this.requestIndexInprogress];
     while (true) {
       try {
         if (!this.sequence) {
           await this.init();
         }
 
-        const request = this.requests[this.requestIndexInprogress];
         if (!request) continue;
 
         const signedTx = await this.wallet.createAndSignTx({
@@ -117,8 +117,16 @@ export class WalletManager {
       } catch (e: any) {
         error(`[runRequestWorker] (${JSON.stringify(e?.response?.data ?? e)})`);
         retried++;
+
+        // if fail to broadcast, return error result to make regenerate msgs
         if (retried >= MAX_RETRY) {
-          throw Error(`[runRequestWorker] Max retry exceeded`);
+          error(`[runRequestWorker] Max retry exceeded`);
+          request.result = {
+            txhash: "",
+            height: -1,
+            code: -1,
+            raw_log: "[runRequestWorker] Max retry exceeded",
+          };
         }
       } finally {
         await delay(1000);

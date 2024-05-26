@@ -26,7 +26,7 @@ export class Chain {
     txIndex: number;
   };
   public latestHeight: number;
-  public fedheight: number;
+  private fedHeight: number;
   public latestTimestamp: number;
   private packetsToHandle: PacketEventWithIndex[];
   private counterpartyChain: Chain;
@@ -65,6 +65,7 @@ export class Chain {
     const chain = new Chain(lcd, rpc, walletManager, config.connectionId);
     chain.clientId = (await lcd.ibc.connection(config.connectionId)).client_id;
 
+    await chain.updateLatestHeight();
     const syncInfo = fs.existsSync(chain.syncFilePath());
     const dir = fs.existsSync("./.syncInfo");
     if (!dir) {
@@ -76,7 +77,7 @@ export class Chain {
     chain.syncInfo = JSON.parse(
       fs.readFileSync(chain.syncFilePath()).toString()
     );
-    chain.fedheight =
+    chain.fedHeight =
       chain.syncInfo.txIndex == -1
         ? chain.syncInfo.height
         : chain.syncInfo.height - 1;
@@ -115,7 +116,7 @@ export class Chain {
       try {
         const packets = this.packetsToHandle.slice(0, 50); // TODO make this configurable
         if (packets.length === 0) {
-          this.updatesyncInfo({ height: this.fedheight, txIndex: -1 });
+          this.updatesyncInfo({ height: this.fedHeight, txIndex: -1 });
           continue;
         }
 
@@ -255,7 +256,7 @@ export class Chain {
         // height to fetch
         const heights = Array.from(
           { length: 20 },
-          (_, i) => i + this.fedheight + 1
+          (_, i) => i + this.fedHeight + 1
         ).filter((height) => height <= this.latestHeight);
 
         if (heights.length === 0) continue;
@@ -273,11 +274,9 @@ export class Chain {
 
         this.debug(`push packets to packet to handle (${results.length})`);
         this.packetsToHandle.push(...results);
-        this.fedheight = heights[heights.length - 1];
+        this.fedHeight = heights[heights.length - 1];
       } catch (e) {
-        this.error(
-          `Fail to fecth block result. resonse - ${JSON.stringify(e)}`
-        );
+        this.error(`Fail to fecth block result. resonse - ${e}`);
       } finally {
         this.workers["event_feeder"] = new Date().valueOf();
         await delay(100);
@@ -301,20 +300,14 @@ export class Chain {
     let retried = 0;
     while (true) {
       try {
-        const blockInfo = await this.lcd.tendermint.blockInfo();
-        const height = blockInfo.block.header.height;
-        const timestamp = blockInfo.block.header.time;
-        this.latestHeight = Number(height);
-        this.latestTimestamp = new Date(timestamp).valueOf();
+        await this.updateLatestHeight();
         this.debug(
-          `Set latest height. Height - ${height}, Timestamp - ${timestamp}`
+          `Set latest height. Height - ${this.latestHeight}, Timestamp - ${this.latestTimestamp}`
         );
         retried = 0;
       } catch (e) {
         this.error(
-          `[latestHeightWorker] Got error while fetching latest height (${JSON.stringify(
-            e
-          )})`
+          `[latestHeightWorker] Got error while fetching latest height (${e})`
         );
         retried++;
         if (retried >= MAX_RETRY) {
@@ -360,8 +353,8 @@ export class Chain {
         }
         recvPackets[path].push(packet);
       } else {
-        if (recvPackets[path] === undefined) {
-          recvPackets[path] = [];
+        if (timeoutPackets[path] === undefined) {
+          timeoutPackets[path] = [];
         }
         timeoutPackets[path].push(packet);
       }
@@ -372,6 +365,7 @@ export class Chain {
     // filter by unreceivedAcks
     await Promise.all(
       Object.keys(timeoutPackets).map(async (path) => {
+        if (timeoutPackets[path].length === 0) return;
         const unrecivedPackets = await this.lcd.ibc.unreceivedAcks(
           timeoutPackets[path][0].packetData.source_port,
           timeoutPackets[path][0].packetData.source_channel,
@@ -391,6 +385,7 @@ export class Chain {
     // filter by unreceivedPacket
     await Promise.all(
       Object.keys(timeoutPackets).map(async (path) => {
+        if (timeoutPackets[path].length === 0) return;
         const unrecivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             timeoutPackets[path][0].packetData.destination_port,
@@ -412,6 +407,7 @@ export class Chain {
 
     await Promise.all(
       Object.keys(recvPackets).map(async (path) => {
+        if (timeoutPackets[path].length === 0) return;
         const unrecivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             recvPackets[path][0].packetData.destination_port,
@@ -465,6 +461,14 @@ export class Chain {
     this.syncInfo = syncInfo;
   }
 
+  private async updateLatestHeight() {
+    const blockInfo = await this.lcd.tendermint.blockInfo();
+    const height = blockInfo.block.header.height;
+    const timestamp = blockInfo.block.header.time;
+    this.latestHeight = Number(height);
+    this.latestTimestamp = new Date(timestamp).valueOf();
+  }
+
   private async fetchBlockResult(
     height: number
   ): Promise<PacketEventWithIndex[]> {
@@ -509,6 +513,18 @@ export class Chain {
     return this.lcd.config.chainId;
   }
 
+  public chainStatus(): ChainStatus {
+    return {
+      chainId: this.chainId(),
+      connectionId: this.connectionId,
+      latestHeightInfo: {
+        height: this.latestHeight,
+        timestamp: new Date(this.latestTimestamp),
+      },
+      lastFeedHeight: this.fedHeight,
+      syncInfo: { ...this.syncInfo },
+    };
+  }
   // logs
 
   private info(log: string) {
@@ -559,4 +575,15 @@ interface WriteAckEventWithIndex {
   txIndex: number;
   type: "write_acknowledgement";
   packetData: Ack;
+}
+
+export interface ChainStatus {
+  chainId: string;
+  connectionId: string;
+  latestHeightInfo: {
+    height: number;
+    timestamp: Date;
+  };
+  lastFeedHeight: number;
+  syncInfo: SyncInfo;
 }

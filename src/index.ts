@@ -1,51 +1,35 @@
-import { MnemonicKey, RawKey } from "@initia/initia.js";
-import { Chain } from "./chain";
+import { Chain, ChainStatus } from "./chain";
 import * as fs from "fs";
+import * as express from "express";
+import { Config, runPair } from "./lib/chainPair";
 
-const configs: { chainA: ChainRawConfig; chainB: ChainRawConfig }[] =
-  JSON.parse(fs.readFileSync("./config.json").toString()); // TODO: get path of config
+const config: Config = JSON.parse(fs.readFileSync("./config.json").toString()); // TODO: get path of config
 
-interface ChainRawConfig {
-  bech32Prefix: string;
-  chainId: string;
-  gasPrice: string;
-  lcdUri: string;
-  rpcUri: string;
-  key: {
-    type: "raw" | "mnemonic";
-    privateKey: string;
-  };
-  connectionId: string;
-}
+async function main() {
+  const pairs: Record<string, { chainA: Chain; chainB: Chain }> = {};
+  await Promise.all(
+    config.pairs.map(async (config) => {
+      const pair = await runPair(config);
+      pairs[pair.name] = { chainA: pair.chainA, chainB: pair.chainB };
+    })
+  );
 
-// TODO add metric and rest api to monitor
+  const app = express();
 
-async function main(config: {
-  chainA: ChainRawConfig;
-  chainB: ChainRawConfig;
-}) {
-  const keyA =
-    config.chainA.key.type === "mnemonic"
-      ? new MnemonicKey({ mnemonic: config.chainA.key.privateKey })
-      : new RawKey(Buffer.from(config.chainA.key.privateKey, "hex"));
+  app.get("/status", (req, res) => {
+    const result: Record<string, { chainA: ChainStatus; chainB: ChainStatus }> =
+      {};
+    Object.keys(pairs).map((name) => {
+      result[name] = {
+        chainA: pairs[name].chainA.chainStatus(),
+        chainB: pairs[name].chainB.chainStatus(),
+      };
+    });
 
-  const keyB =
-    config.chainB.key.type === "mnemonic"
-      ? new MnemonicKey({ mnemonic: config.chainB.key.privateKey })
-      : new RawKey(Buffer.from(config.chainB.key.privateKey, "hex"));
-
-  const chainA = await Chain.init({
-    ...config.chainA,
-    key: keyA,
+    res.json(result);
   });
 
-  const chainB = await Chain.init({
-    ...config.chainB,
-    key: keyB,
-  });
-
-  chainA.registerCounterpartyChain(chainB);
-  chainB.registerCounterpartyChain(chainA);
+  app.listen(config.port);
 }
 
-configs.map((config) => main(config));
+main();

@@ -19,6 +19,7 @@
     "axios": "^1.7.2",
     "bech32": "^2.0.0",
     "bluebird": "^3.7.2",
+    "express": "^4.19.2",
     "http": "^0.0.1-security",
     "https": "^1.0.0",
     "long": "^5.2.3",
@@ -28,6 +29,7 @@
     "winston": "^3.13.0"
   },
   "devDependencies": {
-    "@types/bluebird": "^3.5.42"
+    "@types/bluebird": "^3.5.42",
+    "@types/express": "^4.17.21"
   }
 }
