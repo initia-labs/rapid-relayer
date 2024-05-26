@@ -17,7 +17,7 @@ export class WalletManager {
   private requestIndex: number;
   private sequence: number;
   constructor(private wallet: Wallet, private bech32Prefix: string) {
-    this.requests = [];
+    this.requests = {};
     this.requestIndex = 0;
     this.requestIndexInprogress = 0;
     this.runRequestWorker();
@@ -44,6 +44,7 @@ export class WalletManager {
     }
 
     const result = this.requests[index].result;
+    delete this.requests[index];
     // polling tx
 
     if (isTxError(result) && result.code !== 19) {
@@ -82,8 +83,8 @@ export class WalletManager {
   private async runRequestWorker() {
     const MAX_RETRY = 10;
     let retried = 0;
-    const request = this.requests[this.requestIndexInprogress];
     while (true) {
+      const request = this.requests[this.requestIndexInprogress];
       try {
         if (!this.sequence) {
           await this.init();
