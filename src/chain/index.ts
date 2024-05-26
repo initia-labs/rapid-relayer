@@ -339,10 +339,12 @@ export class Chain {
     const cutoffHeight = this.counterpartyChain.latestHeight;
     const cutoffTime = this.counterpartyChain.latestTimestamp;
 
-    let timeoutPackets = [];
-    let recvPackets = [];
+    // source path => packet
+    let timeoutPackets: Record<string, SendPacketEventWithIndex[]> = {};
+    let recvPackets: Record<string, SendPacketEventWithIndex[]> = {};
 
     for (const packet of packets) {
+      const path = `${packet.packetData.source_port}/${packet.packetData.source_channel}`;
       const heightTimeout =
         packet.packetData.timeout_height.revision_height != 0 &&
         packet.packetData.timeout_height.revision_number != 0 &&
@@ -353,84 +355,83 @@ export class Chain {
         cutoffTime * 1000000 >= Number(packet.packetData.timeout_timestamp);
 
       if (!heightTimeout && !timestampTimeout) {
-        recvPackets.push(packet);
+        if (recvPackets[path] === undefined) {
+          recvPackets[path] = [];
+        }
+        recvPackets[path].push(packet);
       } else {
-        timeoutPackets.push(packet);
+        if (recvPackets[path] === undefined) {
+          recvPackets[path] = [];
+        }
+        timeoutPackets[path].push(packet);
       }
     }
 
     // filter timeout that already done.
-    {
-      // TODO: query once for same path
-      let unrecivedSequences: number[] = [];
 
-      // filter by unreceivedAcks
-      await Promise.all(
-        timeoutPackets.map(async (packet) => {
-          const unrecivedPackets = await this.lcd.ibc.unreceivedAcks(
-            packet.packetData.source_port,
-            packet.packetData.source_channel,
-            [packet.packetData.sequence]
+    // filter by unreceivedAcks
+    await Promise.all(
+      Object.keys(timeoutPackets).map(async (path) => {
+        const unrecivedPackets = await this.lcd.ibc.unreceivedAcks(
+          timeoutPackets[path][0].packetData.source_port,
+          timeoutPackets[path][0].packetData.source_channel,
+          timeoutPackets[path].map((packet) => packet.packetData.sequence)
+        );
+
+        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+          Number(sequence)
+        );
+
+        timeoutPackets[path] = timeoutPackets[path].filter((packet) =>
+          unrecivedSequences.includes(packet.packetData.sequence)
+        );
+      })
+    );
+
+    // filter by unreceivedPacket
+    await Promise.all(
+      Object.keys(timeoutPackets).map(async (path) => {
+        const unrecivedPackets =
+          await this.counterpartyChain.lcd.ibc.unreceivedPackets(
+            timeoutPackets[path][0].packetData.destination_port,
+            timeoutPackets[path][0].packetData.destination_channel,
+            timeoutPackets[path].map((packet) => packet.packetData.sequence)
           );
 
-          if (unrecivedPackets.sequences.length !== 0) {
-            unrecivedSequences.push(Number(unrecivedPackets.sequences[0]));
-          }
-        })
-      );
+        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+          Number(sequence)
+        );
 
-      timeoutPackets = timeoutPackets.filter((packet) =>
-        unrecivedSequences.includes(packet.packetData.sequence)
-      );
+        timeoutPackets[path] = timeoutPackets[path].filter((packet) =>
+          unrecivedSequences.includes(packet.packetData.sequence)
+        );
+      })
+    );
 
-      // filter by unreceivedPacket
-      unrecivedSequences = [];
-      await Promise.all(
-        timeoutPackets.map(async (packet) => {
-          const unrecivedPackets =
-            await this.counterpartyChain.lcd.ibc.unreceivedPackets(
-              packet.packetData.destination_port,
-              packet.packetData.destination_channel,
-              [packet.packetData.sequence]
-            );
+    // filter recv packets that already done.
 
-          if (unrecivedPackets.sequences.length !== 0) {
-            unrecivedSequences.push(Number(unrecivedPackets.sequences[0]));
-          }
-        })
-      );
+    await Promise.all(
+      Object.keys(recvPackets).map(async (path) => {
+        const unrecivedPackets =
+          await this.counterpartyChain.lcd.ibc.unreceivedPackets(
+            recvPackets[path][0].packetData.destination_port,
+            recvPackets[path][0].packetData.destination_channel,
+            recvPackets[path].map((packet) => packet.packetData.sequence)
+          );
 
-      timeoutPackets = timeoutPackets.filter((packet) =>
-        unrecivedSequences.includes(packet.packetData.sequence)
-      );
-    }
+        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+          Number(sequence)
+        );
 
-    {
-      // TODO: query once for same path
-      const unrecivedSequences: number[] = [];
-      await Promise.all(
-        recvPackets.map(async (packet) => {
-          const unrecivedPackets =
-            await this.counterpartyChain.lcd.ibc.unreceivedPackets(
-              packet.packetData.destination_port,
-              packet.packetData.destination_channel,
-              [packet.packetData.sequence]
-            );
-
-          if (unrecivedPackets.sequences[0]) {
-            unrecivedSequences.push(Number(unrecivedPackets.sequences[0]));
-          }
-        })
-      );
-
-      recvPackets = recvPackets.filter((packet) =>
-        unrecivedSequences.includes(packet.packetData.sequence)
-      );
-    }
+        recvPackets[path] = recvPackets[path].filter((packet) =>
+          unrecivedSequences.includes(packet.packetData.sequence)
+        );
+      })
+    );
 
     return {
-      timeoutPackets,
-      recvPackets,
+      timeoutPackets: Object.values(timeoutPackets).flat(),
+      recvPackets: Object.values(recvPackets).flat(),
     };
   }
 
