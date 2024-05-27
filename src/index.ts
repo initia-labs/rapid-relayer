@@ -1,9 +1,7 @@
 import { Chain, ChainStatus } from "./chain";
-import * as fs from "fs";
 import * as express from "express";
-import { Config, runPair } from "./lib/chainPair";
-
-const config: Config = JSON.parse(fs.readFileSync("./config.json").toString()); // TODO: get path of config
+import { runPair } from "./lib/chainPair";
+import { config } from "./lib/config";
 
 async function main() {
   const pairs: Record<string, { chainA: Chain; chainB: Chain }> = {};

@@ -41,11 +41,3 @@ async function getPacketProof(
 
   return Buffer.from(ics23Proof).toString("base64");
 }
-
-export function convertProofsToIcs23(ops: ProofOps): Uint8Array {
-  const proofs = ops.ops.map((op) => CommitmentProof.decode(op.data));
-  const resp = MerkleProof.fromPartial({
-    proofs,
-  });
-  return MerkleProof.encode(resp).finish();
-}

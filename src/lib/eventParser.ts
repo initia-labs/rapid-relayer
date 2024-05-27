@@ -1,6 +1,6 @@
 import { Height, Packet } from "@initia/initia.js";
 import { Event } from "@cosmjs/tendermint-rpc/build/comet38/responses";
-import { Ack } from "src/msgs/ack";
+import { Ack } from "src/msgs";
 
 export function parseSendPacketEvent(
   event: Event,

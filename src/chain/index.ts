@@ -12,12 +12,15 @@ import * as http from "http";
 import * as https from "https";
 
 import * as fs from "fs";
-import { Ack, generateMsgAck } from "src/msgs/ack";
 import { parseSendPacketEvent, parseWriteAckEvent } from "src/lib/eventParser";
 import { WalletManager } from "./wallet";
-import { generateMsgUpdateClient } from "src/msgs/updateClient";
-import { generateMsgRecvPacket } from "src/msgs/recvPacket";
-import { generateMsgTimeout } from "src/msgs/timeout";
+import {
+  generateMsgUpdateClient,
+  generateMsgRecvPacket,
+  generateMsgTimeout,
+  Ack,
+  generateMsgAck,
+} from "src/msgs";
 import { RPCClient } from "src/lib/rpcClient";
 
 export class Chain {

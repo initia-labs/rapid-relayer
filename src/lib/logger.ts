@@ -1,4 +1,5 @@
 import * as winston from "winston";
+import { config } from "./config";
 
 const myFormat = winston.format.printf(({ level, message, timestamp }) => {
   const logPath = "";
@@ -6,7 +7,7 @@ const myFormat = winston.format.printf(({ level, message, timestamp }) => {
 });
 
 export const logger = winston.createLogger({
-  level: "info",
+  level: config.logLevel,
   format: winston.format.combine(winston.format.timestamp(), myFormat),
   transports: [new winston.transports.Console()],
 });

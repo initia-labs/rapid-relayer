@@ -47,13 +47,8 @@ interface ChainRawConfig {
   connectionId: string;
 }
 
-interface ConfigPair {
+export interface ConfigPair {
   name?: string;
   chainA: ChainRawConfig;
   chainB: ChainRawConfig;
-}
-
-export interface Config {
-  port: number;
-  pairs: ConfigPair[];
 }

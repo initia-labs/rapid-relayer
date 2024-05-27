@@ -121,6 +121,7 @@ export class WalletManager {
 
         // if fail to broadcast, return error result to make regenerate msgs
         if (retried >= MAX_RETRY) {
+          this.requestIndexInprogress++;
           error(`[runRequestWorker] Max retry exceeded`);
           request.result = {
             txhash: "",

@@ -1,14 +1,11 @@
 import { MsgTimeout } from "@initia/initia.js/dist/core/ibc/core/channel/msgs";
 import { Height } from "cosmjs-types/ibc/core/client/v1/client";
-import { ProofOps } from "cosmjs-types/tendermint/crypto/proof";
 import { Uint64 } from "@cosmjs/math";
 import { Chain } from "src/chain";
-import { convertProofsToIcs23 } from "../recvPacket";
 import { Transfrom } from "src/lib/transform";
 import { Packet } from "@initia/initia.js";
-import { tendermint34 } from "@cosmjs/tendermint-rpc";
-import { ics23 } from "@confio/ics23";
 import { getRawProof } from "src/lib/rawProof";
+import { convertProofsToIcs23 } from "./ack";
 
 export async function generateMsgTimeout(
   srcChain: Chain,
