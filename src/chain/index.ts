@@ -411,7 +411,7 @@ export class Chain {
 
     await Promise.all(
       Object.keys(recvPackets).map(async (path) => {
-        if (timeoutPackets[path].length === 0) return;
+        if (recvPackets[path].length === 0) return;
         const unrecivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             recvPackets[path][0].packetData.destination_port,
