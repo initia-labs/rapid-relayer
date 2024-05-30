@@ -34,7 +34,7 @@ async function getAckProof(
   const packet = ack.packet;
   const key = new Uint8Array(
     Buffer.from(
-      `acks/ports/${packet.source_port}/channels/${packet.source_channel}/sequences/${packet.sequence}`
+      `acks/ports/${packet.destination_port}/channels/${packet.destination_channel}/sequences/${packet.sequence}`
     )
   );
 
