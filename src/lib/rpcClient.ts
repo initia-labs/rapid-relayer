@@ -14,6 +14,7 @@ export class RPCClient {
     this.requester = new APIRequester(rpcUri, {
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
+      timeout: 60000,
     });
   }
 

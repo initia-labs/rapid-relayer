@@ -1,12 +1,10 @@
 import { Packet } from "@initia/initia.js";
 import { MsgRecvPacket } from "@initia/initia.js/dist/core/ibc/core/channel/msgs";
 import { Height } from "cosmjs-types/ibc/core/client/v1/client";
-import { ProofOps } from "cosmjs-types/tendermint/crypto/proof";
-import { CommitmentProof } from "cosmjs-types/cosmos/ics23/v1/proofs";
-import { MerkleProof } from "cosmjs-types/ibc/core/commitment/v1/commitment";
 import { Chain } from "src/chain";
 import { Transfrom } from "src/lib/transform";
 import { getRawProof } from "src/lib/rawProof";
+import { convertProofsToIcs23 } from "./ack";
 
 export async function generateMsgRecvPacket(
   srcChain: Chain,

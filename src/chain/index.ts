@@ -59,6 +59,7 @@ export class Chain {
       new APIRequester(config.lcdUri, {
         httpAgent: new http.Agent({ keepAlive: true }),
         httpsAgent: new https.Agent({ keepAlive: true }),
+        timeout: 60000,
       })
     );
     const rpc = new RPCClient(config.rpcUri);
