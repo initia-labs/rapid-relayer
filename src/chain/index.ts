@@ -466,11 +466,13 @@ export class Chain {
   }
 
   private async updateLatestHeight() {
-    const blockInfo = await this.lcd.tendermint.blockInfo();
-    const height = blockInfo.block.header.height;
-    const timestamp = blockInfo.block.header.time;
+    const abciInfo = await this.rpc.abciInfo();
+    if (!abciInfo.lastBlockHeight) {
+      throw Error("Can not get last block height");
+    }
+    const height = abciInfo.lastBlockHeight;
     this.latestHeight = Number(height);
-    this.latestTimestamp = new Date(timestamp).valueOf();
+    this.latestTimestamp = new Date().valueOf(); // is it okay to use local timestamp?
   }
 
   private async fetchBlockResult(

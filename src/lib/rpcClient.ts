@@ -18,6 +18,11 @@ export class RPCClient {
     });
   }
 
+  public async abciInfo() {
+    const rawResponse: any = await this.requester.get("abci_info");
+    return Responses.decodeAbciInfo(rawResponse);
+  }
+
   public async blockResults(height: number) {
     const rawResponse: any = await this.requester.get("block_results", {
       height,
