@@ -156,7 +156,7 @@ export class Chain {
         // nothing to do
         if (timeoutPackets.length + recvPackets.length + acks.length === 0) {
           this.updatesyncInfo(syncInfo);
-          this.packetsToHandle = this.packetsToHandle.slice(50);
+          this.packetsToHandle = this.packetsToHandle.slice(packets.length);
           continue;
         }
 
