@@ -1,5 +1,5 @@
 # IBC Relayer
-This is a repo for the IBC Relayer that does not use the `tx_search` query and handles packets from several blocks at once. The Initia Team modified Hermes, only using the necessary function for packet handling. 
+This is a repo for the IBC Relayer that does not use the `tx_search` query and handles packets from several blocks at once. The Initia Team created this IBC Relayer to replace Hermes, only using the necessary function for packet handling. 
 
 ### Problems We Faced
 - For example, on Tucana (Minitia), some accounts generated packets every block. Heremes handled the batch but only for the packets in a single block. 
