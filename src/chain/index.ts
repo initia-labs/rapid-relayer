@@ -86,18 +86,17 @@ export class Chain {
         ? chain.syncInfo.height
         : chain.syncInfo.height - 1;
 
-    chain.validateConfig(config);
-
     return chain;
   }
 
-  public registerCounterpartyChain(counterpartyChain: Chain) {
+  public async registerCounterpartyChain(counterpartyChain: Chain) {
     if (this.counterpartyChain) {
       throw Error("already has counterpartyChain");
     }
 
     this.debug("register counterparty chain");
     this.counterpartyChain = counterpartyChain;
+    await this.validateConfig();
     this.latestHeightWorker();
     this.handlePackets();
     this.feedEvents();
@@ -471,7 +470,22 @@ export class Chain {
     );
   }
 
-  private validateConfig(config: ChainConfig) {}
+  private async validateConfig() {
+    // check connection mapping
+    const counterpartyConnectionId = (
+      await this.lcd.ibc.connection(this.connectionId)
+    ).counterparty.connection_id;
+
+    if (counterpartyConnectionId !== this.counterpartyChain.connectionId) {
+      throw Error(
+        `"${this.chainId()} - ${
+          this.connectionId
+        }" is not connected with "${this.counterpartyChain.chainId()} - ${
+          this.counterpartyChain.connectionId
+        }"`
+      );
+    }
+  }
 
   // return true if it need update client
   private async checkTrustPeriod(): Promise<boolean> {

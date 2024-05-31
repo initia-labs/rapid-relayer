@@ -24,8 +24,8 @@ export async function runPair(
     key: keyB,
   });
 
-  chainA.registerCounterpartyChain(chainB);
-  chainB.registerCounterpartyChain(chainA);
+  await chainA.registerCounterpartyChain(chainB);
+  await chainB.registerCounterpartyChain(chainA);
 
   return {
     name: config.name ?? `${config.chainA.chainId} - ${config.chainB.chainId}`,
