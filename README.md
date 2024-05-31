@@ -1,16 +1,28 @@
 # IBC Relayer
+This is a repo for the IBC Relayer that does not use the `tx_search` query and handles packets from several blocks at once. The Initia Team created this IBC Relayer to replace Hermes, only using the necessary function for packet handling. 
 
-IBC relayer without tx search
+### Problems We Faced
+- For example, on Tucana (Minitia), some accounts generated packets every block. Heremes handled the batch but only for the packets in a single block. 
+- New packets were generated every block at a 500ms interval.
+- Hermes handled them sequentially that unprocessed packets kept accumulating.
+- If Hermes stops, uprocessed packets will be accumulated more. 
+- Hermes uses the `tx_search` query to handle these but this takes a significant amount of time.
+- In cases of spamming, this can be a problem because the query becomes very slow.
+
+### How We Fix This
+- We removed the `tx_search` query, and parallelly handles packets from several blocks at once. 
+- This is done by using two components: packet handler and event feeder. The event feeder feeds the packet from new blocks to cache and the packet handler fetches packets from it. This way, even if the packet handler stops, the event feeder will feed the packets to handle. 
+
 
 ## Installation
 
-clone the repository
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/initia-labs/ibc-relayer.git
 ```
 
-install dependencies
+### 2. Install dependencies
 
 ```bash
 npm install
@@ -18,7 +30,7 @@ npm install
 
 ## Usage
 
-### 1. set config
+### 1. Set config
 
 ```json
 {
@@ -60,7 +72,7 @@ npm install
 }
 ```
 
-### 2. run relayer
+### 2. Run relayer
 
 ```bash
 npm start
@@ -68,4 +80,4 @@ npm start
 
 ## SyncInfo
 
-IBC-relayer checks events and stores processed information in `.syncInfo`. If you want to move migrate relayer to other, you have to copy `.syncInfo`
+IBC-relayer checks events and stores processed information in `.syncInfo`. To move migrate relayer to other, please copy `.syncInfo`
