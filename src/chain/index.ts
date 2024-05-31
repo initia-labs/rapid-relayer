@@ -308,6 +308,19 @@ export class Chain {
         this.debug(
           `Set latest height. Height - ${this.latestHeight}, Timestamp - ${this.latestTimestamp}`
         );
+        const needUpdateClient = await this.checkTrustPeriod();
+        if (needUpdateClient) {
+          const { msg: msgUpdateClient } = await generateMsgUpdateClient(
+            this.counterpartyChain,
+            this
+          );
+          const updateClientResult = await this.wallet.request([
+            msgUpdateClient,
+          ]);
+          this.info(
+            `Client Updated. txhash - ${updateClientResult.txhash} (code - ${updateClientResult.code}).`
+          );
+        }
         retried = 0;
       } catch (e) {
         this.error(
@@ -459,6 +472,23 @@ export class Chain {
   }
 
   private validateConfig(config: ChainConfig) {}
+
+  // return true if it need update client
+  private async checkTrustPeriod(): Promise<boolean> {
+    const state = (await this.lcd.apiRequester.get(
+      `/ibc/core/client/v1/client_states/${this.clientId}`
+    )) as any;
+    const trustingPeriod =
+      Number(state.client_state.trusting_period.replace("s", "")) * 1000;
+    const revisionHeight = Number(
+      state.client_state.latest_height.revision_height
+    );
+
+    const header = await this.counterpartyChain.rpc.header(revisionHeight);
+    const revisionTimestamp = new Date(header.header.time).valueOf();
+    const timeDiff = new Date().valueOf() - revisionTimestamp;
+    return timeDiff >= trustingPeriod * 0.66;
+  }
 
   private updatesyncInfo(syncInfo: SyncInfo) {
     fs.writeFileSync(this.syncFilePath(), JSON.stringify(syncInfo));

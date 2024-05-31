@@ -97,4 +97,39 @@ export class RPCClient {
 
     return Responses.decodeCommit(rawResponse);
   }
+
+  public async header(height: number): Promise<Header> {
+    const rawResponse: any = await this.requester.get("header", {
+      height,
+    });
+
+    return rawResponse.result;
+  }
+}
+
+interface Header {
+  header: {
+    version: {
+      block: string;
+    };
+    chain_id: string;
+    height: string;
+    time: string;
+    last_block_id: {
+      hash: string;
+      parts: {
+        total: 1;
+        hash: string;
+      };
+    };
+    last_commit_hash: string;
+    data_hash: string;
+    validators_hash: string;
+    next_validators_hash: string;
+    consensus_hash: string;
+    app_hash: string;
+    last_results_hash: string;
+    evidence_hash: string;
+    proposer_address: string;
+  };
 }
