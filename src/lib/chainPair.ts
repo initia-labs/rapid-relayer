@@ -1,5 +1,5 @@
 import { MnemonicKey, RawKey } from "@initia/initia.js";
-import { Chain } from "src/chain";
+import { Chain, SyncInfo } from "src/chain";
 
 export async function runPair(
   config: ConfigPair
@@ -45,6 +45,7 @@ interface ChainRawConfig {
     privateKey: string;
   };
   connectionId: string;
+  syncInfo?: SyncInfo; // if syncInfo file exists, ignore start height
 }
 
 export interface ConfigPair {

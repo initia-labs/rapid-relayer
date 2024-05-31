@@ -231,7 +231,7 @@ export class Chain {
         // All must succeed to update syncinfo or retry
         if (thisResult.code === 0 && counterpartyResult.code === 0) {
           this.updatesyncInfo(syncInfo);
-          this.packetsToHandle = this.packetsToHandle.slice(50);
+          this.packetsToHandle = this.packetsToHandle.slice(packets.length);
         }
       } catch (e) {
         this.error(`Fail to handle packet. resonse - ${e}`);

@@ -14,7 +14,11 @@
           "type": "raw",
           "privateKey": "12af.."
         },
-        "connectionId": "connection-1"
+        "connectionId": "connection-1",
+        "syncInfo": {
+          "height": 12345,
+          "txIndex": 30
+        }
       },
       "chainB": {
         "bech32Prefix": "init",
