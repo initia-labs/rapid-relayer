@@ -116,6 +116,14 @@ export class WalletManager {
           this.sequence++;
         }
       } catch (e: any) {
+        const errorContent = JSON.stringify(e?.response?.data ?? e);
+        if (errorContent.indexOf("account sequence mismatch") !== -1) {
+          const expected = errorContent
+            .slice(errorContent.indexOf("account sequence mismatch"))
+            .split(", ")[1];
+          this.sequence = Number(expected.split(" ")[1]);
+          info(`update sequence`);
+        }
         error(`[runRequestWorker] (${JSON.stringify(e?.response?.data ?? e)})`);
         retried++;
 
