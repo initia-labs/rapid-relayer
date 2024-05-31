@@ -37,7 +37,11 @@ npm install
           "type": "raw", // raw | mnemonic
           "privateKey": "12af.." // for raw hex based private key, for mnemonic 12/24 words
         },
-        "connectionId": "connection-1" // connection id to relay
+        "connectionId": "connection-1", // connection id to relay
+        "syncInfo": {
+          "height": 12345, // synced height
+          "txIndex": 30 // synced tx index
+        } // Optional, If a syncInfo file exists, this field is ignored.
       },
       "chainB": {
         "bech32Prefix": "init",
