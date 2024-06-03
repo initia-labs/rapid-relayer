@@ -1,5 +1,6 @@
 import { MnemonicKey, RawKey } from "@initia/initia.js";
 import { Chain, SyncInfo } from "src/chain";
+import { generateMsgUpdateClient } from "src/msgs";
 
 export async function runPair(
   config: ConfigPair

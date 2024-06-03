@@ -224,7 +224,7 @@ export class Chain {
         ]);
 
         this.info(
-          `Packet Handled. This chain - ${thisResult.txhash} (code - ${thisResult.code}). Counterparty chain - ${counterpartyResult.txhash} (code - ${counterpartyResult.code})`
+          `Packet Handled. This chain - ${thisResult.txhash} (code - ${thisResult.code}, rawLog - ${thisResult.rawLog}). Counterparty chain - ${counterpartyResult.txhash} (code - ${counterpartyResult.code} rawLog - ${counterpartyResult.rawLog})`
         );
 
         // All must succeed to update syncinfo or retry
