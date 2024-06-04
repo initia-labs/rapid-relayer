@@ -121,6 +121,9 @@ export class RPCClient {
     });
     const response = parseJsonRpcResponse(await this.requester.post("", query));
 
+    if (isJsonRpcErrorResponse(response)) {
+      throw new Error(JSON.stringify(response.error));
+    }
     return Responses.decodeTxSearch(response);
   }
 }
