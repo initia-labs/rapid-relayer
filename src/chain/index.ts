@@ -34,7 +34,6 @@ export class Chain {
   private packetsToHandle: PacketEventWithIndex[];
   private counterpartyChain: Chain;
   public clientId: string;
-  public channel: string;
   // worker name => latest heartbeat
   private workers: Record<string, number>;
 
@@ -42,7 +41,8 @@ export class Chain {
     public lcd: LCDClient,
     public rpc: RPCClient,
     public wallet: WalletManager,
-    public connectionId: string
+    public connectionId: string,
+    public channel: string
   ) {
     this.packetsToHandle = [];
     this.workers = {};
@@ -67,7 +67,13 @@ export class Chain {
     const wallet = new Wallet(lcd, config.key);
     const walletManager = new WalletManager(wallet, config.bech32Prefix);
 
-    const chain = new Chain(lcd, rpc, walletManager, config.connectionId);
+    const chain = new Chain(
+      lcd,
+      rpc,
+      walletManager,
+      config.connectionId,
+      config.channelId
+    );
     chain.clientId = (await lcd.ibc.connection(config.connectionId)).client_id;
 
     await chain.updateLatestHeight();
@@ -594,6 +600,7 @@ export interface ChainConfig {
   subRpc: string;
   key: Key;
   connectionId: string;
+  channelId: string;
   syncInfo?: {
     height: number;
     txIndex: number;

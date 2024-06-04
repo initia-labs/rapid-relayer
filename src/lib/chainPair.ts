@@ -41,7 +41,7 @@ interface ChainRawConfig {
   lcdUri: string;
   rpcUri: string;
   subRpc: string;
-  channel: string;
+  channelId: string;
   key: {
     type: "raw" | "mnemonic";
     privateKey: string;

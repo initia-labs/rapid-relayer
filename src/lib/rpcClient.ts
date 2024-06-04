@@ -11,14 +11,14 @@ import { isJsonRpcErrorResponse, parseJsonRpcResponse } from "@cosmjs/json-rpc";
 export class RPCClient {
   requester: APIRequester;
   subRequester: APIRequester;
-  constructor(rpcUri: string, subRequesterUri: string) {
+  constructor(rpcUri: string, subRequesterUri?: string) {
     this.requester = new APIRequester(rpcUri, {
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
       timeout: 60000,
     });
 
-    this.subRequester = new APIRequester(subRequesterUri, {
+    this.subRequester = new APIRequester(subRequesterUri ?? rpcUri, {
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
       timeout: 60000,
