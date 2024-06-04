@@ -119,7 +119,9 @@ export class RPCClient {
       method: Method.TxSearch,
       params: { query: q },
     });
-    const response = parseJsonRpcResponse(await this.requester.post("", query));
+    const response = parseJsonRpcResponse(
+      await this.subRequester.post("", query)
+    );
 
     if (isJsonRpcErrorResponse(response)) {
       throw new Error(JSON.stringify(response.error));
