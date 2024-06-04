@@ -133,7 +133,10 @@ export class Chain {
             data: string;
           }[];
         }>(
-          `/ibc/core/channel/v1/channels/${this.channel}/ports/transfer/packet_commitments?pagination.limit=20`
+          `/ibc/core/channel/v1/channels/${this.channel}/ports/transfer/packet_commitments`,
+          {
+            "pagination.limit": 20,
+          }
         );
 
         const packets = await Promise.all(
