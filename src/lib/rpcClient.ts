@@ -114,7 +114,7 @@ export class RPCClient {
   }
 
   public async txSearch(channelId: string, sequence: string) {
-    const q = `end_packet.channel_id='${channelId}' AND send_packet.packet_sequence='${sequence}'`;
+    const q = `send_packet.channel_id='${channelId}' AND send_packet.packet_sequence='${sequence}'`;
     const query = Params.encodeTxSearch({
       method: Method.TxSearch,
       params: { query: q },
