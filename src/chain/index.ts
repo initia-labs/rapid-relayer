@@ -150,7 +150,7 @@ export class Chain {
             if (search.txs.length === 0) return undefined;
             for (const tx of search.txs) {
               const packet = parseSendPacketEvent(
-                search.txs[0].result.events.filter(
+                tx.result.events.filter(
                   (event) => event.type === "send_packet"
                 )[0],
                 this.connectionId
