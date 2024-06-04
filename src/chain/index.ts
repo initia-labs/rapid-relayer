@@ -139,23 +139,30 @@ export class Chain {
           }
         );
 
-        const packets = (
-          await Promise.all(
-            commitments.commitments.map(async (commitment) => {
-              const search = await this.rpc.txSearch(
-                this.channel,
-                commitment.sequence
-              );
-              if (search.txs.length === 0) return undefined;
-              return parseSendPacketEvent(
+        const packets: Packet[] = [];
+
+        await Promise.all(
+          commitments.commitments.map(async (commitment) => {
+            const search = await this.rpc.txSearch(
+              this.channel,
+              commitment.sequence
+            );
+            if (search.txs.length === 0) return undefined;
+            for (const tx of search.txs) {
+              const packet = parseSendPacketEvent(
                 search.txs[0].result.events.filter(
                   (event) => event.type === "send_packet"
                 )[0],
                 this.connectionId
               );
-            })
-          )
-        ).filter((v) => v !== undefined);
+
+              if (packet.sequence !== Number(commitment.sequence)) {
+                continue;
+              }
+              packets.push(packet);
+            }
+          })
+        );
 
         if (packets.length === 0) {
           this.updatesyncInfo({ height: this.fedHeight, txIndex: -1 });
