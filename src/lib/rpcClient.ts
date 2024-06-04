@@ -10,8 +10,15 @@ import { isJsonRpcErrorResponse, parseJsonRpcResponse } from "@cosmjs/json-rpc";
 // Use custom rpc client instead of comet38Client to set keepAlive option
 export class RPCClient {
   requester: APIRequester;
-  constructor(rpcUri: string) {
+  subRequester: APIRequester;
+  constructor(rpcUri: string, subRequesterUri: string) {
     this.requester = new APIRequester(rpcUri, {
+      httpAgent: new http.Agent({ keepAlive: true }),
+      httpsAgent: new https.Agent({ keepAlive: true }),
+      timeout: 60000,
+    });
+
+    this.subRequester = new APIRequester(subRequesterUri, {
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
       timeout: 60000,
@@ -104,6 +111,14 @@ export class RPCClient {
     });
 
     return rawResponse.result;
+  }
+
+  public async txSearch(channelId: string, sequence: string) {
+    const rawResponse: any = await this.subRequester.get("tx_search", {
+      query: `send_packet.channel_id='${channelId}' AND send_packet.packet_sequence='${sequence}'`,
+    });
+
+    return Responses.decodeTxSearch(rawResponse);
   }
 }
 

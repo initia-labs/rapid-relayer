@@ -34,6 +34,7 @@ export class Chain {
   private packetsToHandle: PacketEventWithIndex[];
   private counterpartyChain: Chain;
   public clientId: string;
+  public channel: string;
   // worker name => latest heartbeat
   private workers: Record<string, number>;
 
@@ -62,7 +63,7 @@ export class Chain {
         timeout: 60000,
       })
     );
-    const rpc = new RPCClient(config.rpcUri);
+    const rpc = new RPCClient(config.rpcUri, config.subRpc);
     const wallet = new Wallet(lcd, config.key);
     const walletManager = new WalletManager(wallet, config.bech32Prefix);
 
@@ -99,7 +100,7 @@ export class Chain {
     await this.validateConfig();
     this.latestHeightWorker();
     this.handlePackets();
-    this.feedEvents();
+    // this.feedEvents();
   }
 
   // workers
@@ -117,46 +118,48 @@ export class Chain {
 
     while (true) {
       try {
-        const packets = this.packetsToHandle.slice(0, 50); // TODO make this configurable
+        // const packets = this.packetsToHandle.slice(0, 50); // TODO make this configurable
+        const commitments = await this.lcd.apiRequester.get<{
+          commitments: {
+            port_id: string;
+            channel_id: string;
+            sequence: string;
+            data: string;
+          }[];
+        }>(
+          `/ibc/core/channel/v1/channels/${this.channel}/ports/transfer/packet_commitments?pagination.limit=20`
+        );
+
+        const packets = await Promise.all(
+          commitments.commitments.map(async (commitment) => {
+            const search = await this.rpc.txSearch(
+              this.channel,
+              commitment.sequence
+            );
+            return parseSendPacketEvent(
+              search.txs[0].result.events.filter(
+                (event) => event.type === "send_packet"
+              )[0],
+              this.connectionId
+            );
+          })
+        );
+
         if (packets.length === 0) {
           this.updatesyncInfo({ height: this.fedHeight, txIndex: -1 });
           continue;
         }
 
-        // wait until next height
-        if (packets[packets.length - 1].height >= this.latestHeight) {
-          continue;
-        }
-
-        const syncInfo = {
-          height: packets[packets.length - 1].height,
-          txIndex: packets[packets.length - 1].txIndex,
-        };
-
-        const sendPackets: SendPacketEventWithIndex[] = packets.filter(
-          (packet) => packet.type === "send_packet"
-        ) as SendPacketEventWithIndex[];
-        const writeAcks: WriteAckEventWithIndex[] = packets.filter(
-          (packet) => packet.type === "write_acknowledgement"
-        ) as WriteAckEventWithIndex[];
-        this.info(
-          `Found events. Send packets - ${sendPackets.length}. Recv packets - ${writeAcks.length}`
-        );
-
         const { timeoutPackets, recvPackets } = await this.splitSendPackets(
-          sendPackets
+          packets
         );
 
-        const acks = await this.filterAckPackets(writeAcks);
-
         this.info(
-          `Filtered events. Message to generate: timeout - ${timeoutPackets.length}. recvPacket - ${recvPackets.length}. ack - ${acks.length}`
+          `Filtered events. Message to generate: timeout - ${timeoutPackets.length}. recvPacket - ${recvPackets.length}.`
         );
 
         // nothing to do
-        if (timeoutPackets.length + recvPackets.length + acks.length === 0) {
-          this.updatesyncInfo(syncInfo);
-          this.packetsToHandle = this.packetsToHandle.slice(packets.length);
+        if (timeoutPackets.length + recvPackets.length === 0) {
           continue;
         }
 
@@ -164,7 +167,7 @@ export class Chain {
 
         // counterparty msgs
         const counterpartyMsgs: Msg[] = [];
-        if (recvPackets.length + acks.length !== 0) {
+        if (recvPackets.length !== 0) {
           const { msg: msgUpdateClient, height } =
             await generateMsgUpdateClient(this, this.counterpartyChain);
           counterpartyMsgs.push(msgUpdateClient);
@@ -180,18 +183,6 @@ export class Chain {
             )
           );
           counterpartyMsgs.push(...msgRecvPackets);
-
-          const msgAcks = await Promise.all(
-            acks.map(async (ack) =>
-              generateMsgAck(
-                this.counterpartyChain,
-                this,
-                ack.packetData,
-                height
-              )
-            )
-          );
-          counterpartyMsgs.push(...msgAcks);
         }
 
         // chain msgs
@@ -226,12 +217,6 @@ export class Chain {
         this.info(
           `Packet Handled. This chain - ${thisResult.txhash} (code - ${thisResult.code}, rawLog - ${thisResult.rawLog}). Counterparty chain - ${counterpartyResult.txhash} (code - ${counterpartyResult.code} rawLog - ${counterpartyResult.rawLog})`
         );
-
-        // All must succeed to update syncinfo or retry
-        if (thisResult.code === 0 && counterpartyResult.code === 0) {
-          this.updatesyncInfo(syncInfo);
-          this.packetsToHandle = this.packetsToHandle.slice(packets.length);
-        }
       } catch (e) {
         this.error(`Fail to handle packet. resonse - ${e}`);
       } finally {
@@ -341,7 +326,7 @@ export class Chain {
   // filters
 
   // split and filter
-  private async splitSendPackets(packets: SendPacketEventWithIndex[]): Promise<{
+  private async splitSendPackets(packets: Packet[]): Promise<{
     timeoutPackets: SendPacketEventWithIndex[];
     recvPackets: SendPacketEventWithIndex[];
   }> {
@@ -353,26 +338,36 @@ export class Chain {
     let recvPackets: Record<string, SendPacketEventWithIndex[]> = {};
 
     for (const packet of packets) {
-      const path = `${packet.packetData.source_port}/${packet.packetData.source_channel}`;
+      const path = `${packet.source_port}/${packet.source_channel}`;
       const heightTimeout =
-        packet.packetData.timeout_height.revision_height != 0 &&
-        packet.packetData.timeout_height.revision_number != 0 &&
-        cutoffHeight >= packet.packetData.timeout_height.revision_height;
+        packet.timeout_height.revision_height != 0 &&
+        packet.timeout_height.revision_number != 0 &&
+        cutoffHeight >= packet.timeout_height.revision_height;
 
       const timestampTimeout =
-        Number(packet.packetData.timeout_timestamp) != 0 &&
-        cutoffTime * 1000000 >= Number(packet.packetData.timeout_timestamp);
+        Number(packet.timeout_timestamp) != 0 &&
+        cutoffTime * 1000000 >= Number(packet.timeout_timestamp);
 
       if (!heightTimeout && !timestampTimeout) {
         if (recvPackets[path] === undefined) {
           recvPackets[path] = [];
         }
-        recvPackets[path].push(packet);
+        recvPackets[path].push({
+          height: 0,
+          txIndex: 0,
+          type: "send_packet",
+          packetData: packet,
+        });
       } else {
         if (timeoutPackets[path] === undefined) {
           timeoutPackets[path] = [];
         }
-        timeoutPackets[path].push(packet);
+        timeoutPackets[path].push({
+          height: 0,
+          txIndex: 0,
+          type: "send_packet",
+          packetData: packet,
+        });
       }
     }
 
@@ -596,6 +591,7 @@ export interface ChainConfig {
   gasPrice: string;
   lcdUri: string;
   rpcUri: string;
+  subRpc: string;
   key: Key;
   connectionId: string;
   syncInfo?: {
