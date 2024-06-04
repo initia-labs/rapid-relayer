@@ -149,17 +149,17 @@ export class Chain {
             );
             if (search.txs.length === 0) return undefined;
             for (const tx of search.txs) {
-              const packet = parseSendPacketEvent(
-                tx.result.events.filter(
-                  (event) => event.type === "send_packet"
-                )[0],
-                this.connectionId
-              );
+              for (const event of tx.result.events) {
+                const packet = parseSendPacketEvent(event, this.connectionId);
 
-              if (packet.sequence !== Number(commitment.sequence)) {
-                continue;
+                if (packet === undefined) {
+                  continue;
+                }
+                if (packet.sequence !== Number(commitment.sequence)) {
+                  continue;
+                }
+                packets.push(packet);
               }
-              packets.push(packet);
             }
           })
         );
