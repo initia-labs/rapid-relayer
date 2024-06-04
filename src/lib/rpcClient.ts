@@ -115,7 +115,7 @@ export class RPCClient {
 
   public async txSearch(channelId: string, sequence: string) {
     const rawResponse: any = await this.subRequester.get("tx_search", {
-      query: `send_packet.channel_id='${channelId}' AND send_packet.packet_sequence='${sequence}'`,
+      query: `"send_packet.channel_id='${channelId}' AND send_packet.packet_sequence='${sequence}'"`,
     });
 
     return Responses.decodeTxSearch(rawResponse);
