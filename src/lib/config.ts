@@ -7,6 +7,7 @@ export const config: Config = JSON.parse(
 
 export interface Config {
   port: number;
+  metricPort: number;
   logLevel: string;
   pairs: ConfigPair[];
 }

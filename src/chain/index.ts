@@ -1,11 +1,4 @@
-import {
-  LCDClient,
-  Wallet,
-  Key,
-  Packet,
-  Msg,
-  APIRequester,
-} from "@initia/initia.js";
+import { LCDClient, Wallet, Msg, APIRequester } from "@initia/initia.js";
 import { delay } from "bluebird";
 import { info, warn, error, debug } from "src/lib/logger";
 import * as http from "http";
@@ -16,12 +9,20 @@ import { parseSendPacketEvent, parseWriteAckEvent } from "src/lib/eventParser";
 import { WalletManager } from "./wallet";
 import {
   generateMsgUpdateClient,
-  generateMsgRecvPacket,
-  generateMsgTimeout,
-  Ack,
-  generateMsgAck,
+  generateCounterpartyChainMessages,
+  generateThisChainMessages,
 } from "src/msgs";
 import { RPCClient } from "src/lib/rpcClient";
+import {
+  ChainConfig,
+  ChainStatus,
+  PacketEventWithIndex,
+  SendPacketEventWithIndex,
+  SyncInfo,
+  WriteAckEventWithIndex,
+} from "./types";
+import { metrics } from "src/lib/metric";
+import { Counter } from "prom-client";
 
 export class Chain {
   private syncInfo: {
@@ -133,27 +134,35 @@ export class Chain {
           txIndex: packets[packets.length - 1].txIndex,
         };
 
+        // filter packets
+
+        // get send packet events
         const sendPackets: SendPacketEventWithIndex[] = packets.filter(
           (packet) => packet.type === "send_packet"
         ) as SendPacketEventWithIndex[];
+
+        // get write acknowledgement events
         const writeAcks: WriteAckEventWithIndex[] = packets.filter(
           (packet) => packet.type === "write_acknowledgement"
         ) as WriteAckEventWithIndex[];
+
         this.info(
           `Found events. Send packets - ${sendPackets.length}. Recv packets - ${writeAcks.length}`
         );
 
+        // filter and split send packets
         const { timeoutPackets, recvPackets } = await this.splitSendPackets(
           sendPackets
         );
 
+        // filter write ack
         const acks = await this.filterAckPackets(writeAcks);
 
         this.info(
           `Filtered events. Message to generate: timeout - ${timeoutPackets.length}. recvPacket - ${recvPackets.length}. ack - ${acks.length}`
         );
 
-        // nothing to do
+        // if nothing to do
         if (timeoutPackets.length + recvPackets.length + acks.length === 0) {
           this.updatesyncInfo(syncInfo);
           this.packetsToHandle = this.packetsToHandle.slice(packets.length);
@@ -163,56 +172,19 @@ export class Chain {
         // generate msgs
 
         // counterparty msgs
-        const counterpartyMsgs: Msg[] = [];
-        if (recvPackets.length + acks.length !== 0) {
-          const { msg: msgUpdateClient, height } =
-            await generateMsgUpdateClient(this, this.counterpartyChain);
-          counterpartyMsgs.push(msgUpdateClient);
-
-          const msgRecvPackets = await Promise.all(
-            recvPackets.map(async (packet) =>
-              generateMsgRecvPacket(
-                this.counterpartyChain,
-                this,
-                packet.packetData,
-                height
-              )
-            )
-          );
-          counterpartyMsgs.push(...msgRecvPackets);
-
-          const msgAcks = await Promise.all(
-            acks.map(async (ack) =>
-              generateMsgAck(
-                this.counterpartyChain,
-                this,
-                ack.packetData,
-                height
-              )
-            )
-          );
-          counterpartyMsgs.push(...msgAcks);
-        }
+        const counterpartyMsgs: Msg[] = await generateCounterpartyChainMessages(
+          this,
+          this.counterpartyChain,
+          recvPackets,
+          acks
+        );
 
         // chain msgs
-        const thisMsgs: Msg[] = [];
-        if (timeoutPackets.length !== 0) {
-          const { msg: msgUpdateClient, height } =
-            await generateMsgUpdateClient(this.counterpartyChain, this);
-          thisMsgs.push(msgUpdateClient);
-
-          const msgTimeouts = await Promise.all(
-            timeoutPackets.map(async (packet) =>
-              generateMsgTimeout(
-                this,
-                this.counterpartyChain,
-                packet.packetData,
-                height
-              )
-            )
-          );
-          thisMsgs.push(...msgTimeouts);
-        }
+        const thisMsgs: Msg[] = await generateThisChainMessages(
+          this,
+          this.counterpartyChain,
+          timeoutPackets
+        );
 
         this.info(
           `Request handle packet to wallet manager. This chain - ${thisMsgs.length}. Counterparty chain - ${counterpartyMsgs.length}`
@@ -517,6 +489,8 @@ export class Chain {
     const height = abciInfo.lastBlockHeight;
     this.latestHeight = Number(height);
     this.latestTimestamp = new Date().valueOf(); // is it okay to use local timestamp?
+
+    this.inc(metrics.chain.latestHeightWorker);
   }
 
   private async fetchBlockResult(
@@ -538,6 +512,8 @@ export class Chain {
             type: "send_packet",
             packetData: sendPacket,
           });
+
+          this.inc(metrics.chain.eventFeederWorker.sendPacket);
         }
 
         const writeAck = parseWriteAckEvent(event, this.connectionId);
@@ -548,6 +524,8 @@ export class Chain {
             type: "write_acknowledgement",
             packetData: writeAck,
           });
+
+          this.inc(metrics.chain.eventFeederWorker.writeAck);
         }
       }
     });
@@ -588,52 +566,15 @@ export class Chain {
   private debug(log: string) {
     debug(`<${this.chainId()}/${this.connectionId}> ${log}`);
   }
-}
 
-export interface ChainConfig {
-  bech32Prefix: string;
-  chainId: string;
-  gasPrice: string;
-  lcdUri: string;
-  rpcUri: string;
-  key: Key;
-  connectionId: string;
-  syncInfo?: {
-    height: number;
-    txIndex: number;
-  };
-}
+  // metrics
 
-export interface SyncInfo {
-  height: number;
-  txIndex: number;
-}
-
-export type PacketEventWithIndex =
-  | SendPacketEventWithIndex
-  | WriteAckEventWithIndex;
-
-interface SendPacketEventWithIndex {
-  height: number;
-  txIndex: number;
-  type: "send_packet";
-  packetData: Packet;
-}
-
-interface WriteAckEventWithIndex {
-  height: number;
-  txIndex: number;
-  type: "write_acknowledgement";
-  packetData: Ack;
-}
-
-export interface ChainStatus {
-  chainId: string;
-  connectionId: string;
-  latestHeightInfo: {
-    height: number;
-    timestamp: Date;
-  };
-  lastFeedHeight: number;
-  syncInfo: SyncInfo;
+  public inc(counter: Counter, inc?: number) {
+    counter
+      .labels({
+        chainId: this.chainId(),
+        connectionId: this.connectionId,
+      })
+      .inc(inc);
+  }
 }
