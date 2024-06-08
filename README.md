@@ -7,7 +7,7 @@ Rapid Relayer does not use the `tx_search` query of Hermes to handle packets fro
 - Minitia L2s generate blocks extremely quick at 500ms per block.
 - Due to the interwoven nature of Initia, often many IBC packets are generated within blocks. Hermes can handle batches of packets but on a single block basis.
 - Hermes handles these IBC packets sequentially leading to unprocessed packets accumulating very quickly when having fast blocktimes.
-- If Hermes stops, uprocessed packets will contine to pile up. 
+- If Hermes stops, unprocessed packets will continue to pile up. 
 - When Hermes misses a packet, it finds them using `tx_search` query on every sequence, this can take minutes for just a few hundred packets.
 - We need something more rapid.
 
