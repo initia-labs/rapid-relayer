@@ -1,7 +1,10 @@
-import { Chain, ChainStatus } from "./chain";
+import { Chain } from "./chain";
 import * as express from "express";
 import { runPair } from "./lib/chainPair";
 import { config } from "./lib/config";
+import { ChainStatus } from "./chain/types";
+import { registery } from "./lib/metric";
+import { info } from "./lib/logger";
 
 async function main() {
   const pairs: Record<string, { chainA: Chain; chainB: Chain }> = {};
@@ -27,7 +30,17 @@ async function main() {
     res.json(result);
   });
 
+  const metricApp = express();
+
+  metricApp.get("/metrics", async (req, res) => {
+    res.setHeader("content-type", registery.contentType);
+    res.send(await registery.metrics());
+  });
+
   app.listen(config.port);
+  info(`status app listen to port ${config.port}`);
+  metricApp.listen(config.metricPort);
+  info(`metric app listen to port ${config.metricPort}`);
 }
 
 main();
