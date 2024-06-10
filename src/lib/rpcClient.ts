@@ -18,6 +18,7 @@ export class RPCClient {
       httpsAgent: new https.Agent({ keepAlive: true }),
       timeout: 60000,
     });
+    this.baseUri = rpcUri;
   }
 
   public async abciInfo() {
