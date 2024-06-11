@@ -243,49 +243,45 @@ export class Chain {
 
   private async feedEvents() {
     // to prevent rerun
-    if (
-      (this.workers["event_feeder"] ?? 0) >
-      new Date().valueOf() - 5 * 60 * 1000
-    ) {
+    if ((this.workers["event_feeder"] ?? 0) > new Date().valueOf() - 5 * 60 * 1000) {
       return;
     }
-
+  
     this.debug("Activate event feeder");
-
+  
     while (true) {
       try {
-        if (this.packetsToHandle.length > 1000) continue;
-
-        // height to fetch
-        const heights = Array.from(
-          { length: 20 },
-          (_, i) => i + this.fedHeight + 1
-        ).filter((height) => height <= this.latestHeight);
-
-        if (heights.length === 0) continue;
-
-        const blockResults = await Promise.all(
-          heights.map((height) => this.fetchBlockResult(height))
-        );
-
-        this.debug(`Fetched block results for heights (${heights})`);
-        const results: PacketEventWithIndex[] = [];
-
-        for (const events of blockResults) {
-          results.push(...events);
+        if (this.packetsToHandle.length > 1000) {
+          continue;
         }
-
-        this.debug(`push packets to packet to handle (${results.length})`);
+  
+        // height to fetch
+        const heightsToFetch = Array.from({ length: 20 }, (_, i) => i + this.fedHeight + 1)
+          .filter(height => height <= this.latestHeight);
+  
+        if (heightsToFetch.length === 0) {
+          continue;
+        }
+  
+        const blockResults = await Promise.all(
+          heightsToFetch.map(height => this.fetchBlockResult(height))
+        );
+  
+        this.debug(`Fetched block results for heights (${heightsToFetch})`);
+  
+        const results = blockResults.flat();
+  
+        this.debug(`Pushing packets to packetsToHandle (${results.length})`);
         this.packetsToHandle.push(...results);
-        this.fedHeight = heights[heights.length - 1];
+        this.fedHeight = heightsToFetch[heightsToFetch.length - 1];
       } catch (e) {
-        this.error(`Fail to fecth block result. resonse - ${e}`);
+        this.error(`Failed to fetch block results. Reason: ${e}`);
       } finally {
         this.workers["event_feeder"] = new Date().valueOf();
         await delay(100);
       }
     }
-  }
+  }  
 
   private async latestHeightWorker() {
     // to prevent rerun
