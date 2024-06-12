@@ -191,10 +191,7 @@ export class Chain {
         );
 
         const [thisResult, counterpartyResult] = await Promise.all([
-          this.wallet.request(
-            thisMsgs,
-            timeoutPackets.length === 0 ? 0 : 10000
-          ),
+          this.wallet.request(thisMsgs),
           this.counterpartyChain.wallet.request(counterpartyMsgs),
         ]);
 
@@ -321,7 +318,7 @@ export class Chain {
     recvPackets: SendPacketEventWithIndex[];
   }> {
     const cutoffHeight = this.counterpartyChain.latestHeight;
-    const cutoffTime = this.counterpartyChain.latestTimestamp + 10000;
+    const cutoffTime = this.counterpartyChain.latestTimestamp;
 
     // source path => packet
     let timeoutPackets: Record<string, SendPacketEventWithIndex[]> = {};
