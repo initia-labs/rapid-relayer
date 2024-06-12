@@ -6,6 +6,7 @@ import { Transfrom } from "src/lib/transform";
 import { Packet } from "@initia/initia.js";
 import { getRawProof } from "src/lib/rawProof";
 import { convertProofsToIcs23 } from "./ack";
+import { delay } from "bluebird";
 
 export async function generateMsgTimeout(
   srcChain: Chain,
@@ -36,12 +37,25 @@ async function getNextSequenceRecv(
     )
   );
 
-  const { value, proof: proofOps } = await destChain.rpc.abciQuery({
+  let { value, proof: proofOps } = await destChain.rpc.abciQuery({
     path: `/store/ibc/key`,
     data: key,
     prove: true,
     height: Number(headerHeight.revisionHeight),
   });
+
+  let count = 0;
+  while (value.length === 0 && count < 5) {
+    const result = await destChain.rpc.abciQuery({
+      path: `/store/ibc/key`,
+      data: key,
+      prove: true,
+      height: Number(headerHeight.revisionHeight),
+    });
+    count++;
+    await delay(100);
+    value = result.value;
+  }
 
   const nextSequenceReceive = Uint64.fromBytes([...value], "be").toBigInt();
   //   const proof = convertProofsToIcs23(proofOps as ProofOps);
