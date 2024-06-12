@@ -419,7 +419,7 @@ export class Chain {
       return this.wallet.request([]);
     }
 
-    await delay(10000);
+    await delay(15000);
     // chain msgs
     const thisMsgs: Msg[] = await generateThisChainMessages(
       this,
