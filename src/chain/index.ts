@@ -179,19 +179,14 @@ export class Chain {
           acks
         );
 
-        // chain msgs
-        const thisMsgs: Msg[] = await generateThisChainMessages(
-          this,
-          this.counterpartyChain,
-          timeoutPackets
-        );
-
         this.info(
-          `Request handle packet to wallet manager. This chain - ${thisMsgs.length}. Counterparty chain - ${counterpartyMsgs.length}`
+          `Request handle packet to wallet manager. This chain - ${
+            timeoutPackets.length == 0 ? 0 : timeoutPackets.length + 1
+          }. Counterparty chain - ${counterpartyMsgs.length}`
         );
 
         const [thisResult, counterpartyResult] = await Promise.all([
-          this.wallet.request(thisMsgs),
+          this.delayedTimeout(timeoutPackets),
           this.counterpartyChain.wallet.request(counterpartyMsgs),
         ]);
 
@@ -318,7 +313,7 @@ export class Chain {
     recvPackets: SendPacketEventWithIndex[];
   }> {
     const cutoffHeight = this.counterpartyChain.latestHeight;
-    const cutoffTime = this.counterpartyChain.latestTimestamp;
+    const cutoffTime = this.counterpartyChain.latestTimestamp + 10000;
 
     // source path => packet
     let timeoutPackets: Record<string, SendPacketEventWithIndex[]> = {};
@@ -417,6 +412,22 @@ export class Chain {
       timeoutPackets: Object.values(timeoutPackets).flat(),
       recvPackets: Object.values(recvPackets).flat(),
     };
+  }
+
+  private async delayedTimeout(timeoutPackets: SendPacketEventWithIndex[]) {
+    if (timeoutPackets.length === 0) {
+      return this.wallet.request([]);
+    }
+
+    await delay(10000);
+    // chain msgs
+    const thisMsgs: Msg[] = await generateThisChainMessages(
+      this,
+      this.counterpartyChain,
+      timeoutPackets
+    );
+
+    return this.wallet.request(thisMsgs);
   }
 
   private async filterAckPackets(
