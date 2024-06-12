@@ -76,7 +76,19 @@ async function getValidatorSet(
   chain: Chain,
   height: number
 ): Promise<ValidatorSet> {
-  const block = await chain.lcd.tendermint.blockInfo(height);
+  let block = await chain.lcd.tendermint
+    .blockInfo(height)
+    .catch((e) => undefined);
+  let count = 0;
+  while (block === undefined) {
+    block = await chain.lcd.tendermint.blockInfo(height).catch((e) => {
+      if (count > 5) {
+        throw e;
+      }
+      return undefined;
+    });
+    count++;
+  }
   const proposerAddress = block.block.header.proposer_address;
   // we need to query the header to find out who the proposer was, and pull them out
   const validators = await chain.rpc.validatorsAll(height);
