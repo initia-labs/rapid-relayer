@@ -28,7 +28,8 @@ export class WalletManager {
     this.sequence = accountInfo.getSequenceNumber();
   }
 
-  async request(msgs: Msg[]): Promise<TxResult> {
+  async request(msgs: Msg[], executeDelay = 0): Promise<TxResult> {
+    await delay(executeDelay);
     if (msgs.length === 0) {
       return {
         txhash: "",
