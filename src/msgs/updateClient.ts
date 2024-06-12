@@ -7,6 +7,7 @@ import {
   Validator,
 } from "cosmjs-types/tendermint/types/validator";
 import { Height } from "cosmjs-types/ibc/core/client/v1/client";
+import { delay } from "bluebird";
 
 export async function generateMsgUpdateClient(
   srcChain: Chain,
@@ -87,6 +88,7 @@ async function getValidatorSet(
       }
       return undefined;
     });
+    await delay(100);
     count++;
   }
   const proposerAddress = block.block.header.proposer_address;
