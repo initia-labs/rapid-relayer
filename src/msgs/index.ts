@@ -1,33 +1,33 @@
-import { Msg } from "@initia/initia.js";
+import { Msg } from '@initia/initia.js'
 import {
   SendPacketEventWithIndex,
   WriteAckEventWithIndex,
-} from "src/chain/types";
-import { generateMsgUpdateClient } from "./updateClient";
-import { Chain } from "src/chain";
-import { generateMsgRecvPacket } from "./recvPacet";
-import { generateMsgAck } from "./ack";
-import { generateMsgTimeout } from "./timeout";
-import { metrics } from "src/lib/metric";
+} from 'src/chain/types'
+import { generateMsgUpdateClient } from './updateClient'
+import { Chain } from 'src/chain'
+import { generateMsgRecvPacket } from './recvPacet'
+import { generateMsgAck } from './ack'
+import { generateMsgTimeout } from './timeout'
+import { metrics } from 'src/lib/metric'
 
-export * from "./ack";
-export * from "./recvPacet";
-export * from "./timeout";
-export * from "./updateClient";
+export * from './ack'
+export * from './recvPacet'
+export * from './timeout'
+export * from './updateClient'
 
 export async function generateThisChainMessages(
   thisChain: Chain,
   counterpartyChain: Chain,
   timeoutPackets: SendPacketEventWithIndex[]
 ): Promise<Msg[]> {
-  const thisMsgs: Msg[] = [];
+  const thisMsgs: Msg[] = []
   if (timeoutPackets.length !== 0) {
     const { msg: msgUpdateClient, height } = await generateMsgUpdateClient(
       counterpartyChain,
       thisChain
-    );
-    thisMsgs.push(msgUpdateClient);
-    thisChain.inc(metrics.chain.handlePacketWorker.updateClientMsg);
+    )
+    thisMsgs.push(msgUpdateClient)
+    thisChain.inc(metrics.chain.handlePacketWorker.updateClientMsg)
 
     const msgTimeouts = await Promise.all(
       timeoutPackets.map(async (packet) =>
@@ -38,15 +38,15 @@ export async function generateThisChainMessages(
           height
         )
       )
-    );
-    thisMsgs.push(...msgTimeouts);
+    )
+    thisMsgs.push(...msgTimeouts)
     thisChain.inc(
       metrics.chain.handlePacketWorker.timeoutMsg,
       msgTimeouts.length
-    );
+    )
   }
 
-  return thisMsgs;
+  return thisMsgs
 }
 
 export async function generateCounterpartyChainMessages(
@@ -55,14 +55,14 @@ export async function generateCounterpartyChainMessages(
   recvPackets: SendPacketEventWithIndex[],
   acks: WriteAckEventWithIndex[]
 ): Promise<Msg[]> {
-  const counterpartyMsgs: Msg[] = [];
+  const counterpartyMsgs: Msg[] = []
   if (recvPackets.length + acks.length !== 0) {
     const { msg: msgUpdateClient, height } = await generateMsgUpdateClient(
       thisChain,
       counterpartyChain
-    );
-    counterpartyMsgs.push(msgUpdateClient);
-    counterpartyChain.inc(metrics.chain.handlePacketWorker.updateClientMsg);
+    )
+    counterpartyMsgs.push(msgUpdateClient)
+    counterpartyChain.inc(metrics.chain.handlePacketWorker.updateClientMsg)
 
     const msgRecvPackets = await Promise.all(
       recvPackets.map(async (packet) =>
@@ -73,23 +73,23 @@ export async function generateCounterpartyChainMessages(
           height
         )
       )
-    );
-    counterpartyMsgs.push(...msgRecvPackets);
+    )
+    counterpartyMsgs.push(...msgRecvPackets)
     counterpartyChain.inc(
       metrics.chain.handlePacketWorker.recvMsg,
       msgRecvPackets.length
-    );
+    )
 
     const msgAcks = await Promise.all(
       acks.map(async (ack) =>
         generateMsgAck(counterpartyChain, thisChain, ack.packetData, height)
       )
-    );
-    counterpartyMsgs.push(...msgAcks);
+    )
+    counterpartyMsgs.push(...msgAcks)
     counterpartyChain.inc(
       metrics.chain.handlePacketWorker.ackMsg,
       msgAcks.length
-    );
+    )
   }
-  return counterpartyMsgs;
+  return counterpartyMsgs
 }

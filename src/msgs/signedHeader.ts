@@ -2,21 +2,21 @@ import {
   Header,
   Commit,
   SignedHeader,
-} from "cosmjs-types/tendermint/types/types";
-import { Timestamp } from "cosmjs-types/google/protobuf/timestamp";
-import { BlockIDFlag } from "@initia/initia.proto/tendermint/types/validator";
-import { Chain } from "src/chain";
+} from 'cosmjs-types/tendermint/types/types'
+import { Timestamp } from 'cosmjs-types/google/protobuf/timestamp'
+import { BlockIDFlag } from '@initia/initia.proto/tendermint/types/validator'
+import { Chain } from 'src/chain'
 import {
   BlockIdFlag,
   ReadonlyDateWithNanoseconds,
-} from "@cosmjs/tendermint-rpc";
+} from '@cosmjs/tendermint-rpc'
 
 export async function getSignedHeader(
   chain: Chain,
   height?: number
 ): Promise<SignedHeader> {
-  const commitRes = await chain.rpc.commit(height);
-  const tmCommit = commitRes.commit;
+  const commitRes = await chain.rpc.commit(height)
+  const tmCommit = commitRes.commit
 
   const header = Header.fromPartial({
     ...commitRes.header,
@@ -30,13 +30,13 @@ export async function getSignedHeader(
       hash: commitRes.header.lastBlockId?.hash,
       partSetHeader: commitRes.header.lastBlockId?.parts,
     },
-  });
+  })
 
   const signatures = tmCommit.signatures.map((sig) => ({
     ...sig,
     timestamp: sig.timestamp && timestampFromDateNanos(sig.timestamp),
     blockIdFlag: blockIdFlagConvert(sig.blockIdFlag),
-  }));
+  }))
 
   const commit = Commit.fromPartial({
     height: BigInt(tmCommit.height),
@@ -46,31 +46,31 @@ export async function getSignedHeader(
       partSetHeader: tmCommit.blockId.parts,
     },
     signatures,
-  });
+  })
 
-  return SignedHeader.fromPartial({ header, commit });
+  return SignedHeader.fromPartial({ header, commit })
 }
 
 function blockIdFlagConvert(flag: BlockIdFlag) {
   if (flag === BlockIdFlag.Unknown) {
-    return BlockIDFlag.BLOCK_ID_FLAG_UNKNOWN;
+    return BlockIDFlag.BLOCK_ID_FLAG_UNKNOWN
   } else if (flag === BlockIdFlag.Absent) {
-    return BlockIDFlag.BLOCK_ID_FLAG_ABSENT;
+    return BlockIDFlag.BLOCK_ID_FLAG_ABSENT
   } else if (flag === BlockIdFlag.Commit) {
-    return BlockIDFlag.BLOCK_ID_FLAG_COMMIT;
+    return BlockIDFlag.BLOCK_ID_FLAG_COMMIT
   } else if (flag === BlockIdFlag.Nil) {
-    return BlockIDFlag.BLOCK_ID_FLAG_NIL;
+    return BlockIDFlag.BLOCK_ID_FLAG_NIL
   } else {
-    return BlockIDFlag.UNRECOGNIZED;
+    return BlockIDFlag.UNRECOGNIZED
   }
 }
 
 export function timestampFromDateNanos(
   date: ReadonlyDateWithNanoseconds
 ): Timestamp {
-  const nanos = (date.getTime() % 1000) * 1000000 + (date.nanoseconds ?? 0);
+  const nanos = (date.getTime() % 1000) * 1000000 + (date.nanoseconds ?? 0)
   return Timestamp.fromPartial({
     seconds: BigInt(Math.floor(date.getTime() / 1000)),
     nanos,
-  });
+  })
 }
