@@ -412,7 +412,7 @@ export class Chain {
 
         const channelState =
           await this.counterpartyChain.lcd.apiRequester.get<ChannelState>(
-            `/ibc/core/channel/v1/channels/${recvPackets[path][0].packetData.source_channel}/ports/${recvPackets[path][0].packetData.source_port}`
+            `/ibc/core/channel/v1/channels/${recvPackets[path][0].packetData.destination_channel}/ports/${recvPackets[path][0].packetData.destination_port}`
           )
 
         if (channelState.channel.state !== 'STATE_OPEN') {
@@ -472,9 +472,10 @@ export class Chain {
             [packet.packetData.packet.sequence]
           )
 
-        const channelState = await this.lcd.apiRequester.get<ChannelState>(
-          `/ibc/core/channel/v1/channels/${packet.packetData.packet.source_channel}/ports/${packet.packetData.packet.source_port}`
-        )
+        const channelState =
+          await this.counterpartyChain.lcd.apiRequester.get<ChannelState>(
+            `/ibc/core/channel/v1/channels/${packet.packetData.packet.source_channel}/ports/${packet.packetData.packet.source_port}`
+          )
 
         if (
           unrecivedPackets.sequences[0] &&
