@@ -410,9 +410,10 @@ export class Chain {
       Object.keys(recvPackets).map(async (path) => {
         if (recvPackets[path].length === 0) return
 
-        const channelState = await this.lcd.apiRequester.get<ChannelState>(
-          `/ibc/core/channel/v1/channels/${recvPackets[path][0].packetData.source_channel}/ports/${recvPackets[path][0].packetData.source_port}`
-        )
+        const channelState =
+          await this.counterpartyChain.lcd.apiRequester.get<ChannelState>(
+            `/ibc/core/channel/v1/channels/${recvPackets[path][0].packetData.source_channel}/ports/${recvPackets[path][0].packetData.source_port}`
+          )
 
         if (channelState.channel.state !== 'STATE_OPEN') {
           recvPackets[path] = []
