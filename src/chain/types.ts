@@ -57,3 +57,22 @@ export interface ClientState {
     }
   }
 }
+
+export interface ChannelState {
+  channel: {
+    state: string
+    ordering: string
+    counterparty: {
+      port_id: string
+      channel_id: string
+    }
+    connection_hops: string[]
+    version: string
+    upgrade_sequence: string
+  }
+  proof: null
+  proof_height: {
+    revision_number: string
+    revision_height: string
+  }
+}

@@ -22,6 +22,7 @@ import { RPCClient } from 'src/lib/rpcClient'
 import {
   ChainConfig,
   ChainStatus,
+  ChannelState,
   ClientState,
   PacketEventWithIndex,
   SendPacketEventWithIndex,
@@ -377,6 +378,16 @@ export class Chain {
     await Promise.all(
       Object.keys(timeoutPackets).map(async (path) => {
         if (timeoutPackets[path].length === 0) return
+
+        const channelState = await this.lcd.apiRequester.get<ChannelState>(
+          `/ibc/core/channel/v1/channels/${timeoutPackets[path][0].packetData.source_channel}/ports/${timeoutPackets[path][0].packetData.source_port}`
+        )
+
+        if (channelState.channel.state !== 'STATE_OPEN') {
+          timeoutPackets[path] = []
+          return
+        }
+
         const unrecivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             timeoutPackets[path][0].packetData.destination_port,
@@ -398,6 +409,16 @@ export class Chain {
     await Promise.all(
       Object.keys(recvPackets).map(async (path) => {
         if (recvPackets[path].length === 0) return
+
+        const channelState = await this.lcd.apiRequester.get<ChannelState>(
+          `/ibc/core/channel/v1/channels/${recvPackets[path][0].packetData.source_channel}/ports/${recvPackets[path][0].packetData.source_port}`
+        )
+
+        if (channelState.channel.state !== 'STATE_OPEN') {
+          recvPackets[path] = []
+          return
+        }
+
         const unrecivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             recvPackets[path][0].packetData.destination_port,
@@ -450,7 +471,14 @@ export class Chain {
             [packet.packetData.packet.sequence]
           )
 
-        if (unrecivedPackets.sequences[0]) {
+        const channelState = await this.lcd.apiRequester.get<ChannelState>(
+          `/ibc/core/channel/v1/channels/${packet.packetData.packet.source_channel}/ports/${packet.packetData.packet.source_port}`
+        )
+
+        if (
+          unrecivedPackets.sequences[0] &&
+          channelState.channel.state === 'STATE_OPEN'
+        ) {
           unrecivedSequences.push(Number(unrecivedPackets.sequences[0]))
         }
       })
