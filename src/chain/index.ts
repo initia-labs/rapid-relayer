@@ -50,7 +50,8 @@ export class Chain {
     public lcd: LCDClient,
     public rpc: RPCClient,
     public wallet: WalletManager,
-    public connectionId: string
+    public connectionId: string,
+    public channelIds?: string[]
   ) {
     this.packetsToHandle = []
     this.workers = {}

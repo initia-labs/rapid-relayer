@@ -9,6 +9,7 @@ export interface ChainConfig {
   rpcUri: string
   key: Key
   connectionId: string
+  channelIds?: string[]
   syncInfo?: {
     height: number
     txIndex: number

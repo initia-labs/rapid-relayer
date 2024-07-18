@@ -4,7 +4,8 @@ import { Ack } from 'src/msgs'
 
 export function parseSendPacketEvent(
   event: Event,
-  connectionId: string
+  connectionId: string,
+  channelIds?: string[]
 ): Packet | undefined {
   if (event.type !== 'send_packet') return
 
@@ -26,6 +27,10 @@ export function parseSendPacketEvent(
   const srcChannel = event.attributes.filter(
     (v) => v.key === 'packet_src_channel'
   )[0].value
+
+  if (channelIds && !channelIds.includes(srcChannel)) {
+    return
+  }
 
   const dstPort = event.attributes.filter((v) => v.key === 'packet_dst_port')[0]
     .value
@@ -66,7 +71,8 @@ export function parseSendPacketEvent(
 
 export function parseWriteAckEvent(
   event: Event,
-  connectionId: string
+  connectionId: string,
+  channelIds?: string[]
 ): Ack | undefined {
   if (event.type !== 'write_acknowledgement') return
 
@@ -95,6 +101,10 @@ export function parseWriteAckEvent(
   const dstChannel = event.attributes.filter(
     (v) => v.key === 'packet_dst_channel'
   )[0].value
+
+  if (channelIds && !channelIds.includes(dstChannel)) {
+    return
+  }
 
   const data = Buffer.from(
     event.attributes.filter((v) => v.key === 'packet_data')[0].value
