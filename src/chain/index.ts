@@ -76,7 +76,13 @@ export class Chain {
     const wallet = new Wallet(lcd, config.key)
     const walletManager = new WalletManager(wallet, config.bech32Prefix)
 
-    const chain = new Chain(lcd, rpc, walletManager, config.connectionId)
+    const chain = new Chain(
+      lcd,
+      rpc,
+      walletManager,
+      config.connectionId,
+      config.channelIds
+    )
     chain.clientId = (await lcd.ibc.connection(config.connectionId)).client_id
 
     await chain.updateLatestHeight()
@@ -554,7 +560,11 @@ export class Chain {
 
     txData.map((data, i) => {
       for (const event of data.events) {
-        const sendPacket = parseSendPacketEvent(event, this.connectionId)
+        const sendPacket = parseSendPacketEvent(
+          event,
+          this.connectionId,
+          this.channelIds
+        )
         if (sendPacket) {
           packetEvents.push({
             height,
@@ -566,7 +576,11 @@ export class Chain {
           this.inc(metrics.chain.eventFeederWorker.sendPacket)
         }
 
-        const writeAck = parseWriteAckEvent(event, this.connectionId)
+        const writeAck = parseWriteAckEvent(
+          event,
+          this.connectionId,
+          this.channelIds
+        )
         if (writeAck) {
           packetEvents.push({
             height,
