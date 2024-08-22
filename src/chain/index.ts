@@ -123,7 +123,7 @@ export class Chain {
 
     this.debug('Activate packet handler')
 
-    for (;;) {
+    for (; ;) {
       try {
         const packets = this.packetsToHandle.slice(0, 50) // TODO make this configurable
         if (packets.length === 0) {
@@ -186,8 +186,7 @@ export class Chain {
         )
 
         this.info(
-          `Request handle packet to wallet manager. This chain - ${
-            timeoutPackets.length == 0 ? 0 : timeoutPackets.length + 1
+          `Request handle packet to wallet manager. This chain - ${timeoutPackets.length == 0 ? 0 : timeoutPackets.length + 1
           }. Counterparty chain - ${counterpartyMsgs.length}`
         )
 
@@ -225,7 +224,7 @@ export class Chain {
 
     this.debug('Activate event feeder')
 
-    for (;;) {
+    for (; ;) {
       try {
         if (this.packetsToHandle.length > 1000) continue
 
@@ -265,18 +264,18 @@ export class Chain {
   private async latestHeightWorker() {
     // to prevent rerun
     if (
-      (this.workers['latest_height_worekr'] ?? 0) >
+      (this.workers['latest_height_worker'] ?? 0) >
       new Date().valueOf() - 5 * 60 * 1000
     ) {
       return
     }
 
-    this.debug('Activate latest height worekr')
+    this.debug('Activate latest height worker')
 
     // TODO add websocket options
     const MAX_RETRY = 10
     let retried = 0
-    for (;;) {
+    for (; ;) {
       try {
         await this.updateLatestHeight()
         this.debug(
@@ -307,7 +306,7 @@ export class Chain {
           )
         }
       } finally {
-        this.workers['latest_height_worekr'] = new Date().valueOf()
+        this.workers['latest_height_worker'] = new Date().valueOf()
         await delay(1000)
       }
     }
@@ -469,10 +468,8 @@ export class Chain {
 
     if (counterpartyConnectionId !== this.counterpartyChain.connectionId) {
       throw Error(
-        `"${this.chainId()} - ${
-          this.connectionId
-        }" is not connected with "${this.counterpartyChain.chainId()} - ${
-          this.counterpartyChain.connectionId
+        `"${this.chainId()} - ${this.connectionId
+        }" is not connected with "${this.counterpartyChain.chainId()} - ${this.counterpartyChain.connectionId
         }"`
       )
     }
