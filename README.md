@@ -87,7 +87,7 @@ docker build -t  your-tag .
 ```
 mount a volume called '/config' which contains your config.json
 ```bash
-docker run -it -v/tmp/rr/config:/config -d  test
+docker run -it -v/tmp/rr/config:/config -d  rapid-relayer:latest
 ```
 this should start the relayer in a docker container using your config.
 
