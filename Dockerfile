@@ -10,6 +10,7 @@ RUN tsc
 
 ENV CONFIGFILE=/config/config.json
 ENV SYNC_INFO=/syncInfo/syncInfo
+EXPOSE 3000
 VOLUME /config
 VOLUME /syncInfo
 
