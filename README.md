@@ -81,6 +81,15 @@ npm install
 ```bash
 npm start
 ```
+## Install via docker
+```bash 
+docker build -t  your-tag .
+```
+mount a volume called '/config' which contains your config.json
+```bash
+docker run -it -v/tmp/rr/config:/config -d  test
+```
+this should start the relayer in a docker container using your config.
 
 ## SyncInfo
 

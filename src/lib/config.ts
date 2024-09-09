@@ -1,8 +1,9 @@
 import * as fs from 'fs'
 import { ConfigPair } from './chainPair'
+import { env } from 'node:process'
 
 export const config: Config = JSON.parse(
-  fs.readFileSync('./config.json').toString()
+  fs.readFileSync(env.CONFIGFILE || './config.json').toString()
 ) as Config // TODO: get path of config
 
 export interface Config {
