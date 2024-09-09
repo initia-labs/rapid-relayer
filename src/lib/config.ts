@@ -12,3 +12,5 @@ export interface Config {
   logLevel: string
   pairs: ConfigPair[]
 }
+
+export const syncInfoFile = env.SYNC_INFO || './.syncInfo'
