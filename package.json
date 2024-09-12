@@ -18,7 +18,7 @@
     "@cosmjs/tendermint-rpc": "^0.32.3",
     "@initia/initia.js": "^0.2.5",
     "@initia/initia.proto": "^0.2.0",
-    "axios": "^1.7.2",
+    "axios": "^1.7.5",
     "bech32": "^2.0.0",
     "bluebird": "^3.7.2",
     "express": "^4.19.2",
