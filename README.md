@@ -81,6 +81,16 @@ npm install
 ```bash
 npm start
 ```
+## Install via docker
+```bash 
+docker build -t  your-tag .
+```
+mount a volume called '/config' which contains your config.json 
+and a /syncInfo volume which will contain the state 
+```bash
+docker run -it -v/tmp/rr/config:/config -v/tmp/rr/syncInfo:/syncInfo -d  rapid-relayer:latest
+```
+this should start the relayer in a docker container using your config, and placing the state in a separate volume
 
 ## SyncInfo
 

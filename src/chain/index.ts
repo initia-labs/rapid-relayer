@@ -30,6 +30,7 @@ import {
 } from './types'
 import { metrics } from 'src/lib/metric'
 import { Counter } from 'prom-client'
+import { syncInfoFile } from '../lib/config'
 
 export class Chain {
   private syncInfo: {
@@ -79,9 +80,9 @@ export class Chain {
 
     await chain.updateLatestHeight()
     const syncInfo = fs.existsSync(chain.syncFilePath())
-    const dir = fs.existsSync('./.syncInfo')
+    const dir = fs.existsSync(syncInfoFile)
     if (!dir) {
-      fs.mkdirSync('./.syncInfo')
+      fs.mkdirSync(syncInfoFile)
     }
     if (!syncInfo) {
       chain.updatesyncInfo(config.syncInfo ?? { height: 1, txIndex: 0 })
@@ -553,7 +554,7 @@ export class Chain {
   }
 
   private syncFilePath(): string {
-    return `./.syncInfo/${this.lcd.config.chainId}_${this.connectionId}.json`
+    return `${syncInfoFile}/${this.lcd.config.chainId}_${this.connectionId}.json`
   }
 
   private chainId(): string {
