@@ -255,7 +255,7 @@ export class Chain {
         this.packetsToHandle.push(...results)
         this.fedHeight = heights[heights.length - 1]
       } catch (e) {
-        this.error(`Fail to fecth block result. resonse - ${e}`)
+        this.error(`Fail to fetch block result. resonse - ${e}`)
       } finally {
         this.workers['event_feeder'] = new Date().valueOf()
         await delay(100)
@@ -516,7 +516,7 @@ export class Chain {
   private async fetchBlockResult(
     height: number
   ): Promise<PacketEventWithIndex[]> {
-    this.debug(`Fecth new block results (height - ${height})`)
+    this.debug(`Fetch new block results (height - ${height})`)
     const blockResult = await this.rpc.blockResults(height)
     const txData = [...blockResult.results]
 
