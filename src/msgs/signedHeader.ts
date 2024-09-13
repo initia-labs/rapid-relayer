@@ -5,14 +5,14 @@ import {
 } from 'cosmjs-types/tendermint/types/types'
 import { Timestamp } from 'cosmjs-types/google/protobuf/timestamp'
 import { BlockIDFlag } from '@initia/initia.proto/tendermint/types/validator'
-import { Chain } from 'src/chain'
 import {
   BlockIdFlag,
   ReadonlyDateWithNanoseconds,
 } from '@cosmjs/tendermint-rpc'
+import { ChainWorker } from 'src/workers/chain'
 
 export async function getSignedHeader(
-  chain: Chain,
+  chain: ChainWorker,
   height?: number
 ): Promise<SignedHeader> {
   const commitRes = await chain.rpc.commit(height)

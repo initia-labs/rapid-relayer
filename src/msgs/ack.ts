@@ -4,41 +4,44 @@ import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ProofOps } from 'cosmjs-types/tendermint/crypto/proof'
 import { CommitmentProof } from 'cosmjs-types/cosmos/ics23/v1/proofs'
 import { MerkleProof } from 'cosmjs-types/ibc/core/commitment/v1/commitment'
-import { Chain } from 'src/chain'
+
 import { Transfrom } from 'src/lib/transform'
 import { getRawProof } from 'src/lib/rawProof'
+import { ChainWorker } from 'src/workers/chain'
+import { PacketWriteAckTable } from 'src/types'
+import { packetTableToPacket } from 'src/db/utils'
 
 export async function generateMsgAck(
-  srcChain: Chain,
-  destChain: Chain,
-  ack: Ack,
-  height: Height
+  dstChain: ChainWorker,
+  ack: PacketWriteAckTable,
+  height: Height,
+  executorAddress: string
 ) {
-  const proof = await getAckProof(destChain, ack, height)
+  const packet = packetTableToPacket(ack)
+  const proof = await getAckProof(dstChain, packet, height)
   const msg = new MsgAcknowledgement(
-    ack.packet,
-    ack.acknowledgement,
+    packet,
+    ack.ack,
     proof,
     Transfrom.height(height),
-    srcChain.wallet.address()
+    executorAddress
   )
 
   return msg
 }
 
 async function getAckProof(
-  destChain: Chain,
-  ack: Ack,
+  dstChain: ChainWorker,
+  packet: Packet,
   headerHeight: Height
 ): Promise<string> {
-  const packet = ack.packet
   const key = new Uint8Array(
     Buffer.from(
       `acks/ports/${packet.destination_port}/channels/${packet.destination_channel}/sequences/${packet.sequence}`
     )
   )
 
-  const proof = await getRawProof(destChain, key, headerHeight)
+  const proof = await getRawProof(dstChain, key, headerHeight)
 
   const ics23Proof = convertProofsToIcs23(proof)
 

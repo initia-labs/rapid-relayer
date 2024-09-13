@@ -1,11 +1,11 @@
 import { ics23 } from '@confio/ics23'
 import { tendermint34 } from '@cosmjs/tendermint-rpc'
-import { Chain } from 'src/chain'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ProofOps } from 'cosmjs-types/tendermint/crypto/proof'
+import { ChainWorker } from 'src/workers/chain'
 
 export async function getRawProof(
-  chain: Chain,
+  chain: ChainWorker,
   queryKey: Uint8Array,
   proofHeight: Height
 ): Promise<ProofOps> {
