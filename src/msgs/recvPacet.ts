@@ -5,7 +5,7 @@ import { Transfrom } from 'src/lib/transform'
 import { getRawProof } from 'src/lib/rawProof'
 import { convertProofsToIcs23 } from './ack'
 import { ChainWorker } from 'src/workers/chain'
-import { PacketSendTable } from 'src/db/types'
+import { PacketSendTable } from 'src/types'
 import { packetTableToPacket } from 'src/db/utils'
 
 export async function generateMsgRecvPacket(

@@ -4,16 +4,14 @@ import {
   SendPacketEvent,
   TimeoutPacketEvent,
   WriteAckEvent,
-} from 'src/chain/types'
+  PacketSendTable,
+  PacketTimeoutTable,
+  PacketWriteAckTable,
+} from 'src/types'
 import { DB } from '..'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
 import { LCDClient } from '@initia/initia.js'
 import { ConnectionController } from './connection'
-import {
-  PacketSendTable,
-  PacketTimeoutTable,
-  PacketWriteAckTable,
-} from '../types'
 
 export class PacketController {
   private static tableNamePacketSend = 'packet_send'
