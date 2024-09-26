@@ -174,6 +174,8 @@ function where<T>(wheres?: WhereOptions<T>[]): [string, ParamType[]] {
 
             condition.push(`(${rangeConditions.join(' AND ')})`)
           }
+        } else if (key === 'custom') {
+          condition.push(value)
         } else {
           condition.push(`${String(key)} = ?`)
           params.push(toParamType(value))
@@ -194,7 +196,7 @@ function where<T>(wheres?: WhereOptions<T>[]): [string, ParamType[]] {
 
 export type WhereOptions<T> = {
   [P in keyof T]?: T[P] | Range<T[P]> | In<T[P]>
-}
+} & { custom?: string }
 
 interface Range<V> {
   gt?: V

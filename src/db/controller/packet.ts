@@ -13,6 +13,7 @@ import { DB } from '..'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
 import { LCDClient } from '@initia/initia.js'
 import { ConnectionController } from './connection'
+import { Database } from 'better-sqlite3'
 
 export class PacketController {
   private static tableNamePacketSend = 'packet_send'
@@ -53,6 +54,8 @@ export class PacketController {
 
   public static getSendPackets(
     chainId: string,
+    height: number,
+    timestamp: number,
     counterpartyChainIds: string[],
     filter: PacketFilter = {},
     limit = 100
@@ -66,13 +69,15 @@ export class PacketController {
           dst_connection_id: conn.connectionId,
           dst_channel_id: conn.channels ? In(conn.channels) : undefined,
           src_chain_id: In(counterpartyChainIds), // TODO: make this more efficientnet, like filter it on outside of this.
+          custom: `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})`,
         }))
       )
     } else {
       wheres.push({
-        in_progress: Boolean.TRUE,
+        in_progress: Boolean.FALSE,
         dst_chain_id: chainId,
         src_chain_id: In(counterpartyChainIds),
+        custom: `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})`,
       })
     }
 
@@ -82,7 +87,7 @@ export class PacketController {
   public static getTimeoutPackets(
     chainId: string,
     height: number,
-    timetstamp: number,
+    timestamp: number,
     counterpartyChainIds: string[],
     filter: PacketFilter = {},
     limit = 100
@@ -97,8 +102,7 @@ export class PacketController {
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
           dst_chain_id: In(counterpartyChainIds), // TODO: make this more efficientnet, like filter it on outside of this.
-          height: { lt: height, gt: 0 },
-          timetstamp: { lt: timetstamp, gt: 0 },
+          custom: `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)`,
         }))
       )
     } else {
@@ -106,6 +110,7 @@ export class PacketController {
         in_progress: Boolean.FALSE,
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
+        custom: `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)`,
       })
     }
 
@@ -206,6 +211,19 @@ export class PacketController {
         },
       ]
     )
+  }
+
+  public static resetPacketInProgress(db?: Database) {
+    db = db ?? DB
+    update<PacketSendTable>(db, this.tableNamePacketSend, {
+      in_progress: Boolean.FALSE,
+    })
+    update<PacketTimeoutTable>(db, this.tableNamePacketTimeout, {
+      in_progress: Boolean.FALSE,
+    })
+    update<PacketWriteAckTable>(db, this.tableNamePacketWriteAck, {
+      in_progress: Boolean.FALSE,
+    })
   }
 
   private static async feedSendPacketEvent(

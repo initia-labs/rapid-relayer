@@ -28,6 +28,7 @@ import { env } from 'node:process'
 import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
 import * as https from 'https'
+import { PacketFilter } from 'src/db/controller/packet'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -84,13 +85,56 @@ export class WorkerController {
           walletConfig.packetFilter
         )
 
-        this.wallets[`${chainConfig.chainId}::${wallet.address()}`]
+        this.wallets[`${chainConfig.chainId}::${wallet.address()}`] = wallet
       }
     }
   }
 
   public getChainIds(): string[] {
     return Object.keys(this.chains)
+  }
+
+  public getStatus(): { chains: ChainStatus[] } {
+    const chainKeys = Object.keys(this.chains)
+    const walletKeys = Object.keys(this.wallets)
+
+    const chains: ChainStatus[] = chainKeys.map((key) => {
+      const chain = this.chains[key]
+      const syncWorkerKeys = Object.keys(chain.syncWorkers)
+      const syncWorkers = syncWorkerKeys.map((key) => {
+        const syncWorker = chain.syncWorkers[Number(key)]
+        return {
+          startHeight: syncWorker.startHeight,
+          endHeight: syncWorker.endHeight === -1 ? null : syncWorker.endHeight,
+          syncedHeight: syncWorker.syncedHeight,
+        }
+      })
+
+      return {
+        chainId: chain.chainId,
+        latestHeight: chain.latestHeight,
+        latestTimestamp: new Date(chain.latestTimestamp),
+        syncWorkers,
+        walletWorkers: [],
+      }
+    })
+
+    walletKeys.map((key) => {
+      const wallet = this.wallets[key]
+      const walletWorker = {
+        address: wallet.address(),
+        packetFilter: wallet.packetFilter,
+      }
+
+      const chain = chains.filter(
+        (chain) => chain.chainId === wallet.chain.chainId
+      )
+      chain[0].walletWorkers.push(walletWorker)
+    })
+
+    return {
+      chains,
+    }
   }
 
   async generateMsgUpdateClient(
@@ -109,9 +153,9 @@ export class WorkerController {
     )
 
     return generateMsgUpdateClient(
-      this.chains[chainId],
       this.chains[client.counterparty_chain_id],
-      client.counterparty_chain_id,
+      this.chains[chainId],
+      client.client_id,
       executorAddress
     )
   }
@@ -177,4 +221,19 @@ function createKey(rawKey: KeyConfig): Key {
     }
   }
   return keyReturn
+}
+
+interface ChainStatus {
+  chainId: string
+  latestHeight: number
+  latestTimestamp: Date
+  syncWorkers: {
+    startHeight: number
+    endHeight: number | null
+    syncedHeight: number
+  }[]
+  walletWorkers: {
+    address: string
+    packetFilter?: PacketFilter
+  }[]
 }

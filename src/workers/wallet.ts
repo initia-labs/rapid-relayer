@@ -24,7 +24,7 @@ export class WalletWorker {
     public workerController: WorkerController,
     private maxHandlePacket: number,
     private wallet: Wallet,
-    private packetFilter?: PacketFilter
+    public packetFilter?: PacketFilter
   ) {
     this.run()
   }
@@ -41,6 +41,8 @@ export class WalletWorker {
   }
 
   private async handlePackets() {
+    if (this.chain.latestHeight === 0) return
+
     // get packets to handle
     let remain = this.maxHandlePacket
 
@@ -50,6 +52,8 @@ export class WalletWorker {
 
     const sendPakcets = PacketController.getSendPackets(
       this.chain.chainId,
+      this.chain.latestHeight,
+      Number((this.chain.latestTimestamp / 1000).toFixed()),
       counterpartyChainIds,
       this.packetFilter,
       remain
@@ -115,9 +119,9 @@ export class WalletWorker {
       // generate update client msgs
       // get unique client id
       const connections = [
-        ...filteredSendPackets.map((packet) => packet.src_connection_id),
-        ...filteredWriteAckPackets.map((packet) => packet.dst_connection_id),
-        ...filteredTimeoutPackets.map((packet) => packet.dst_connection_id),
+        ...filteredSendPackets.map((packet) => packet.dst_connection_id),
+        ...filteredWriteAckPackets.map((packet) => packet.src_connection_id),
+        ...filteredTimeoutPackets.map((packet) => packet.src_connection_id),
       ].filter((v, i, a) => a.indexOf(v) === i) // filter by connection first
 
       const connectionClientMap: Record<string, string> = {}
@@ -234,7 +238,8 @@ export class WalletWorker {
       }
 
       this.sequence++
-    } catch {
+    } catch (e) {
+      this.error(JSON.stringify(e, undefined, 2))
       // revert packet in progress
       DB.transaction(() => {
         sendPakcets.map((packet) =>
