@@ -74,7 +74,7 @@ export function select<T>(
   limit?: number
 ): T[] {
   let sql = `SELECT * FROM ${tableName}`
-  const params = []
+  const params: ParamType[] = []
   const [whereSql, whereParams] = where(wheres)
   sql += whereSql
   params.push(...whereParams)
@@ -104,7 +104,7 @@ export function del<T>(
   wheres?: WhereOptions<T>[]
 ) {
   let sql = `DELETE from ${tableName}`
-  const params = []
+  const params: ParamType[] = []
   const [whereSql, whereParams] = where(wheres)
   sql += whereSql
   params.push(...whereParams)
@@ -131,11 +131,11 @@ export function update<T>(
   db.prepare<unknown[], T>(sql).run(params, set)
 }
 
-function where<T>(wheres?: WhereOptions<T>[]): [string, unknown[]] {
+function where<T>(wheres?: WhereOptions<T>[]): [string, ParamType[]] {
   let sql = ''
 
   const conditions = []
-  const params = []
+  const params: ParamType[] = []
 
   if (wheres) {
     for (const where of wheres) {
@@ -147,36 +147,36 @@ function where<T>(wheres?: WhereOptions<T>[]): [string, unknown[]] {
           if ('in' in value) {
             const vals = value.in as unknown[]
             const placeHolder = vals.map((_) => '?').join(',')
-            condition.push(`IN(${placeHolder})`)
-            params.push(...vals)
+            condition.push(`${String(key)} IN(${placeHolder})`)
+            params.push(...vals.map(toParamType))
           } else {
             const rangeConditions: string[] = []
 
             // if both gt and gte are given, use gt
             if ('gte' in value && !('gt' in value)) {
               rangeConditions.push(`${String(key)} >= ?`)
-              params.push(value.gte)
+              params.push(toParamType(value.gte))
             }
             if ('gt' in value) {
               rangeConditions.push(`${String(key)} > ?`)
-              params.push(value.gt)
+              params.push(toParamType(value.gt))
             }
 
             // if both lt and lte are given, use lt
             if ('lte' in value && !('lt' in value)) {
               rangeConditions.push(`${String(key)} <= ?`)
-              params.push(value.lte)
+              params.push(toParamType(value.lte))
             }
             if ('lt' in value) {
               rangeConditions.push(`${String(key)} < ?`)
-              params.push(value.lt)
+              params.push(toParamType(value.lt))
             }
 
             condition.push(`(${rangeConditions.join(' AND ')})`)
           }
         } else {
           condition.push(`${String(key)} = ?`)
-          params.push(value)
+          params.push(toParamType(value))
         }
       }
       if (condition.length !== 0) {
@@ -209,4 +209,20 @@ interface In<V> {
 
 export function In<T>(array: T[]): In<T> {
   return { in: array }
+}
+
+type ParamType = number | string | bigint | Buffer | null
+
+function toParamType<T>(p: T): ParamType {
+  if (
+    typeof p === 'number' ||
+    typeof p === 'string' ||
+    typeof p === 'bigint' ||
+    p === null ||
+    Buffer.isBuffer(p)
+  ) {
+    return p as number | string | bigint | Buffer | null
+  }
+
+  return String(p)
 }

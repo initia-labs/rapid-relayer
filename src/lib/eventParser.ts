@@ -24,10 +24,12 @@ export function parsePacketEvent(event: Event): PacketInfo {
     (v) => v.key === 'packet_dst_channel'
   )[0].value
 
-  const data = Buffer.from(
-    event.attributes.filter((v) => v.key === 'packet_data_hex')[0].value,
-    'hex'
-  ).toString('base64')
+  const dataHex = event.attributes.filter((v) => v.key === 'packet_data_hex')
+
+  const data =
+    dataHex.length === 0
+      ? undefined
+      : Buffer.from(dataHex[0].value, 'hex').toString('base64')
 
   const timeoutHeightRaw = event.attributes.filter(
     (v) => v.key === 'packet_timeout_height'
@@ -40,12 +42,12 @@ export function parsePacketEvent(event: Event): PacketInfo {
   )[0].value
   const timeoutTimestamp = Number(BigInt(timeoutTimestampRaw) / 1_000_000_000n) // store in second
 
-  const ack_hex = event.attributes.filter((v) => v.key === 'packet_ack_hex')
+  const ackHex = event.attributes.filter((v) => v.key === 'packet_ack_hex')
 
   const ack =
-    ack_hex.length === 0
+    ackHex.length === 0
       ? undefined
-      : Buffer.from(ack_hex[0].value, 'hex').toString('base64')
+      : Buffer.from(ackHex[0].value, 'hex').toString('base64')
 
   return {
     connectionId,

@@ -33,7 +33,7 @@ export interface PacketInfo {
   srcChannel: string
   dstPort: string
   dstChannel: string
-  data: string
+  data?: string
   timeoutHeight: number
   timeoutTimestamp: number
   timeoutHeightRaw: string

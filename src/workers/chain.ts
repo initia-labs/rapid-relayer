@@ -6,6 +6,7 @@ import { parsePacketEvent } from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
+import { delay } from 'bluebird'
 
 export class ChainWorker {
   public latestHeight: number
@@ -26,6 +27,7 @@ export class ChainWorker {
       startHeights,
       latestHeight
     )
+    this.syncWorkers = {}
     for (const syncInfo of syncInfos) {
       this.syncWorkers[syncInfo.start_height] = new SyncWorker(
         this,
@@ -135,7 +137,15 @@ class SyncWorker {
 
         let finish = false
 
-        await DB.transaction(async () => {
+        const feed = await PacketController.feedEvents(
+          this.chain.lcd,
+          this.chain.chainId,
+          packetEvenets.flat()
+        )
+
+        DB.transaction(() => {
+          feed()
+
           finish = SyncInfoController.update(
             this.chain.chainId,
             this.startHeight,
@@ -143,14 +153,10 @@ class SyncWorker {
             heights[heights.length - 1]
           )
 
-          await PacketController.feedEvents(
-            this.chain.lcd,
-            this.chain.chainId,
-            packetEvenets.flat()
-          )
-
           this.debug(`Store packet events(${packetEvenets.flat().length})`)
         })()
+
+        this.syncedHeight = heights[heights.length - 1]
 
         // terminate worker
         if (finish) {
@@ -162,6 +168,8 @@ class SyncWorker {
         }
       } catch (e) {
         this.error(`Fail to fecth block result. resonse - ${e}`)
+      } finally {
+        await delay(500)
       }
     }
   }
@@ -199,19 +207,19 @@ class SyncWorker {
 
   private info(log: string) {
     info(
-      `<SyncWorker(${this.chain.chainId}-${this.startHeight}-${this.endHeight})> ${log}`
+      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
     )
   }
 
   private error(log: string) {
     error(
-      `<SyncWorker(${this.chain.chainId}-${this.startHeight}-${this.endHeight})> ${log}`
+      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
     )
   }
 
   private debug(log: string) {
     debug(
-      `<SyncWorker(${this.chain.chainId}-${this.startHeight}-${this.endHeight})> ${log}`
+      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
     )
   }
 }

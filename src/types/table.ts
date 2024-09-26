@@ -33,7 +33,7 @@ export interface PacketSendTable {
   dst_connection_id: string
   dst_channel_id: string
   sequence: number
-  in_progress: boolean
+  in_progress: Boolean
   dst_port: string
   src_chain_id: string
   src_connection_id: string
@@ -51,7 +51,7 @@ export interface PacketTimeoutTable {
   src_connection_id: string
   src_channel_id: string
   sequence: number
-  in_progress: boolean
+  in_progress: Boolean
   src_port: string
   dst_chain_id: string
   dst_connection_id: string
@@ -69,7 +69,7 @@ export interface PacketWriteAckTable {
   src_connection_id: string
   src_channel_id: string
   sequence: number
-  in_progress: boolean
+  in_progress: Boolean
   src_port: string
   dst_chain_id: string
   dst_connection_id: string
@@ -81,4 +81,9 @@ export interface PacketWriteAckTable {
   timeout_timestamp: number
   timeout_height_raw: string
   timeout_timestamp_raw: string
+}
+
+export enum Boolean {
+  TRUE = 1,
+  FALSE = 0,
 }

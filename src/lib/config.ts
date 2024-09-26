@@ -23,7 +23,6 @@ interface ChainConfig {
 }
 
 interface WalletConfig {
-  chainId: string
   key: KeyConfig
   maxHandlePakcet?: number // max packet amount that handle at once
   packetFilter?: PacketFilter

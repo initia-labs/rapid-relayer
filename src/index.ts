@@ -12,7 +12,6 @@ import { WorkerController } from './workers'
 async function main() {
   const workerController = new WorkerController()
   await workerController.init(config)
-
   // const app = express()
 
   // app.get('/status', (req, res) => {

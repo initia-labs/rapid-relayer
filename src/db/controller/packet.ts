@@ -7,6 +7,7 @@ import {
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
+  Boolean,
 } from 'src/types'
 import { DB } from '..'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
@@ -22,21 +23,30 @@ export class PacketController {
     lcd: LCDClient,
     chainId: string,
     events: PacketEvent[]
-  ) {
+  ): Promise<() => void> {
+    const feedFns: (() => void)[] = []
     for (const event of events) {
       switch (event.type) {
         case 'send_packet':
-          await this.feedSendPacketEvent(lcd, chainId, event)
+          feedFns.push(await this.feedSendPacketEvent(lcd, chainId, event))
           break
         case 'write_acknowledgement':
-          await this.feedWriteAckEvent(lcd, chainId, event)
+          feedFns.push(await this.feedWriteAckEvent(lcd, chainId, event))
           break
         case 'acknowledge_packet':
-          await this.feedAcknowledgePacketEvent(lcd, chainId, event)
+          feedFns.push(
+            await this.feedAcknowledgePacketEvent(lcd, chainId, event)
+          )
           break
         case 'timeout_packet':
-          await this.feedTimeoutPacketEvent(lcd, chainId, event)
+          feedFns.push(await this.feedTimeoutPacketEvent(lcd, chainId, event))
           break
+      }
+    }
+
+    return () => {
+      for (const fn of feedFns) {
+        fn()
       }
     }
   }
@@ -51,7 +61,7 @@ export class PacketController {
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
-          in_progress: false,
+          in_progress: Boolean.FALSE,
           dst_chain_id: chainId,
           dst_connection_id: conn.connectionId,
           dst_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -60,7 +70,7 @@ export class PacketController {
       )
     } else {
       wheres.push({
-        in_progress: false,
+        in_progress: Boolean.TRUE,
         dst_chain_id: chainId,
         src_chain_id: In(counterpartyChainIds),
       })
@@ -82,7 +92,7 @@ export class PacketController {
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
-          in_progress: false,
+          in_progress: Boolean.FALSE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -93,7 +103,7 @@ export class PacketController {
       )
     } else {
       wheres.push({
-        in_progress: false,
+        in_progress: Boolean.FALSE,
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
       })
@@ -118,7 +128,7 @@ export class PacketController {
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
-          in_progress: false,
+          in_progress: Boolean.FALSE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -127,7 +137,7 @@ export class PacketController {
       )
     } else {
       wheres.push({
-        in_progress: false,
+        in_progress: Boolean.FALSE,
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
       })
@@ -148,7 +158,7 @@ export class PacketController {
     update<PacketSendTable>(
       DB,
       this.tableNamePacketSend,
-      { in_progress: inProgress },
+      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
       [
         {
           dst_chain_id: packet.dst_chain_id,
@@ -167,7 +177,7 @@ export class PacketController {
     update<PacketTimeoutTable>(
       DB,
       this.tableNamePacketTimeout,
-      { in_progress: inProgress },
+      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
       [
         {
           src_chain_id: packet.src_chain_id,
@@ -186,7 +196,7 @@ export class PacketController {
     update<PacketWriteAckTable>(
       DB,
       this.tableNamePacketWriteAck,
-      { in_progress: inProgress },
+      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
       [
         {
           src_chain_id: packet.src_chain_id,
@@ -202,7 +212,7 @@ export class PacketController {
     lcd: LCDClient,
     chainId: string,
     event: SendPacketEvent
-  ) {
+  ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
       lcd,
@@ -216,20 +226,18 @@ export class PacketController {
       dst_connection_id: connection.counterparty_connection_id,
       dst_channel_id: event.packetInfo.dstChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: false,
+      in_progress: Boolean.FALSE,
       dst_port: event.packetInfo.dstPort,
       src_chain_id: chainId,
       src_connection_id: event.packetInfo.connectionId,
       src_port: event.packetInfo.srcPort,
       src_channel_id: event.packetInfo.srcChannel,
-      packet_data: event.packetInfo.data,
+      packet_data: event.packetInfo.data as string,
       timeout_height: Number(event.packetInfo.timeoutHeight),
       timeout_timestamp: Number(event.packetInfo.timeoutTimestamp),
       timeout_height_raw: event.packetInfo.timeoutHeightRaw,
       timeout_timestamp_raw: event.packetInfo.timeoutTimestampRaw,
     }
-
-    insert(DB, this.tableNamePacketSend, packetSend)
 
     // add packet timeout on source chain
     const packetTimeout: PacketTimeoutTable = {
@@ -237,43 +245,36 @@ export class PacketController {
       src_connection_id: event.packetInfo.connectionId,
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: false,
+      in_progress: Boolean.FALSE,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: connection.counterparty_chain_id,
       dst_connection_id: connection.counterparty_connection_id,
       dst_port: event.packetInfo.dstPort,
       dst_channel_id: event.packetInfo.dstChannel,
-      packet_data: event.packetInfo.data,
+      packet_data: event.packetInfo.data as string,
       timeout_height: Number(event.packetInfo.timeoutHeight),
       timeout_timestamp: Number(event.packetInfo.timeoutTimestamp),
       timeout_height_raw: event.packetInfo.timeoutHeightRaw,
       timeout_timestamp_raw: event.packetInfo.timeoutTimestampRaw,
     }
 
-    insert(DB, this.tableNamePacketTimeout, packetTimeout)
+    return () => {
+      insert(DB, this.tableNamePacketSend, packetSend)
+      insert(DB, this.tableNamePacketTimeout, packetTimeout)
+    }
   }
 
   private static async feedWriteAckEvent(
     lcd: LCDClient,
     chainId: string,
     event: WriteAckEvent
-  ) {
+  ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
       lcd,
       chainId,
       event.packetInfo.connectionId
     )
-
-    // remove pakcet send
-    del<PacketSendTable>(DB, this.tableNamePacketSend, [
-      {
-        dst_chain_id: chainId,
-        dst_connection_id: event.packetInfo.connectionId,
-        dst_channel_id: event.packetInfo.dstChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
 
     // add packet write ack on src chain
     const packetWriteAck: PacketWriteAckTable = {
@@ -281,28 +282,38 @@ export class PacketController {
       src_connection_id: connection.counterparty_connection_id,
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: false,
+      in_progress: Boolean.FALSE,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: chainId,
       dst_connection_id: event.packetInfo.connectionId,
       dst_port: event.packetInfo.dstPort,
       dst_channel_id: event.packetInfo.dstChannel,
-      packet_data: event.packetInfo.data,
+      packet_data: event.packetInfo.data as string,
       ack: event.packetInfo.ack as string,
       timeout_height: Number(event.packetInfo.timeoutHeight),
       timeout_timestamp: Number(event.packetInfo.timeoutTimestamp),
       timeout_height_raw: event.packetInfo.timeoutHeightRaw,
       timeout_timestamp_raw: event.packetInfo.timeoutTimestampRaw,
     }
-
-    insert(DB, this.tableNamePacketWriteAck, packetWriteAck)
+    return () => {
+      // remove pakcet send
+      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+        {
+          dst_chain_id: chainId,
+          dst_connection_id: event.packetInfo.connectionId,
+          dst_channel_id: event.packetInfo.dstChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
+      insert(DB, this.tableNamePacketWriteAck, packetWriteAck)
+    }
   }
 
   private static async feedAcknowledgePacketEvent(
     lcd: LCDClient,
     chainId: string,
     event: AcknowledgePacketEvent
-  ) {
+  ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
       lcd,
@@ -310,68 +321,71 @@ export class PacketController {
       event.packetInfo.connectionId
     )
 
-    // remove pakcet send
-    del<PacketSendTable>(DB, this.tableNamePacketSend, [
-      {
-        dst_chain_id: connection.counterparty_chain_id,
-        dst_connection_id: connection.counterparty_connection_id,
-        dst_channel_id: event.packetInfo.dstChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
+    return () => {
+      // remove pakcet send
+      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+        {
+          dst_chain_id: connection.counterparty_chain_id,
+          dst_connection_id: connection.counterparty_connection_id,
+          dst_channel_id: event.packetInfo.dstChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
 
-    // remove packet timeout
-    del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
-      {
-        src_chain_id: chainId,
-        src_connection_id: event.packetInfo.connectionId,
-        src_channel_id: event.packetInfo.srcChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
+      // remove packet timeout
+      del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
+        {
+          src_chain_id: chainId,
+          src_connection_id: event.packetInfo.connectionId,
+          src_channel_id: event.packetInfo.srcChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
 
-    // remove packet write ack
-    del<PacketWriteAckTable>(DB, this.tableNamePacketSend, [
-      {
-        src_chain_id: chainId,
-        src_connection_id: event.packetInfo.connectionId,
-        src_channel_id: event.packetInfo.srcChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
+      // remove packet write ack
+      del<PacketWriteAckTable>(DB, this.tableNamePacketSend, [
+        {
+          src_chain_id: chainId,
+          src_connection_id: event.packetInfo.connectionId,
+          src_channel_id: event.packetInfo.srcChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
+    }
   }
 
   private static async feedTimeoutPacketEvent(
     lcd: LCDClient,
     chainId: string,
     event: TimeoutPacketEvent
-  ) {
+  ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
       lcd,
       chainId,
       event.packetInfo.connectionId
     )
+    return () => {
+      // remove pakcet send
+      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+        {
+          dst_chain_id: connection.counterparty_chain_id,
+          dst_connection_id: connection.counterparty_connection_id,
+          dst_channel_id: event.packetInfo.dstChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
 
-    // remove pakcet send
-    del<PacketSendTable>(DB, this.tableNamePacketSend, [
-      {
-        dst_chain_id: connection.counterparty_chain_id,
-        dst_connection_id: connection.counterparty_connection_id,
-        dst_channel_id: event.packetInfo.dstChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
-
-    // remove packet timeout
-    del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
-      {
-        src_chain_id: chainId,
-        src_connection_id: event.packetInfo.connectionId,
-        src_channel_id: event.packetInfo.srcChannel,
-        sequence: Number(event.packetInfo.sequence),
-      },
-    ])
+      // remove packet timeout
+      del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
+        {
+          src_chain_id: chainId,
+          src_connection_id: event.packetInfo.connectionId,
+          src_channel_id: event.packetInfo.srcChannel,
+          sequence: Number(event.packetInfo.sequence),
+        },
+      ])
+    }
   }
 }
 

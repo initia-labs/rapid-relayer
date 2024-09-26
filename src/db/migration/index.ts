@@ -18,12 +18,13 @@ export function migrate(db: Database): Database {
 
   // get migrations
   const migrations = fs
-    .readdirSync('../')
+    .readdirSync('./src/db/migration')
     .filter((f) => f.endsWith('.sql'))
     .map((f) => f.replace('.sql', ''))
 
   // get unapplied versions
   const numberizedVersion = numberize(version)
+
   const unappliedVersions = migrations
     .map(numberize)
     .sort()
@@ -32,10 +33,11 @@ export function migrate(db: Database): Database {
 
   // apply versions
   for (const version of unappliedVersions) {
-    const sql = fs.readFileSync(`${version}.sql`).toString()
-    db.exec(sql)
+    const sql = fs.readFileSync(`./src/db/migration/${version}.sql`).toString()
+    db.transaction(() => {
+      db.exec(sql)
+    })()
   }
-
   return db
 }
 
