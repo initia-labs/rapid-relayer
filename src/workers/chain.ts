@@ -1,17 +1,19 @@
 import { LCDClient } from '@initia/initia.js'
 import { RPCClient } from 'src/lib/rpcClient'
-import { info, error, debug } from 'src/lib/logger'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 import { PacketEvent, PacketType } from 'src/types'
 import { parsePacketEvent } from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
 import { delay } from 'bluebird'
+import { Logger } from 'winston'
 
 export class ChainWorker {
   public latestHeight: number
   public latestTimestamp: number
   public syncWorkers: Record<number, SyncWorker>
+  public logger: Logger
 
   public constructor(
     public chainId: string,
@@ -21,6 +23,7 @@ export class ChainWorker {
     latestHeight: number,
     startHeights: number[]
   ) {
+    this.logger = createLoggerWithPrefix(`<ChainWorker(${this.chainId})>`)
     this.latestHeight = 0
     const syncInfos = SyncInfoController.init(
       chainId,
@@ -54,20 +57,20 @@ export class ChainWorker {
   }
 
   private async latestHeightWorker() {
-    this.debug('Activate latest height worekr')
+    this.logger.debug('Activate latest height worekr')
     // TODO add websocket options
     const MAX_RETRY = 10
     let retried = 0
     for (;;) {
       try {
         await this.updateLatestHeight()
-        this.debug(
+        this.logger.debug(
           `Set latest height. Height - ${this.latestHeight}, Timestamp - ${this.latestTimestamp}`
         )
 
         retried = 0
       } catch (e) {
-        this.error(
+        this.logger.error(
           `[latestHeightWorker] Got error while fetching latest height (${e})`
         )
         retried++
@@ -86,32 +89,24 @@ export class ChainWorker {
 
     // this.inc(metrics.chain.latestHeightWorker)
   }
-
-  private info(log: string) {
-    info(`<ChainWorker(${this.chainId})> ${log}`)
-  }
-
-  private error(log: string) {
-    error(`<ChainWorker(${this.chainId})> ${log}`)
-  }
-
-  private debug(log: string) {
-    debug(`<ChainWorker(${this.chainId})> ${log}`)
-  }
 }
 
 class SyncWorker {
+  private logger: Logger
   public constructor(
     public chain: ChainWorker,
     public startHeight: number,
     public endHeight: number,
     public syncedHeight: number
   ) {
+    this.logger = createLoggerWithPrefix(
+      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})>`
+    )
     this.feedEvents()
   }
 
   private async feedEvents() {
-    this.debug('Activate event feeder')
+    this.logger.debug('Activate event feeder')
 
     for (;;) {
       try {
@@ -131,7 +126,7 @@ class SyncWorker {
           heights.map((height) => this.fetchPacketEvents(height))
         )
 
-        this.debug(
+        this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
         )
 
@@ -153,21 +148,23 @@ class SyncWorker {
             heights[heights.length - 1]
           )
 
-          this.debug(`Store packet events(${packetEvenets.flat().length})`)
+          this.logger.debug(
+            `Store packet events(${packetEvenets.flat().length})`
+          )
         })()
 
         this.syncedHeight = heights[heights.length - 1]
 
         // terminate worker
         if (finish) {
-          this.info(
+          this.logger.info(
             'Synced height reached to end height. Terminate sync worker'
           )
           this.chain.terminateSyncWorker(this.startHeight)
           break
         }
       } catch (e) {
-        this.error(`Fail to fecth block result. resonse - ${e}`)
+        this.logger.error(`Fail to fecth block result. resonse - ${e}`)
       } finally {
         await delay(500)
       }
@@ -175,7 +172,7 @@ class SyncWorker {
   }
 
   private async fetchPacketEvents(height: number): Promise<PacketEvent[]> {
-    this.debug(`Fecth new block results (height - ${height})`)
+    this.logger.debug(`Fecth new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
     const txData = [...blockResult.results]
 
@@ -201,26 +198,6 @@ class SyncWorker {
     })
 
     return packetEvents
-  }
-
-  // logs
-
-  private info(log: string) {
-    info(
-      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
-    )
-  }
-
-  private error(log: string) {
-    error(
-      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
-    )
-  }
-
-  private debug(log: string) {
-    debug(
-      `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})> ${log}`
-    )
   }
 }
 

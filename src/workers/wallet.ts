@@ -11,13 +11,15 @@ import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msg
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ConnectionController } from 'src/db/controller/connection'
 import { Wallet, isTxError } from '@initia/initia.js'
-import { debug, error, info, warn } from 'src/lib/logger'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 import { bech32 } from 'bech32'
 import { delay } from 'bluebird'
+import { Logger } from 'winston'
 
 // TODO: add update client worker
 export class WalletWorker {
   private sequence?: number
+  private logger: Logger
 
   constructor(
     public chain: ChainWorker,
@@ -26,6 +28,9 @@ export class WalletWorker {
     private wallet: Wallet,
     public packetFilter?: PacketFilter
   ) {
+    this.logger = createLoggerWithPrefix(
+      `<Wallet(${this.chain.chainId}-${this.address()})>`
+    )
     this.run()
   }
 
@@ -34,7 +39,7 @@ export class WalletWorker {
       try {
         await this.handlePackets()
       } catch (e) {
-        this.error(`[run] ${e}`)
+        this.logger.error(`[run] ${e}`)
       }
       await delay(500)
     }
@@ -231,13 +236,13 @@ export class WalletWorker {
           try {
             const expected = result.raw_log.split(', ')[1]
             this.sequence = Number(expected.split(' ')[1])
-            this.info(`update sequence`)
+            this.logger.info(`update sequence`)
           } catch (e) {
-            this.warn(`error to parse sequence`)
+            this.logger.warn(`error to parse sequence`)
           }
         }
 
-        this.error(
+        this.logger.error(
           `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
         )
         throw Error(
@@ -245,14 +250,16 @@ export class WalletWorker {
         )
       }
 
-      this.info(`Handled msgs(${msgs.length}). txhash - ${result.txhash}`)
+      this.logger.info(
+        `Handled msgs(${msgs.length}). txhash - ${result.txhash}`
+      )
 
       this.sequence++
     } catch (e) {
       if (e?.response?.data) {
-        this.error(e.response.data)
+        this.logger.error(e.response.data)
       } else {
-        this.error(e)
+        this.logger.error(e)
       }
 
       // revert packet in progress
@@ -411,23 +418,5 @@ export class WalletWorker {
     )
 
     return Object.values(timeoutPacketMap).flat()
-  }
-
-  // logs
-
-  private info(log: string) {
-    info(`<Wallet(${this.chain.chainId}-${this.address()})> ${log}`)
-  }
-
-  private warn(log: string) {
-    warn(`<Wallet(${this.chain.chainId}-${this.address()})> ${log}`)
-  }
-
-  private error(log: string) {
-    error(`<Wallet(${this.chain.chainId}-${this.address()})> ${log}`)
-  }
-
-  private debug(log: string) {
-    debug(`<Wallet(${this.chain.chainId}-${this.address()})> ${log}`)
   }
 }
