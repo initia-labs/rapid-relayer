@@ -13,9 +13,10 @@ export async function generateMsgRecvPacket(
   packetSend: PacketSendTable,
   height: Height,
   msgExecutor: string
-) {
+): Promise<MsgRecvPacket> {
   const packet = packetTableToPacket(packetSend)
   const proof = await getPacketProof(srcChain, packet, height)
+
   const msg = new MsgRecvPacket(
     packet,
     proof,
@@ -37,7 +38,6 @@ async function getPacketProof(
     )
   )
   const proof = await getRawProof(dstChain, key, headerHeight)
-
   const ics23Proof = convertProofsToIcs23(proof)
 
   return Buffer.from(ics23Proof).toString('base64')

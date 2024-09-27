@@ -1,7 +1,7 @@
 import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
 import { PacketInfo } from 'src/types'
 
-export function parsePacketEvent(event: Event): PacketInfo {
+export function parsePacketEvent(event: Event, height: number): PacketInfo {
   const connectionId = event.attributes.filter(
     (v) => v.key === 'connection_id'
   )[0].value
@@ -50,6 +50,7 @@ export function parsePacketEvent(event: Event): PacketInfo {
       : Buffer.from(ackHex[0].value, 'hex').toString('base64')
 
   return {
+    height,
     connectionId,
     sequence,
     srcPort,

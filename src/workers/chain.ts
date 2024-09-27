@@ -189,7 +189,7 @@ class SyncWorker {
           event.type === 'acknowledge_packet' ||
           event.type === 'timeout_packet'
         ) {
-          let packetInfo = parsePacketEvent(event)
+          let packetInfo = parsePacketEvent(event, height)
           if (packetInfo) {
             packetEvents.push({
               type: event.type as PacketType,

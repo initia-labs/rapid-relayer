@@ -71,13 +71,21 @@ export function select<T>(
   db: Database,
   tableName: string,
   wheres?: WhereOptions<T>[],
+  orders?: Order<T>,
   limit?: number
 ): T[] {
   let sql = `SELECT * FROM ${tableName}`
   const params: ParamType[] = []
-  const [whereSql, whereParams] = where(wheres)
-  sql += whereSql
-  params.push(...whereParams)
+
+  if (wheres) {
+    const [whereSql, whereParams] = where(wheres)
+    sql += whereSql
+    params.push(...whereParams)
+  }
+
+  if (orders) {
+    sql += order(orders)
+  }
 
   if (limit) {
     sql += ' limit ?'
@@ -90,9 +98,10 @@ export function select<T>(
 export function selectOne<T>(
   db: Database,
   tableName: string,
-  wheres?: WhereOptions<T>[]
+  wheres?: WhereOptions<T>[],
+  orders?: Order<T>
 ): T | undefined {
-  const res = select(db, tableName, wheres, 1)
+  const res = select(db, tableName, wheres, orders, 1)
   if (res.length === 0) return undefined
 
   return res[0]
@@ -105,9 +114,11 @@ export function del<T>(
 ) {
   let sql = `DELETE from ${tableName}`
   const params: ParamType[] = []
-  const [whereSql, whereParams] = where(wheres)
-  sql += whereSql
-  params.push(...whereParams)
+  if (wheres) {
+    const [whereSql, whereParams] = where(wheres)
+    sql += whereSql
+    params.push(...whereParams)
+  }
 
   db.prepare<unknown[], T>(sql).run(params)
 }
@@ -124,66 +135,66 @@ export function update<T>(
   const placeHolder = keys.map((key) => ` ${key} = $${key}`).join(',')
   sql += placeHolder
 
-  const [whereSql, whereParams] = where(wheres)
-  sql += whereSql
-  params.push(...whereParams)
+  if (wheres) {
+    const [whereSql, whereParams] = where(wheres)
+    sql += whereSql
+    params.push(...whereParams)
+  }
 
   db.prepare<unknown[], T>(sql).run(params, set)
 }
 
-function where<T>(wheres?: WhereOptions<T>[]): [string, ParamType[]] {
+function where<T>(wheres: WhereOptions<T>[]): [string, ParamType[]] {
   let sql = ''
 
   const conditions = []
   const params: ParamType[] = []
 
-  if (wheres) {
-    for (const where of wheres) {
-      const condition = []
-      const keys = Object.keys(where) as Array<keyof T>
-      for (const key of keys) {
-        const value = where[key]
-        if (typeof value === 'object' && value !== null) {
-          if ('in' in value) {
-            const vals = value.in as unknown[]
-            const placeHolder = vals.map((_) => '?').join(',')
-            condition.push(`${String(key)} IN(${placeHolder})`)
-            params.push(...vals.map(toParamType))
-          } else {
-            const rangeConditions: string[] = []
-
-            // if both gt and gte are given, use gt
-            if ('gte' in value && !('gt' in value)) {
-              rangeConditions.push(`${String(key)} >= ?`)
-              params.push(toParamType(value.gte))
-            }
-            if ('gt' in value) {
-              rangeConditions.push(`${String(key)} > ?`)
-              params.push(toParamType(value.gt))
-            }
-
-            // if both lt and lte are given, use lt
-            if ('lte' in value && !('lt' in value)) {
-              rangeConditions.push(`${String(key)} <= ?`)
-              params.push(toParamType(value.lte))
-            }
-            if ('lt' in value) {
-              rangeConditions.push(`${String(key)} < ?`)
-              params.push(toParamType(value.lt))
-            }
-
-            condition.push(`(${rangeConditions.join(' AND ')})`)
-          }
-        } else if (key === 'custom') {
-          condition.push(value)
+  for (const where of wheres) {
+    const condition = []
+    const keys = Object.keys(where) as Array<keyof T>
+    for (const key of keys) {
+      const value = where[key]
+      if (typeof value === 'object' && value !== null) {
+        if ('in' in value) {
+          const vals = value.in as unknown[]
+          const placeHolder = vals.map((_) => '?').join(',')
+          condition.push(`${String(key)} IN(${placeHolder})`)
+          params.push(...vals.map(toParamType))
         } else {
-          condition.push(`${String(key)} = ?`)
-          params.push(toParamType(value))
+          const rangeConditions: string[] = []
+
+          // if both gt and gte are given, use gt
+          if ('gte' in value && !('gt' in value)) {
+            rangeConditions.push(`${String(key)} >= ?`)
+            params.push(toParamType(value.gte))
+          }
+          if ('gt' in value) {
+            rangeConditions.push(`${String(key)} > ?`)
+            params.push(toParamType(value.gt))
+          }
+
+          // if both lt and lte are given, use lt
+          if ('lte' in value && !('lt' in value)) {
+            rangeConditions.push(`${String(key)} <= ?`)
+            params.push(toParamType(value.lte))
+          }
+          if ('lt' in value) {
+            rangeConditions.push(`${String(key)} < ?`)
+            params.push(toParamType(value.lt))
+          }
+
+          condition.push(`(${rangeConditions.join(' AND ')})`)
         }
+      } else if (key === 'custom') {
+        condition.push(value)
+      } else {
+        condition.push(`${String(key)} = ?`)
+        params.push(toParamType(value))
       }
-      if (condition.length !== 0) {
-        conditions.push(`(${condition.join(' AND ')})`)
-      }
+    }
+    if (condition.length !== 0) {
+      conditions.push(`(${condition.join(' AND ')})`)
     }
   }
 
@@ -194,9 +205,29 @@ function where<T>(wheres?: WhereOptions<T>[]): [string, ParamType[]] {
   return [sql, params]
 }
 
+function order<T>(order: Order<T>): string {
+  let sql = ''
+
+  const orders: string[] = []
+  const keys = Object.keys(where) as Array<keyof T>
+  for (const key of keys) {
+    orders.push(`${String(key)} ${order[key]}`)
+  }
+
+  if (orders.length !== 0) {
+    sql = ` ORDER BY ${orders.join(', ')} `
+  }
+
+  return sql
+}
+
 export type WhereOptions<T> = {
   [P in keyof T]?: T[P] | Range<T[P]> | In<T[P]>
 } & { custom?: string }
+
+export type Order<T> = {
+  [P in keyof T]?: 'ASC' | 'DESC'
+}
 
 interface Range<V> {
   gt?: V

@@ -27,6 +27,7 @@ export interface WriteAckEvent {
 }
 
 export interface PacketInfo {
+  height: number
   connectionId: string
   sequence: number
   srcPort: string

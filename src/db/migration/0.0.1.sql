@@ -47,6 +47,7 @@ CREATE TABLE packet_send (
     in_progress BOOLEAN,
 
     -- packet data
+    height BIGINT NOT NULL,
     dst_port TEXT NOT NULL,
     src_chain_id TEXT NOT NULL, -- add this for filtering
     src_connection_id TEXT NOT NULL,
@@ -101,6 +102,7 @@ CREATE TABLE packet_write_ack (
     in_progress BOOLEAN,
 
     -- packet data
+    height BIGINT NOT NULL,
     src_port TEXT NOT NULL,
     dst_chain_id TEXT NOT NULL, -- add this for filtering
     dst_connection_id TEXT NOT NULL,

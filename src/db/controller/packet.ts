@@ -81,7 +81,13 @@ export class PacketController {
       })
     }
 
-    return select<PacketSendTable>(DB, this.tableNamePacketSend, wheres, limit)
+    return select<PacketSendTable>(
+      DB,
+      this.tableNamePacketSend,
+      wheres,
+      { sequence: 'ASC' },
+      limit
+    )
   }
 
   public static getTimeoutPackets(
@@ -118,6 +124,7 @@ export class PacketController {
       DB,
       this.tableNamePacketTimeout,
       wheres,
+      { sequence: 'ASC' },
       limit
     )
   }
@@ -152,6 +159,7 @@ export class PacketController {
       DB,
       this.tableNamePacketWriteAck,
       wheres,
+      { sequence: 'ASC' },
       limit
     )
   }
@@ -245,6 +253,7 @@ export class PacketController {
       dst_channel_id: event.packetInfo.dstChannel,
       sequence: Number(event.packetInfo.sequence),
       in_progress: Boolean.FALSE,
+      height: event.packetInfo.height,
       dst_port: event.packetInfo.dstPort,
       src_chain_id: chainId,
       src_connection_id: event.packetInfo.connectionId,
@@ -301,6 +310,7 @@ export class PacketController {
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
       in_progress: Boolean.FALSE,
+      height: event.packetInfo.height,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: chainId,
       dst_connection_id: event.packetInfo.connectionId,

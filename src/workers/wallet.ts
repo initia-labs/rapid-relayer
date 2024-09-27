@@ -57,6 +57,10 @@ export class WalletWorker {
       counterpartyChainIds,
       this.packetFilter,
       remain
+    ).filter(
+      (packet) =>
+        packet.height <
+        this.workerController.chains[packet.src_chain_id].latestHeight
     )
 
     remain -= sendPakcets.length
@@ -69,6 +73,10 @@ export class WalletWorker {
             counterpartyChainIds,
             this.packetFilter,
             remain
+          ).filter(
+            (packet) =>
+              packet.height <
+              this.workerController.chains[packet.dst_chain_id].latestHeight
           )
 
     remain -= writeAckPackets.length
@@ -237,9 +245,16 @@ export class WalletWorker {
         )
       }
 
+      this.info(`Handled msgs(${msgs.length}). txhash - ${result.txhash}`)
+
       this.sequence++
     } catch (e) {
-      this.error(JSON.stringify(e, undefined, 2))
+      if (e?.response?.data) {
+        this.error(e.response.data)
+      } else {
+        this.error(e)
+      }
+
       // revert packet in progress
       DB.transaction(() => {
         sendPakcets.map((packet) =>

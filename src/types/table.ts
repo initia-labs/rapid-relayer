@@ -34,6 +34,7 @@ export interface PacketSendTable {
   dst_channel_id: string
   sequence: number
   in_progress: Boolean
+  height: number
   dst_port: string
   src_chain_id: string
   src_connection_id: string
@@ -70,6 +71,7 @@ export interface PacketWriteAckTable {
   src_channel_id: string
   sequence: number
   in_progress: Boolean
+  height: number
   src_port: string
   dst_chain_id: string
   dst_connection_id: string
