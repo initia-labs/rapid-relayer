@@ -1,5 +1,5 @@
 import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
-import { PacketInfo } from 'src/types'
+import { ChannelOpenInfo, PacketInfo } from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
   const connectionId = event.attributes.filter(
@@ -64,4 +64,42 @@ export function parsePacketEvent(event: Event, height: number): PacketInfo {
     timeoutTimestampRaw,
     ack,
   }
+}
+
+export function parseChannelOpenEvent(
+  event: Event,
+  height: number
+): ChannelOpenInfo {
+  const isSrc =
+    event.type === 'channel_open_init' || event.type === 'channel_open_ack'
+
+  const connectionId = find(event, 'connection_id')
+
+  const portId = find(event, 'port_id')
+
+  const channelId = find(event, 'channel_id')
+
+  const counterpartyPortId = find(event, 'counterparty_port_id')
+
+  const counterpartyChannelId = find(event, 'counterparty_channel_id')
+
+  return {
+    height,
+    srcConnectionId: isSrc ? connectionId : '',
+    srcPortId: isSrc ? portId : counterpartyPortId,
+    srcChannelId: isSrc ? channelId : counterpartyChannelId,
+    dstConnectionId: isSrc ? '' : connectionId,
+    dstPortId: isSrc ? counterpartyPortId : portId,
+    dstChannelId: isSrc ? counterpartyChannelId : channelId,
+  }
+}
+
+function find(event: Event, key: string, defaultValue = ''): string {
+  const filtered = event.attributes.filter((v) => v.key === key)
+
+  if (filtered.length === 0) {
+    return defaultValue
+  }
+
+  return filtered[0].value
 }

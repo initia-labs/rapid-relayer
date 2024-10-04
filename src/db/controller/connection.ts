@@ -1,8 +1,8 @@
 import { DB } from '..'
-import { ConnectionInfo, ConnectionTable } from 'src/types'
-import { LCDClient } from '@initia/initia.js'
+import { ConnectionTable } from 'src/types'
 import { ClientController } from './client'
 import { insert, selectOne } from '../utils'
+import { LCDClient } from 'src/lib/lcdClient'
 
 export class ConnectionController {
   static tableName = 'connection'
@@ -11,9 +11,8 @@ export class ConnectionController {
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
-    const connectionInfo = await lcd.apiRequester.get<ConnectionInfo>(
-      `/ibc/core/connection/v1/connections/${connectionId}`
-    )
+    const connectionInfo = await lcd.ibc.getConnection(connectionId)
+
     const clientId = connectionInfo.connection.client_id
     const client = await ClientController.getClient(lcd, chainId, clientId)
 

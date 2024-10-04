@@ -1,9 +1,9 @@
 import { DB } from '..'
 import { insert, selectOne } from '../utils'
 import { Any } from 'cosmjs-types/google/protobuf/any'
-import { ClientState, UpdateClientEvent, ClientTable } from 'src/types'
+import { UpdateClientEvent, ClientTable } from 'src/types'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
-import { LCDClient } from '@initia/initia.js'
+import { LCDClient } from 'src/lib/lcdClient'
 
 export class ClientController {
   static tableName = 'client'
@@ -12,9 +12,7 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    const state = await lcd.apiRequester.get<ClientState>(
-      `/ibc/core/client/v1/client_states/${clientId}`
-    )
+    const state = await lcd.ibc.getClientState(clientId)
 
     const client: ClientTable = {
       chain_id: chainId,

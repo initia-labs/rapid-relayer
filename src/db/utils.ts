@@ -188,6 +188,8 @@ function where<T>(wheres: WhereOptions<T>[]): [string, ParamType[]] {
         }
       } else if (key === 'custom') {
         condition.push(value)
+      } else if (typeof value === 'undefined') {
+        // do nothing
       } else {
         condition.push(`${String(key)} = ?`)
         params.push(toParamType(value))

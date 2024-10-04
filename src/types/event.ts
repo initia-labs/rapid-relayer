@@ -47,3 +47,22 @@ export interface UpdateClientEvent {
   header: string
   consensusHeights: string
 }
+
+export interface ChannelOpenEvent {
+  type:
+    | 'channel_open_init'
+    | 'channel_open_try'
+    | 'channel_open_ack'
+    | 'channel_open_confirm'
+  channelOpenInfo: ChannelOpenInfo
+}
+
+export interface ChannelOpenInfo {
+  height: number
+  srcConnectionId: string
+  srcPortId: string
+  srcChannelId: string
+  dstConnectionId: string
+  dstPortId: string
+  dstChannelId: string
+}

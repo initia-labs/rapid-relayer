@@ -117,3 +117,22 @@ CREATE TABLE packet_write_ack (
 
     PRIMARY KEY (src_chain_id, src_connection_id, src_channel_id, sequence)
 );
+
+-- create channel on open table
+CREATE TABLE channel_on_open (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    
+    -- in progress
+    in_progress BOOLEAN,
+
+    -- channel data
+    state BIGINT NOT NULL, -- 1: INIT, 2: TRYOPEN
+    chain_id TEXT NOT NULL, -- chain_id that need to execute msg
+    connection_id TEXT NOT NULL,
+    port_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    counterparty_chain_id TEXT NOT NULL,
+    counterparty_connection_id TEXT NOT NULL,
+    counterparty_port_id TEXT NOT NULL,
+    counterparty_channel_id TEXT NOT NULL
+);

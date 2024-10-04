@@ -29,11 +29,9 @@ export function debug(msg: string): void {
 }
 
 export function createLoggerWithPrefix(prefix: string) {
-  const format = winston.format.printf(
-    ({ level, message, prefix, timestamp }) => {
-      return `${timestamp} ${level}: ${prefix}${message}`
-    }
-  )
+  const format = winston.format.printf(({ level, message, timestamp }) => {
+    return `${timestamp} ${level}: ${prefix}${message}`
+  })
 
   return winston.createLogger({
     level: config.logLevel,

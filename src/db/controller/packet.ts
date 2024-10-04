@@ -11,9 +11,9 @@ import {
 } from 'src/types'
 import { DB } from '..'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
-import { LCDClient } from '@initia/initia.js'
 import { ConnectionController } from './connection'
 import { Database } from 'better-sqlite3'
+import { LCDClient } from 'src/lib/lcdClient'
 
 export class PacketController {
   private static tableNamePacketSend = 'packet_send'
@@ -61,10 +61,22 @@ export class PacketController {
     limit = 100
   ): PacketSendTable[] {
     const wheres: WhereOptions<PacketSendTable>[] = []
+    const deleteWheres: WhereOptions<PacketSendTable>[] = []
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
           in_progress: Boolean.FALSE,
+          dst_chain_id: chainId,
+          dst_connection_id: conn.connectionId,
+          dst_channel_id: conn.channels ? In(conn.channels) : undefined,
+          src_chain_id: In(counterpartyChainIds), // TODO: make this more efficientnet, like filter it on outside of this.
+          custom: `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})`,
+        }))
+      )
+
+      deleteWheres.push(
+        ...filter.connections.map((conn) => ({
+          in_progress: Boolean.TRUE,
           dst_chain_id: chainId,
           dst_connection_id: conn.connectionId,
           dst_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -79,7 +91,17 @@ export class PacketController {
         src_chain_id: In(counterpartyChainIds),
         custom: `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})`,
       })
+
+      deleteWheres.push({
+        in_progress: Boolean.TRUE,
+        dst_chain_id: chainId,
+        src_chain_id: In(counterpartyChainIds),
+        custom: `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})`,
+      })
     }
+
+    // delete with same where condition but in_progress is false (which means those packets were filtered)
+    del<PacketSendTable>(DB, this.tableNamePacketSend, deleteWheres)
 
     return select<PacketSendTable>(
       DB,
@@ -99,11 +121,22 @@ export class PacketController {
     limit = 100
   ): PacketTimeoutTable[] {
     const wheres: WhereOptions<PacketTimeoutTable>[] = []
+    const deleteWheres: WhereOptions<PacketSendTable>[] = []
 
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
           in_progress: Boolean.FALSE,
+          src_chain_id: chainId,
+          src_connection_id: conn.connectionId,
+          src_channel_id: conn.channels ? In(conn.channels) : undefined,
+          dst_chain_id: In(counterpartyChainIds), // TODO: make this more efficientnet, like filter it on outside of this.
+          custom: `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)`,
+        }))
+      )
+      deleteWheres.push(
+        ...filter.connections.map((conn) => ({
+          in_progress: Boolean.TRUE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -118,7 +151,16 @@ export class PacketController {
         dst_chain_id: In(counterpartyChainIds),
         custom: `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)`,
       })
+      deleteWheres.push({
+        in_progress: Boolean.TRUE,
+        src_chain_id: chainId,
+        dst_chain_id: In(counterpartyChainIds),
+        custom: `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)`,
+      })
     }
+
+    // delete with same where condition but in_progress is false (which means those packets were filtered)
+    del<PacketSendTable>(DB, this.tableNamePacketTimeout, deleteWheres)
 
     return select<PacketTimeoutTable>(
       DB,
@@ -136,11 +178,21 @@ export class PacketController {
     limit = 100
   ): PacketWriteAckTable[] {
     const wheres: WhereOptions<PacketWriteAckTable>[] = []
+    const deleteWheres: WhereOptions<PacketSendTable>[] = []
 
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
           in_progress: Boolean.FALSE,
+          src_chain_id: chainId,
+          src_connection_id: conn.connectionId,
+          src_channel_id: conn.channels ? In(conn.channels) : undefined,
+          dst_chain_id: In(counterpartyChainIds), // TODO: make this more efficientnet, like filter it on outside of this.
+        }))
+      )
+      deleteWheres.push(
+        ...filter.connections.map((conn) => ({
+          in_progress: Boolean.TRUE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -153,7 +205,15 @@ export class PacketController {
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
       })
+      deleteWheres.push({
+        in_progress: Boolean.TRUE,
+        src_chain_id: chainId,
+        dst_chain_id: In(counterpartyChainIds),
+      })
     }
+
+    // delete with same where condition but in_progress is false (which means those packets were filtered)
+    del<PacketSendTable>(DB, this.tableNamePacketWriteAck, deleteWheres)
 
     return select<PacketWriteAckTable>(
       DB,

@@ -85,7 +85,27 @@ export interface PacketWriteAckTable {
   timeout_timestamp_raw: string
 }
 
+export interface ChannelOnOpenTable {
+  id?: number
+  in_progress: Boolean
+  state: ChannelState
+  chain_id: string
+  connection_id: string
+  port_id: string
+  channel_id: string
+  counterparty_chain_id: string
+  counterparty_connection_id: string
+  counterparty_port_id: string
+  counterparty_channel_id: string
+}
+
 export enum Boolean {
   TRUE = 1,
   FALSE = 0,
+}
+
+export enum ChannelState {
+  INIT = 1,
+  TRYOPEN = 2,
+  ACK = 3,
 }

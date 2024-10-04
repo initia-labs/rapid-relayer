@@ -2,6 +2,7 @@ import { Database } from 'better-sqlite3'
 import fs from 'fs'
 import { VersionTable } from 'src/types'
 import { PacketController } from '../controller/packet'
+import { ChannelController } from '../controller/channel'
 
 export function migrate(db: Database): Database {
   // create version table
@@ -42,6 +43,7 @@ export function migrate(db: Database): Database {
 
   // reset in progress
   PacketController.resetPacketInProgress(db)
+  ChannelController.resetPacketInProgress(db)
   return db
 }
 

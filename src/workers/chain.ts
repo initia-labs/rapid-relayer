@@ -1,13 +1,14 @@
-import { LCDClient } from '@initia/initia.js'
 import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
-import { PacketEvent, PacketType } from 'src/types'
-import { parsePacketEvent } from 'src/lib/eventParser'
+import { ChannelOpenEvent, PacketEvent } from 'src/types'
+import { parseChannelOpenEvent, parsePacketEvent } from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
 import { delay } from 'bluebird'
 import { Logger } from 'winston'
+import { LCDClient } from 'src/lib/lcdClient'
+import { ChannelController } from 'src/db/controller/channel'
 
 export class ChainWorker {
   public latestHeight: number
@@ -24,7 +25,6 @@ export class ChainWorker {
     startHeights: number[]
   ) {
     this.logger = createLoggerWithPrefix(`<ChainWorker(${this.chainId})>`)
-    this.latestHeight = 0
     const syncInfos = SyncInfoController.init(
       chainId,
       startHeights,
@@ -122,9 +122,11 @@ class SyncWorker {
 
         if (heights.length === 0) continue
 
-        const packetEvenets = await Promise.all(
-          heights.map((height) => this.fetchPacketEvents(height))
+        const events = await Promise.all(
+          heights.map((height) => this.fetchEvents(height))
         )
+        const packetEvents = events.map((e) => e.packetEvents).flat()
+        const channelOpenEvents = events.map((e) => e.channelOpenEvents).flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
@@ -132,14 +134,21 @@ class SyncWorker {
 
         let finish = false
 
-        const feed = await PacketController.feedEvents(
+        const pakcetEventFeed = await PacketController.feedEvents(
           this.chain.lcd,
           this.chain.chainId,
-          packetEvenets.flat()
+          packetEvents.flat()
+        )
+
+        const channelOpenEventFeed = await ChannelController.feedEvents(
+          this.chain.lcd,
+          this.chain.chainId,
+          channelOpenEvents.flat()
         )
 
         DB.transaction(() => {
-          feed()
+          pakcetEventFeed()
+          channelOpenEventFeed()
 
           finish = SyncInfoController.update(
             this.chain.chainId,
@@ -149,7 +158,7 @@ class SyncWorker {
           )
 
           this.logger.debug(
-            `Store packet events(${packetEvenets.flat().length})`
+            `Store packet events(${packetEvents.flat().length})`
           )
         })()
 
@@ -171,12 +180,16 @@ class SyncWorker {
     }
   }
 
-  private async fetchPacketEvents(height: number): Promise<PacketEvent[]> {
+  private async fetchEvents(height: number): Promise<{
+    packetEvents: PacketEvent[]
+    channelOpenEvents: ChannelOpenEvent[]
+  }> {
     this.logger.debug(`Fecth new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
     const txData = [...blockResult.results]
 
     const packetEvents: PacketEvent[] = []
+    const channelOpenEvents: ChannelOpenEvent[] = []
 
     txData.map((data, i) => {
       for (const event of data.events) {
@@ -186,18 +199,30 @@ class SyncWorker {
           event.type === 'acknowledge_packet' ||
           event.type === 'timeout_packet'
         ) {
-          let packetInfo = parsePacketEvent(event, height)
-          if (packetInfo) {
-            packetEvents.push({
-              type: event.type as PacketType,
-              packetInfo,
-            })
-          }
+          packetEvents.push({
+            type: event.type,
+            packetInfo: parsePacketEvent(event, height),
+          })
+        }
+
+        if (
+          event.type === 'channel_open_init' ||
+          event.type === 'channel_open_try' ||
+          event.type === 'channel_open_ack' ||
+          event.type === 'channel_open_confirm'
+        ) {
+          channelOpenEvents.push({
+            type: event.type,
+            channelOpenInfo: parseChannelOpenEvent(event, height),
+          })
         }
       }
     })
 
-    return packetEvents
+    return {
+      packetEvents,
+      channelOpenEvents,
+    }
   }
 }
 

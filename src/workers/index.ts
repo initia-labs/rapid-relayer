@@ -5,11 +5,15 @@ import {
   generateMsgRecvPacket,
   generateMsgTimeout,
   generateMsgUpdateClient,
+  generateMsgChannelOpenTry,
+  generateMsgChannelOpenAck,
+  generateMsgChannelOpenConfirm,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
 import { ClientController } from 'src/db/controller/client'
 import {
+  ChannelOnOpenTable,
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
@@ -19,7 +23,6 @@ import {
   Key,
   MnemonicKey,
   RawKey,
-  LCDClient,
   APIRequester,
   Wallet,
 } from '@initia/initia.js'
@@ -29,6 +32,12 @@ import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
 import * as https from 'https'
 import { PacketFilter } from 'src/db/controller/packet'
+import { LCDClient } from 'src/lib/lcdClient'
+import {
+  MsgChannelOpenAck,
+  MsgChannelOpenConfirm,
+  MsgChannelOpenTry,
+} from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -185,6 +194,57 @@ export class WorkerController {
   ) {
     const dstChain = this.chains[packet.dst_chain_id]
     return generateMsgTimeout(dstChain, packet, height, executorAddress)
+  }
+
+  async generateChannelOpenTryMsg(
+    event: ChannelOnOpenTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenTry> {
+    const srcChain = this.chains[event.counterparty_chain_id]
+    return generateMsgChannelOpenTry(
+      srcChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      event.connection_id,
+      event.port_id,
+      height,
+      executorAddress
+    )
+  }
+
+  async generateChannelOpenAckMsg(
+    event: ChannelOnOpenTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenAck> {
+    const dstChain = this.chains[event.counterparty_chain_id]
+    return generateMsgChannelOpenAck(
+      event.port_id,
+      event.channel_id,
+      dstChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height,
+      executorAddress
+    )
+  }
+
+  async generateChannelOpenConfirmMsg(
+    event: ChannelOnOpenTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenConfirm> {
+    const srcChain = this.chains[event.counterparty_chain_id]
+    return generateMsgChannelOpenConfirm(
+      srcChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      event.port_id,
+      event.channel_id,
+      height,
+      executorAddress
+    )
   }
 }
 

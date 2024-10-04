@@ -1,6 +1,8 @@
 import { PacketController, PacketFilter } from 'src/db/controller/packet'
 import { ChainWorker } from './chain'
 import {
+  ChannelOnOpenTable,
+  ChannelState,
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
@@ -15,6 +17,8 @@ import { createLoggerWithPrefix } from 'src/lib/logger'
 import { bech32 } from 'bech32'
 import { delay } from 'bluebird'
 import { Logger } from 'winston'
+import { ChannelController } from 'src/db/controller/channel'
+import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 
 // TODO: add update client worker
 export class WalletWorker {
@@ -46,7 +50,7 @@ export class WalletWorker {
   }
 
   private async handlePackets() {
-    if (this.chain.latestHeight === 0) return
+    if (this.chain.latestHeight === undefined) return
 
     // get packets to handle
     let remain = this.maxHandlePacket
@@ -98,6 +102,17 @@ export class WalletWorker {
             remain
           )
 
+    const channelOpenEvents =
+      remain === 0
+        ? []
+        : ChannelController.getOpenEvent(
+            this.chain.chainId,
+            counterpartyChainIds,
+            this.packetFilter,
+            undefined,
+            remain
+          )
+
     // update packet in progress
     DB.transaction(() => {
       sendPakcets.map((packet) =>
@@ -109,6 +124,7 @@ export class WalletWorker {
       timeoutPackets.map((packet) =>
         PacketController.updateTimeoutPacketInProgress(packet)
       )
+      channelOpenEvents.map((e) => ChannelController.updateInProgress(e.id))
     })()
 
     try {
@@ -118,11 +134,14 @@ export class WalletWorker {
         await this.filterWriteAckPackets(writeAckPackets)
       const filteredTimeoutPackets =
         await this.filterTimeoutPackets(timeoutPackets)
+      const filteredChannelOpenEvents =
+        await this.filterChannelOpenEvents(channelOpenEvents)
 
       if (
         filteredSendPackets.length === 0 &&
         filteredWriteAckPackets.length === 0 &&
-        filteredTimeoutPackets.length === 0
+        filteredTimeoutPackets.length === 0 &&
+        filteredChannelOpenEvents.length === 0
       ) {
         return
       }
@@ -135,7 +154,8 @@ export class WalletWorker {
         ...filteredSendPackets.map((packet) => packet.dst_connection_id),
         ...filteredWriteAckPackets.map((packet) => packet.src_connection_id),
         ...filteredTimeoutPackets.map((packet) => packet.src_connection_id),
-      ].filter((v, i, a) => a.indexOf(v) === i) // filter by connection first
+        ...filteredChannelOpenEvents.map((event) => event.connection_id),
+      ].filter((v, i, a) => a.indexOf(v) === i)
 
       const connectionClientMap: Record<string, string> = {}
       await Promise.all(
@@ -212,11 +232,43 @@ export class WalletWorker {
         })
       )
 
+      // generate channel open msgs
+      const channelOpenMsgs = await Promise.all(
+        filteredChannelOpenEvents.map((event) => {
+          const clientId = connectionClientMap[event.connection_id]
+          const height = updateClientMsgs[clientId].height
+
+          switch (event.state) {
+            case ChannelState.INIT:
+              return this.workerController.generateChannelOpenTryMsg(
+                event,
+                height,
+                this.address()
+              )
+            // check src channel state
+            case ChannelState.TRYOPEN:
+              return this.workerController.generateChannelOpenAckMsg(
+                event,
+                height,
+                this.address()
+              )
+            // check dst channel state
+            case ChannelState.ACK:
+              return this.workerController.generateChannelOpenConfirmMsg(
+                event,
+                height,
+                this.address()
+              )
+          }
+        })
+      )
+
       const msgs = [
         ...Object.values(updateClientMsgs).map((v) => v.msg),
         ...recvPacketMsgs,
         ...ackMsgs,
         ...timeoutMsgs,
+        ...channelOpenMsgs,
       ]
 
       const signedTx = await this.wallet.createAndSignTx({
@@ -272,6 +324,9 @@ export class WalletWorker {
         )
         timeoutPackets.map((packet) =>
           PacketController.updateTimeoutPacketInProgress(packet, false)
+        )
+        channelOpenEvents.map((event) =>
+          ChannelController.updateInProgress(event.id, false)
         )
       })()
     }
@@ -418,5 +473,63 @@ export class WalletWorker {
     )
 
     return Object.values(timeoutPacketMap).flat()
+  }
+
+  private async filterChannelOpenEvents(
+    channelOnOpens: ChannelOnOpenTable[]
+  ): Promise<ChannelOnOpenTable[]> {
+    // filter duplicated open try
+    channelOnOpens = channelOnOpens.filter((v, i, a) => {
+      if (v.state !== ChannelState.TRYOPEN) {
+        return true
+      }
+
+      return (
+        i ===
+        a.findIndex(
+          (val) => val.channel_id === v.channel_id && val.port_id === v.port_id
+        )
+      )
+    })
+
+    // check already executed
+    const res = await Promise.all(
+      channelOnOpens.map(async (v) => {
+        const counterpartyChain =
+          this.workerController.chains[v.counterparty_chain_id]
+        const counterpartyChannel = await counterpartyChain.lcd.ibc.channel(
+          v.counterparty_port_id,
+          v.counterparty_channel_id
+        )
+        const channel =
+          v.channel_id !== ''
+            ? await this.chain.lcd.ibc.channel(v.port_id, v.channel_id)
+            : undefined
+        switch (v.state) {
+          // check src channel state
+          case ChannelState.INIT:
+            if (counterpartyChannel.channel.state === State.STATE_INIT) {
+              return v
+            }
+            break
+          // check src channel state
+          case ChannelState.TRYOPEN:
+            if (channel && channel.channel.state === State.STATE_INIT) {
+              return v
+            }
+            break
+          // check dst channel state
+          case ChannelState.ACK:
+            if (channel && channel.channel.state === State.STATE_TRYOPEN) {
+              return v
+            }
+            break
+        }
+
+        return undefined
+      })
+    )
+
+    return res.filter((v) => v !== undefined) as ChannelOnOpenTable[]
   }
 }
