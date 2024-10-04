@@ -51,18 +51,14 @@ export async function getSignedHeader(
   return SignedHeader.fromPartial({ header, commit })
 }
 
-function blockIdFlagConvert(flag: BlockIdFlag) {
-  if (flag === BlockIdFlag.Unknown) {
-    return BlockIDFlag.BLOCK_ID_FLAG_UNKNOWN
-  } else if (flag === BlockIdFlag.Absent) {
-    return BlockIDFlag.BLOCK_ID_FLAG_ABSENT
-  } else if (flag === BlockIdFlag.Commit) {
-    return BlockIDFlag.BLOCK_ID_FLAG_COMMIT
-  } else if (flag === BlockIdFlag.Nil) {
-    return BlockIDFlag.BLOCK_ID_FLAG_NIL
-  } else {
-    return BlockIDFlag.UNRECOGNIZED
+function blockIdFlagConvert(flag: BlockIdFlag): BlockIDFlag {
+  const flagMap: Record<BlockIdFlag, BlockIDFlag> = {
+    [BlockIdFlag.Unknown]: BlockIDFlag.BLOCK_ID_FLAG_UNKNOWN,
+    [BlockIdFlag.Absent]: BlockIDFlag.BLOCK_ID_FLAG_ABSENT,
+    [BlockIdFlag.Commit]: BlockIDFlag.BLOCK_ID_FLAG_COMMIT,
+    [BlockIdFlag.Nil]: BlockIDFlag.BLOCK_ID_FLAG_NIL,
   }
+  return flagMap[flag] ?? BlockIDFlag.UNRECOGNIZED;
 }
 
 export function timestampFromDateNanos(
