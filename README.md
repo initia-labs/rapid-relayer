@@ -4,18 +4,18 @@ Rapid Relayer is a fast, scalable, stateful IBC Relayer optimized for interwoven
 Rapid Relayer does not use the `tx_search` query of Hermes to handle packets from several blocks at once. Initia Labs has developed this IBC Relayer to replace Hermes, only using the necessary functions for packet handling. 
 
 ### Problems We Faced
-- Minitia L2s generate blocks extremely quick at 500ms per block.
+- Minitia L2s generate blocks extremely quickly at 500ms per block.
 - Due to the interwoven nature of Initia, often many IBC packets are generated within blocks. Hermes can handle batches of packets but on a single block basis.
 - Hermes handles these IBC packets sequentially leading to unprocessed packets accumulating very quickly when having fast blocktimes.
 - If Hermes stops, unprocessed packets will continue to pile up. 
 - When Hermes misses a packet, it finds them using `tx_search` query on every sequence, this can take minutes for just a few hundred packets.
 - We need something more rapid.
 
-### How We Fix This
+### How We Fixed This
 - We removed the `tx_search` query, and handle packets in parallel across several blocks at once.
 - Keep track of `synced_height` and `latest_height`.
 - Multi-threaded workers: packet handler and event feeder. The event feeder feeds the packet from new blocks to a cache and the packet handler fetches packets from it. This way, even if the packet handler stops, the event feeder will continue to operate.
-- We remove the slow call of `tx_search`. 
+- We removed the slow call of `tx_search`. 
 
 
 ## Installation
