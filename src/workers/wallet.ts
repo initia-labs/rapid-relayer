@@ -19,6 +19,7 @@ import { delay } from 'bluebird'
 import { Logger } from 'winston'
 import { ChannelController } from 'src/db/controller/channel'
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import { FeeFilter } from 'src/lib/config'
 
 // TODO: add update client worker
 export class WalletWorker {
@@ -55,15 +56,25 @@ export class WalletWorker {
     // get packets to handle
     let remain = this.maxHandlePacket
 
-    const counterpartyChainIds = this.workerController
-      .getChainIds()
-      .filter((v) => v !== this.chain.chainId)
+    const chainIdsWithFeeFilter = this.workerController.getFeeFilters()
+    const counterpartyChainIdsWithFeeFilter = chainIdsWithFeeFilter.filter(
+      (v) => v.chainId !== this.chain.chainId
+    )
+    const counterpartyChainIds = counterpartyChainIdsWithFeeFilter.map(
+      (v) => v.chainId
+    )
+    const feeFilter = (
+      chainIdsWithFeeFilter.find((v) => v.chainId === this.chain.chainId) as {
+        chainId: string
+        feeFilter: FeeFilter
+      }
+    ).feeFilter
 
     const sendPakcets = PacketController.getSendPackets(
       this.chain.chainId,
       this.chain.latestHeight,
       Number((this.chain.latestTimestamp / 1000).toFixed()),
-      counterpartyChainIds,
+      counterpartyChainIdsWithFeeFilter,
       this.packetFilter,
       remain
     ).filter(
@@ -80,6 +91,7 @@ export class WalletWorker {
         : PacketController.getWriteAckPackets(
             this.chain.chainId,
             counterpartyChainIds,
+            feeFilter,
             this.packetFilter,
             remain
           ).filter(
@@ -98,6 +110,7 @@ export class WalletWorker {
             this.chain.latestHeight,
             Number((this.chain.latestTimestamp / 1000).toFixed()),
             counterpartyChainIds,
+            feeFilter,
             this.packetFilter,
             remain
           )
@@ -342,6 +355,7 @@ export class WalletWorker {
   ): Promise<PacketSendTable[]> {
     // create path => packet map
     const sendPacketMap: Record<string, PacketSendTable[]> = {}
+    const sendPacketsToDel: PacketSendTable[] = []
 
     for (const packet of sendPackets) {
       const path = `${packet.dst_port}/${packet.dst_channel_id}`
@@ -366,11 +380,20 @@ export class WalletWorker {
           Number(sequence)
         )
 
+        sendPacketsToDel.push(
+          ...sendPacketMap[path].filter(
+            (packet) => !unrecivedSequences.includes(packet.sequence)
+          )
+        )
+
         sendPacketMap[path] = sendPacketMap[path].filter((packet) =>
           unrecivedSequences.includes(packet.sequence)
         )
       })
     )
+
+    // delete packets that already executed
+    PacketController.delSendPackets(sendPacketsToDel)
 
     return Object.values(sendPacketMap).flat()
   }
@@ -380,6 +403,7 @@ export class WalletWorker {
   ): Promise<PacketWriteAckTable[]> {
     // create path => packet map
     const writeAckPacketMap: Record<string, PacketWriteAckTable[]> = {}
+    const writeAckPacketsToDel: PacketWriteAckTable[] = []
 
     for (const packet of writeAckPackets) {
       const path = `${packet.src_port}/${packet.src_port}`
@@ -404,11 +428,20 @@ export class WalletWorker {
           Number(sequence)
         )
 
+        writeAckPacketsToDel.push(
+          ...writeAckPacketMap[path].filter(
+            (packet) => !unrecivedSequences.includes(packet.sequence)
+          )
+        )
+
         writeAckPacketMap[path] = writeAckPacketMap[path].filter((packet) =>
           unrecivedSequences.includes(packet.sequence)
         )
       })
     )
+
+    // delete packets that already executed
+    PacketController.delWriteAckPackets(writeAckPacketsToDel)
 
     return Object.values(writeAckPacketMap).flat()
   }
@@ -418,6 +451,7 @@ export class WalletWorker {
   ): Promise<PacketTimeoutTable[]> {
     // create path => packet map
     const timeoutPacketMap: Record<string, PacketTimeoutTable[]> = {}
+    const timeoutPacketsToDel: PacketTimeoutTable[] = []
 
     for (const packet of timeoutPackets) {
       const path = `${packet.src_port}/${packet.src_port}`
@@ -444,6 +478,12 @@ export class WalletWorker {
           Number(sequence)
         )
 
+        timeoutPacketsToDel.push(
+          ...timeoutPacketMap[path].filter(
+            (packet) => !unrecivedSequences.includes(packet.sequence)
+          )
+        )
+
         timeoutPacketMap[path] = timeoutPacketMap[path].filter((packet) =>
           unrecivedSequences.includes(packet.sequence)
         )
@@ -466,11 +506,20 @@ export class WalletWorker {
           Number(sequence)
         )
 
+        timeoutPacketsToDel.push(
+          ...timeoutPacketMap[path].filter(
+            (packet) => !unrecivedSequences.includes(packet.sequence)
+          )
+        )
+
         timeoutPacketMap[path] = timeoutPacketMap[path].filter((packet) =>
           unrecivedSequences.includes(packet.sequence)
         )
       })
     )
+
+    // delete packets that already executed
+    PacketController.delTimeoutPackets(timeoutPacketsToDel)
 
     return Object.values(timeoutPacketMap).flat()
   }
@@ -491,6 +540,8 @@ export class WalletWorker {
         )
       )
     })
+
+    const eventsToDel: ChannelOnOpenTable[] = []
 
     // check already executed
     const res = await Promise.all(
@@ -526,9 +577,13 @@ export class WalletWorker {
             break
         }
 
+        eventsToDel.push(v)
+
         return undefined
       })
     )
+
+    ChannelController.delOpenEvents(eventsToDel)
 
     return res.filter((v) => v !== undefined) as ChannelOnOpenTable[]
   }

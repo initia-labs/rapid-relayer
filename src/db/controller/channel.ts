@@ -53,20 +53,12 @@ export class ChannelController {
     limit = 100
   ): ChannelOnOpenTable[] {
     const wheres: WhereOptions<ChannelOnOpenTable>[] = []
-    const deleteWheres: WhereOptions<ChannelOnOpenTable>[] = []
 
     if (filter.connections) {
       for (const connectionFilter of filter.connections) {
         if (connectionFilter.channels) continue
         wheres.push({
           in_progress: Boolean.FALSE,
-          state,
-          chain_id: chainId,
-          connection_id: connectionFilter.connectionId,
-          counterparty_chain_id: In(counterpartyChainIds),
-        })
-        deleteWheres.push({
-          in_progress: Boolean.TRUE,
           state,
           chain_id: chainId,
           connection_id: connectionFilter.connectionId,
@@ -80,16 +72,7 @@ export class ChannelController {
         chain_id: chainId,
         counterparty_chain_id: In(counterpartyChainIds),
       })
-      deleteWheres.push({
-        in_progress: Boolean.TRUE,
-        state,
-        chain_id: chainId,
-        counterparty_chain_id: In(counterpartyChainIds),
-      })
     }
-
-    // delete with same where condition but in_progress is true (which means those packets were filtered)
-    del<ChannelOnOpenTable>(DB, this.tableName, deleteWheres)
 
     return select<ChannelOnOpenTable>(
       DB,
@@ -97,6 +80,20 @@ export class ChannelController {
       wheres,
       { id: 'ASC' },
       limit
+    )
+  }
+
+  public static delOpenEvents(events: ChannelOnOpenTable[]) {
+    if (events.filter((event) => event.id === undefined).length !== 0) {
+      throw new Error('id must be exists to remove channel on open')
+    }
+
+    if (events.length === 0) return
+
+    del<ChannelOnOpenTable>(
+      DB,
+      this.tableName,
+      events.map((v) => ({ id: v.id as number }))
     )
   }
 

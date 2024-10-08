@@ -1,7 +1,11 @@
 import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
-import { ChannelOpenEvent, PacketEvent } from 'src/types'
-import { parseChannelOpenEvent, parsePacketEvent } from 'src/lib/eventParser'
+import { ChannelOpenEvent, PacketEvent, PacketFeeEvent } from 'src/types'
+import {
+  parseChannelOpenEvent,
+  parsePacketEvent,
+  parsePacketFeeEvent,
+} from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
@@ -9,6 +13,8 @@ import { delay } from 'bluebird'
 import { Logger } from 'winston'
 import { LCDClient } from 'src/lib/lcdClient'
 import { ChannelController } from 'src/db/controller/channel'
+import { PacketFeeController } from 'src/db/controller/packetFee'
+import { FeeFilter } from 'src/lib/config'
 
 export class ChainWorker {
   public latestHeight: number
@@ -21,6 +27,7 @@ export class ChainWorker {
     public lcd: LCDClient,
     public rpc: RPCClient,
     public bech32Prefix: string,
+    public feeFilter: FeeFilter,
     latestHeight: number,
     startHeights: number[]
   ) {
@@ -127,6 +134,7 @@ class SyncWorker {
         )
         const packetEvents = events.map((e) => e.packetEvents).flat()
         const channelOpenEvents = events.map((e) => e.channelOpenEvents).flat()
+        const packetFeeEvents = events.map((e) => e.packetFeeEvents).flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
@@ -137,18 +145,19 @@ class SyncWorker {
         const pakcetEventFeed = await PacketController.feedEvents(
           this.chain.lcd,
           this.chain.chainId,
-          packetEvents.flat()
+          packetEvents
         )
 
         const channelOpenEventFeed = await ChannelController.feedEvents(
           this.chain.lcd,
           this.chain.chainId,
-          channelOpenEvents.flat()
+          channelOpenEvents
         )
 
         DB.transaction(() => {
           pakcetEventFeed()
           channelOpenEventFeed()
+          PacketFeeController.feedEvents(this.chain.chainId, packetFeeEvents)()
 
           finish = SyncInfoController.update(
             this.chain.chainId,
@@ -183,6 +192,7 @@ class SyncWorker {
   private async fetchEvents(height: number): Promise<{
     packetEvents: PacketEvent[]
     channelOpenEvents: ChannelOpenEvent[]
+    packetFeeEvents: PacketFeeEvent[]
   }> {
     this.logger.debug(`Fecth new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
@@ -190,6 +200,7 @@ class SyncWorker {
 
     const packetEvents: PacketEvent[] = []
     const channelOpenEvents: ChannelOpenEvent[] = []
+    const packetFeeEvents: PacketFeeEvent[] = []
 
     txData.map((data, i) => {
       for (const event of data.events) {
@@ -216,12 +227,17 @@ class SyncWorker {
             channelOpenInfo: parseChannelOpenEvent(event, height),
           })
         }
+
+        if (event.type === 'incentivized_ibc_packet') {
+          packetFeeEvents.push(parsePacketFeeEvent(event))
+        }
       }
     })
 
     return {
       packetEvents,
       channelOpenEvents,
+      packetFeeEvents,
     }
   }
 }

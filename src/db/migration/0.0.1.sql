@@ -39,7 +39,6 @@ CREATE TABLE connection (
 CREATE TABLE packet_send (
     -- pk
     dst_chain_id TEXT NOT NULL,
-    dst_connection_id TEXT NOT NULL,
     dst_channel_id TEXT NOT NULL,
     sequence BIGINT NOT NULL,
 
@@ -48,6 +47,7 @@ CREATE TABLE packet_send (
 
     -- packet data
     height BIGINT NOT NULL,
+    dst_connection_id TEXT NOT NULL,
     dst_port TEXT NOT NULL,
     src_chain_id TEXT NOT NULL, -- add this for filtering
     src_connection_id TEXT NOT NULL,
@@ -59,7 +59,7 @@ CREATE TABLE packet_send (
     timeout_height_raw TEXT NOT NULL,
     timeout_timestamp_raw TEXT NOT NULL,
 
-    PRIMARY KEY (dst_chain_id, dst_connection_id, dst_channel_id, sequence)
+    PRIMARY KEY (dst_chain_id, dst_channel_id, sequence)
 );
 
 -- create packet timeout table, table for execute timeout
@@ -67,7 +67,6 @@ CREATE TABLE packet_send (
 CREATE TABLE packet_timeout (
     -- pk
     src_chain_id TEXT NOT NULL,
-    src_connection_id TEXT NOT NULL,
     src_channel_id TEXT NOT NULL,
     sequence BIGINT NOT NULL,
 
@@ -75,6 +74,7 @@ CREATE TABLE packet_timeout (
     in_progress BOOLEAN,
 
     -- packet data
+    src_connection_id TEXT NOT NULL,
     src_port TEXT NOT NULL,
     dst_chain_id TEXT NOT NULL, -- add this for filtering
     dst_connection_id TEXT NOT NULL,
@@ -86,7 +86,7 @@ CREATE TABLE packet_timeout (
     timeout_height_raw TEXT NOT NULL,
     timeout_timestamp_raw TEXT NOT NULL,
 
-    PRIMARY KEY (src_chain_id, src_connection_id, src_channel_id, sequence)
+    PRIMARY KEY (src_chain_id, src_channel_id, sequence)
 );
 
 -- create packet write ack table, table for execute ack
@@ -94,7 +94,6 @@ CREATE TABLE packet_timeout (
 CREATE TABLE packet_write_ack (
     -- pk
     src_chain_id TEXT NOT NULL,
-    src_connection_id TEXT NOT NULL,
     src_channel_id TEXT NOT NULL,
     sequence BIGINT NOT NULL,
 
@@ -103,6 +102,7 @@ CREATE TABLE packet_write_ack (
 
     -- packet data
     height BIGINT NOT NULL,
+    src_connection_id TEXT NOT NULL,
     src_port TEXT NOT NULL,
     dst_chain_id TEXT NOT NULL, -- add this for filtering
     dst_connection_id TEXT NOT NULL,
@@ -115,7 +115,7 @@ CREATE TABLE packet_write_ack (
     timeout_height_raw TEXT NOT NULL,
     timeout_timestamp_raw TEXT NOT NULL,
 
-    PRIMARY KEY (src_chain_id, src_connection_id, src_channel_id, sequence)
+    PRIMARY KEY (src_chain_id, src_channel_id, sequence)
 );
 
 -- create channel on open table
@@ -136,3 +136,18 @@ CREATE TABLE channel_on_open (
     counterparty_port_id TEXT NOT NULL,
     counterparty_channel_id TEXT NOT NULL
 );
+
+-- create packet fee table
+CREATE TABLE packet_fee (
+    -- pk
+    chain_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    sequence BIGINT NOT NULL,
+    fee_type BIGINT NOT NULL, -- 1: recv, 2: ack, 3: timeout
+    denom TEXT NOT NULL,
+
+    -- fee data
+    amount BIGINT NOT NULL,
+
+    PRIMARY KEY (chain_id, channel_id, sequence, fee_type, denom)
+)

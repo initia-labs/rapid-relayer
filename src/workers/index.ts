@@ -26,7 +26,7 @@ import {
   APIRequester,
   Wallet,
 } from '@initia/initia.js'
-import { Config, KeyConfig } from 'src/lib/config'
+import { Config, FeeFilter, KeyConfig } from 'src/lib/config'
 import { env } from 'node:process'
 import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
@@ -76,6 +76,7 @@ export class WorkerController {
         lcd,
         rpc,
         chainConfig.bech32Prefix,
+        chainConfig.feeFilter ?? {},
         latestHeight,
         chainConfig.wallets
           .map((wallet) => wallet.startHeight)
@@ -99,8 +100,11 @@ export class WorkerController {
     }
   }
 
-  public getChainIds(): string[] {
-    return Object.keys(this.chains)
+  public getFeeFilters(): { chainId: string; feeFilter: FeeFilter }[] {
+    return Object.keys(this.chains).map((chainId) => ({
+      chainId,
+      feeFilter: this.chains[chainId].feeFilter,
+    }))
   }
 
   public getStatus(): { chains: ChainStatus[] } {

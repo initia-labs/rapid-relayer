@@ -20,6 +20,7 @@ interface ChainConfig {
   lcdUri: string
   rpcUri: string
   wallets: WalletConfig[]
+  feeFilter?: PacketFee
 }
 
 interface WalletConfig {
@@ -27,6 +28,17 @@ interface WalletConfig {
   maxHandlePakcet?: number // max packet amount that handle at once
   packetFilter?: PacketFilter
   startHeight?: number
+}
+
+interface PacketFee {
+  recvFee?: Coin[]
+  ackFee?: Coin[]
+  timeoutFee?: Coin[]
+}
+
+interface Coin {
+  denom: string
+  amount: number
 }
 
 export interface KeyConfig {

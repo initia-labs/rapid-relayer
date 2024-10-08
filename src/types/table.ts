@@ -99,6 +99,15 @@ export interface ChannelOnOpenTable {
   counterparty_channel_id: string
 }
 
+export interface PacketFeeTable {
+  chain_id: string
+  channel_id: string
+  sequence: number
+  fee_type: FeeType
+  denom: string
+  amount: number
+}
+
 export enum Boolean {
   TRUE = 1,
   FALSE = 0,
@@ -108,4 +117,10 @@ export enum ChannelState {
   INIT = 1,
   TRYOPEN = 2,
   ACK = 3,
+}
+
+export enum FeeType {
+  RECV = 1,
+  ACK = 2,
+  TIMEOUT = 3,
 }

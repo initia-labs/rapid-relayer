@@ -1,5 +1,5 @@
 import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
-import { ChannelOpenInfo, PacketInfo } from 'src/types'
+import { ChannelOpenInfo, PacketFeeEvent, PacketInfo } from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
   const connectionId = event.attributes.filter(
@@ -91,6 +91,29 @@ export function parseChannelOpenEvent(
     dstConnectionId: isSrc ? '' : connectionId,
     dstPortId: isSrc ? counterpartyPortId : portId,
     dstChannelId: isSrc ? counterpartyChannelId : channelId,
+  }
+}
+
+export function parsePacketFeeEvent(event: Event): PacketFeeEvent {
+  const portId = find(event, 'port_id')
+
+  const channelId = find(event, 'channel_id')
+
+  const sequence = Number(find(event, 'packet_sequence'))
+
+  const recvFee = find(event, 'recv_fee')
+
+  const ackFee = find(event, 'ack_fee')
+
+  const timeoutFee = find(event, 'timeout_fee')
+
+  return {
+    portId,
+    channelId,
+    sequence,
+    recvFee,
+    ackFee,
+    timeoutFee,
   }
 }
 

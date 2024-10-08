@@ -66,3 +66,12 @@ export interface ChannelOpenInfo {
   dstPortId: string
   dstChannelId: string
 }
+
+export interface PacketFeeEvent {
+  portId: string
+  channelId: string
+  sequence: number
+  recvFee: string
+  ackFee: string
+  timeoutFee: string
+}
