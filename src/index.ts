@@ -8,6 +8,8 @@ import { info } from './lib/logger'
 
 import { config } from './lib/config'
 import { WorkerController } from './workers'
+import { DB } from './db'
+import { select } from './db/utils'
 
 async function main() {
   const workerController = new WorkerController()
