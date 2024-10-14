@@ -8,12 +8,13 @@ import {
   generateMsgChannelOpenTry,
   generateMsgChannelOpenAck,
   generateMsgChannelOpenConfirm,
+  generateMsgTimeoutOnClose,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
 import { ClientController } from 'src/db/controller/client'
 import {
-  ChannelOnOpenTable,
+  ChannelOpenCloseTable,
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
@@ -34,10 +35,13 @@ import * as https from 'https'
 import { PacketFilter } from 'src/db/controller/packet'
 import { LCDClient } from 'src/lib/lcdClient'
 import {
+  MsgChannelCloseConfirm,
   MsgChannelOpenAck,
   MsgChannelOpenConfirm,
   MsgChannelOpenTry,
 } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
+import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import { generateMsgChannelCloseConfirm } from 'src/msgs/channelCloseConfirm'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -197,11 +201,24 @@ export class WorkerController {
     executorAddress: string
   ) {
     const dstChain = this.chains[packet.dst_chain_id]
+    // check dst channel state
+    const channel = await dstChain.lcd.ibc.channel(
+      packet.dst_port,
+      packet.dst_channel_id
+    )
+    if (channel.channel.state === State.STATE_CLOSED) {
+      return generateMsgTimeoutOnClose(
+        dstChain,
+        packet,
+        height,
+        executorAddress
+      )
+    }
     return generateMsgTimeout(dstChain, packet, height, executorAddress)
   }
 
   async generateChannelOpenTryMsg(
-    event: ChannelOnOpenTable,
+    event: ChannelOpenCloseTable,
     height: Height,
     executorAddress: string
   ): Promise<MsgChannelOpenTry> {
@@ -218,7 +235,7 @@ export class WorkerController {
   }
 
   async generateChannelOpenAckMsg(
-    event: ChannelOnOpenTable,
+    event: ChannelOpenCloseTable,
     height: Height,
     executorAddress: string
   ): Promise<MsgChannelOpenAck> {
@@ -235,12 +252,29 @@ export class WorkerController {
   }
 
   async generateChannelOpenConfirmMsg(
-    event: ChannelOnOpenTable,
+    event: ChannelOpenCloseTable,
     height: Height,
     executorAddress: string
   ): Promise<MsgChannelOpenConfirm> {
     const srcChain = this.chains[event.counterparty_chain_id]
     return generateMsgChannelOpenConfirm(
+      srcChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      event.port_id,
+      event.channel_id,
+      height,
+      executorAddress
+    )
+  }
+
+  async generateChannelCloseConfirmMsg(
+    event: ChannelOpenCloseTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelCloseConfirm> {
+    const srcChain = this.chains[event.counterparty_chain_id]
+    return generateMsgChannelCloseConfirm(
       srcChain,
       event.counterparty_port_id,
       event.counterparty_channel_id,

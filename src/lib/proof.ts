@@ -45,15 +45,15 @@ export async function getRawProof(
 }
 
 export async function getChannelProof(
-  srcChain: ChainWorker,
-  srcPortId: string,
-  srcChannelId: string,
+  chain: ChainWorker,
+  portId: string,
+  channelId: string,
   headerHeight: Height
 ): Promise<string> {
   const key = new Uint8Array(
-    Buffer.from(`channelEnds/ports/${srcPortId}/channels/${srcChannelId}`)
+    Buffer.from(`channelEnds/ports/${portId}/channels/${channelId}`)
   )
-  const proof = await getRawProof(srcChain, key, headerHeight)
+  const proof = await getRawProof(chain, key, headerHeight)
   const ics23Proof = convertProofsToIcs23(proof)
 
   return Buffer.from(ics23Proof).toString('base64')

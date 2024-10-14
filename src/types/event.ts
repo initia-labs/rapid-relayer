@@ -39,6 +39,7 @@ export interface PacketInfo {
   timeoutTimestamp: number
   timeoutHeightRaw: string
   timeoutTimestampRaw: string
+  ordering: string
   ack?: string
 }
 
@@ -48,16 +49,19 @@ export interface UpdateClientEvent {
   consensusHeights: string
 }
 
-export interface ChannelOpenEvent {
+export interface ChannelOpenCloseEvent {
   type:
     | 'channel_open_init'
     | 'channel_open_try'
     | 'channel_open_ack'
     | 'channel_open_confirm'
-  channelOpenInfo: ChannelOpenInfo
+    | 'channel_close_init'
+    | 'channel_close'
+    | 'channel_close_confirm'
+  channelOpenCloseInfo: ChannelOpenCloseInfo
 }
 
-export interface ChannelOpenInfo {
+export interface ChannelOpenCloseInfo {
   height: number
   srcConnectionId: string
   srcPortId: string

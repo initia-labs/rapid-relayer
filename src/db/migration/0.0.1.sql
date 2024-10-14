@@ -45,6 +45,9 @@ CREATE TABLE packet_send (
     -- in progress
     in_progress BOOLEAN,
 
+    -- order
+    is_ordered BOOLEAN,
+
     -- packet data
     height BIGINT NOT NULL,
     dst_connection_id TEXT NOT NULL,
@@ -73,6 +76,9 @@ CREATE TABLE packet_timeout (
     -- in progress
     in_progress BOOLEAN,
 
+    -- order
+    is_ordered BOOLEAN,
+
     -- packet data
     src_connection_id TEXT NOT NULL,
     src_port TEXT NOT NULL,
@@ -100,6 +106,9 @@ CREATE TABLE packet_write_ack (
     -- in progress
     in_progress BOOLEAN,
 
+    -- order
+    is_ordered BOOLEAN,
+
     -- packet data
     height BIGINT NOT NULL,
     src_connection_id TEXT NOT NULL,
@@ -119,14 +128,14 @@ CREATE TABLE packet_write_ack (
 );
 
 -- create channel on open table
-CREATE TABLE channel_on_open (
+CREATE TABLE channel_open_close (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     
     -- in progress
     in_progress BOOLEAN,
 
     -- channel data
-    state BIGINT NOT NULL, -- 1: INIT, 2: TRYOPEN
+    state BIGINT NOT NULL, -- 1: INIT, 2: TRYOPEN, 3: ACK, 4: CLOSE (counter party state)
     chain_id TEXT NOT NULL, -- chain_id that need to execute msg
     connection_id TEXT NOT NULL,
     port_id TEXT NOT NULL,

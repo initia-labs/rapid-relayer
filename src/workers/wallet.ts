@@ -1,7 +1,7 @@
 import { PacketController, PacketFilter } from 'src/db/controller/packet'
 import { ChainWorker } from './chain'
 import {
-  ChannelOnOpenTable,
+  ChannelOpenCloseTable,
   ChannelState,
   PacketSendTable,
   PacketTimeoutTable,
@@ -30,7 +30,7 @@ export class WalletWorker {
     public chain: ChainWorker,
     public workerController: WorkerController,
     private maxHandlePacket: number,
-    private wallet: Wallet,
+    public wallet: Wallet,
     public packetFilter?: PacketFilter
   ) {
     this.logger = createLoggerWithPrefix(
@@ -245,35 +245,41 @@ export class WalletWorker {
         })
       )
 
-      // generate channel open msgs
+      // generate channel open, close msgs
       const channelOpenMsgs = await Promise.all(
-        filteredChannelOpenEvents.map((event) => {
-          const clientId = connectionClientMap[event.connection_id]
-          const height = updateClientMsgs[clientId].height
+        filteredChannelOpenEvents
+          .sort((a, b) => b.state - a.state) // to make execute close first
+          .map((event) => {
+            const clientId = connectionClientMap[event.connection_id]
+            const height = updateClientMsgs[clientId].height
 
-          switch (event.state) {
-            case ChannelState.INIT:
-              return this.workerController.generateChannelOpenTryMsg(
-                event,
-                height,
-                this.address()
-              )
-            // check src channel state
-            case ChannelState.TRYOPEN:
-              return this.workerController.generateChannelOpenAckMsg(
-                event,
-                height,
-                this.address()
-              )
-            // check dst channel state
-            case ChannelState.ACK:
-              return this.workerController.generateChannelOpenConfirmMsg(
-                event,
-                height,
-                this.address()
-              )
-          }
-        })
+            switch (event.state) {
+              case ChannelState.INIT:
+                return this.workerController.generateChannelOpenTryMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.TRYOPEN:
+                return this.workerController.generateChannelOpenAckMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.ACK:
+                return this.workerController.generateChannelOpenConfirmMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.CLOSE:
+                return this.workerController.generateChannelCloseConfirmMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+            }
+          })
       )
 
       const msgs = [
@@ -525,8 +531,8 @@ export class WalletWorker {
   }
 
   private async filterChannelOpenEvents(
-    channelOnOpens: ChannelOnOpenTable[]
-  ): Promise<ChannelOnOpenTable[]> {
+    channelOnOpens: ChannelOpenCloseTable[]
+  ): Promise<ChannelOpenCloseTable[]> {
     // filter duplicated open try
     channelOnOpens = channelOnOpens.filter((v, i, a) => {
       if (v.state !== ChannelState.TRYOPEN) {
@@ -541,7 +547,7 @@ export class WalletWorker {
       )
     })
 
-    const eventsToDel: ChannelOnOpenTable[] = []
+    const eventsToDel: ChannelOpenCloseTable[] = []
 
     // check already executed
     const res = await Promise.all(
@@ -585,6 +591,6 @@ export class WalletWorker {
 
     ChannelController.delOpenEvents(eventsToDel)
 
-    return res.filter((v) => v !== undefined) as ChannelOnOpenTable[]
+    return res.filter((v) => v !== undefined) as ChannelOpenCloseTable[]
   }
 }

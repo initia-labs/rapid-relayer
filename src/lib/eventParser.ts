@@ -1,5 +1,5 @@
 import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
-import { ChannelOpenInfo, PacketFeeEvent, PacketInfo } from 'src/types'
+import { ChannelOpenCloseInfo, PacketFeeEvent, PacketInfo } from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
   const connectionId = event.attributes.filter(
@@ -44,6 +44,10 @@ export function parsePacketEvent(event: Event, height: number): PacketInfo {
 
   const ackHex = event.attributes.filter((v) => v.key === 'packet_ack_hex')
 
+  const ordering = event.attributes.filter(
+    (v) => v.key === 'packet_channel_ordering'
+  )[0].value
+
   const ack =
     ackHex.length === 0
       ? undefined
@@ -62,6 +66,7 @@ export function parsePacketEvent(event: Event, height: number): PacketInfo {
     timeoutTimestamp,
     timeoutHeightRaw,
     timeoutTimestampRaw,
+    ordering,
     ack,
   }
 }
@@ -69,7 +74,7 @@ export function parsePacketEvent(event: Event, height: number): PacketInfo {
 export function parseChannelOpenEvent(
   event: Event,
   height: number
-): ChannelOpenInfo {
+): ChannelOpenCloseInfo {
   const isSrc =
     event.type === 'channel_open_init' || event.type === 'channel_open_ack'
 
@@ -82,6 +87,28 @@ export function parseChannelOpenEvent(
   const counterpartyPortId = find(event, 'counterparty_port_id')
 
   const counterpartyChannelId = find(event, 'counterparty_channel_id')
+
+  return {
+    height,
+    srcConnectionId: isSrc ? connectionId : '',
+    srcPortId: isSrc ? portId : counterpartyPortId,
+    srcChannelId: isSrc ? channelId : counterpartyChannelId,
+    dstConnectionId: isSrc ? '' : connectionId,
+    dstPortId: isSrc ? counterpartyPortId : portId,
+    dstChannelId: isSrc ? counterpartyChannelId : channelId,
+  }
+}
+
+export function parseChannelCloseEvent(
+  event: Event,
+  height: number
+): ChannelOpenCloseInfo {
+  const portId = find(event, 'port_id')
+  const channelId = find(event, 'channel_id')
+  const connectionId = find(event, 'connection_id')
+  const counterpartyPortId = find(event, 'counterparty_port_id')
+  const counterpartyChannelId = find(event, 'counterparty_channel_id')
+  const isSrc = event.type === 'channel_close_init' || 'channel_close'
 
   return {
     height,

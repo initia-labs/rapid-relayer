@@ -1,7 +1,8 @@
 import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
-import { ChannelOpenEvent, PacketEvent, PacketFeeEvent } from 'src/types'
+import { ChannelOpenCloseEvent, PacketEvent, PacketFeeEvent } from 'src/types'
 import {
+  parseChannelCloseEvent,
   parseChannelOpenEvent,
   parsePacketEvent,
   parsePacketFeeEvent,
@@ -191,7 +192,7 @@ class SyncWorker {
 
   private async fetchEvents(height: number): Promise<{
     packetEvents: PacketEvent[]
-    channelOpenEvents: ChannelOpenEvent[]
+    channelOpenEvents: ChannelOpenCloseEvent[]
     packetFeeEvents: PacketFeeEvent[]
   }> {
     this.logger.debug(`Fecth new block results (height - ${height})`)
@@ -199,7 +200,7 @@ class SyncWorker {
     const txData = [...blockResult.results]
 
     const packetEvents: PacketEvent[] = []
-    const channelOpenEvents: ChannelOpenEvent[] = []
+    const channelOpenEvents: ChannelOpenCloseEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
 
     txData.map((data, i) => {
@@ -224,7 +225,18 @@ class SyncWorker {
         ) {
           channelOpenEvents.push({
             type: event.type,
-            channelOpenInfo: parseChannelOpenEvent(event, height),
+            channelOpenCloseInfo: parseChannelOpenEvent(event, height),
+          })
+        }
+
+        if (
+          event.type === 'channel_close_init' ||
+          event.type === 'channel_close' ||
+          event.type === 'channel_close_confirm'
+        ) {
+          channelOpenEvents.push({
+            type: event.type,
+            channelOpenCloseInfo: parseChannelCloseEvent(event, height),
           })
         }
 

@@ -1,8 +1,8 @@
 import { DB } from '..'
 import {
   Boolean,
-  ChannelOnOpenTable,
-  ChannelOpenEvent,
+  ChannelOpenCloseTable,
+  ChannelOpenCloseEvent,
   ChannelState,
 } from 'src/types'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
@@ -12,11 +12,11 @@ import { PacketFilter } from './packet'
 import { Database } from 'better-sqlite3'
 
 export class ChannelController {
-  static tableName = 'channel_on_open'
+  static tableName = 'channel_open_close'
   public static async feedEvents(
     lcd: LCDClient,
     chainId: string,
-    events: ChannelOpenEvent[]
+    events: ChannelOpenCloseEvent[]
   ): Promise<() => void> {
     const feedFns: (() => void)[] = []
     for (const event of events) {
@@ -35,6 +35,17 @@ export class ChannelController {
             await this.feedChannelOpenConfirmEvent(lcd, chainId, event)
           )
           break
+        case 'channel_close':
+        case 'channel_close_init':
+          feedFns.push(
+            await this.feedChannelCloseInitEvent(lcd, chainId, event)
+          )
+          break
+        case 'channel_close_confirm':
+          feedFns.push(
+            await this.feedChannelCloseConfirmEvent(lcd, chainId, event)
+          )
+          break
       }
     }
 
@@ -51,8 +62,8 @@ export class ChannelController {
     filter: PacketFilter = {},
     state?: ChannelState,
     limit = 100
-  ): ChannelOnOpenTable[] {
-    const wheres: WhereOptions<ChannelOnOpenTable>[] = []
+  ): ChannelOpenCloseTable[] {
+    const wheres: WhereOptions<ChannelOpenCloseTable>[] = []
 
     if (filter.connections) {
       for (const connectionFilter of filter.connections) {
@@ -74,7 +85,7 @@ export class ChannelController {
       })
     }
 
-    return select<ChannelOnOpenTable>(
+    return select<ChannelOpenCloseTable>(
       DB,
       this.tableName,
       wheres,
@@ -83,14 +94,14 @@ export class ChannelController {
     )
   }
 
-  public static delOpenEvents(events: ChannelOnOpenTable[]) {
+  public static delOpenEvents(events: ChannelOpenCloseTable[]) {
     if (events.filter((event) => event.id === undefined).length !== 0) {
       throw new Error('id must be exists to remove channel on open')
     }
 
     if (events.length === 0) return
 
-    del<ChannelOnOpenTable>(
+    del<ChannelOpenCloseTable>(
       DB,
       this.tableName,
       events.map((v) => ({ id: v.id as number }))
@@ -98,7 +109,7 @@ export class ChannelController {
   }
 
   public static updateInProgress(id?: number, inProgress = true) {
-    update<ChannelOnOpenTable>(
+    update<ChannelOpenCloseTable>(
       DB,
       this.tableName,
       { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
@@ -108,7 +119,7 @@ export class ChannelController {
 
   public static resetPacketInProgress(db?: Database) {
     db = db ?? DB
-    update<ChannelOnOpenTable>(db, this.tableName, {
+    update<ChannelOpenCloseTable>(db, this.tableName, {
       in_progress: Boolean.FALSE,
     })
   }
@@ -116,26 +127,26 @@ export class ChannelController {
   private static async feedChannelOpenInitEvent(
     lcd: LCDClient,
     chainId: string,
-    event: ChannelOpenEvent
+    event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
       lcd,
       chainId,
-      event.channelOpenInfo.srcConnectionId
+      event.channelOpenCloseInfo.srcConnectionId
     )
 
     // add channel on open for dst chain
-    const channelOnOpen: ChannelOnOpenTable = {
+    const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
       state: ChannelState.INIT,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
-      port_id: event.channelOpenInfo.dstPortId,
-      channel_id: event.channelOpenInfo.dstChannelId,
+      port_id: event.channelOpenCloseInfo.dstPortId,
+      channel_id: event.channelOpenCloseInfo.dstChannelId,
       counterparty_chain_id: chainId,
-      counterparty_connection_id: event.channelOpenInfo.srcConnectionId,
-      counterparty_port_id: event.channelOpenInfo.srcPortId,
-      counterparty_channel_id: event.channelOpenInfo.srcChannelId,
+      counterparty_connection_id: event.channelOpenCloseInfo.srcConnectionId,
+      counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
+      counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
     }
 
     return () => {
@@ -146,30 +157,30 @@ export class ChannelController {
   private static async feedChannelOpenTryEvent(
     lcd: LCDClient,
     chainId: string,
-    event: ChannelOpenEvent
+    event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
       lcd,
       chainId,
-      event.channelOpenInfo.dstConnectionId
+      event.channelOpenCloseInfo.dstConnectionId
     )
 
     // add channel on open for src chain
-    const channelOnOpen: ChannelOnOpenTable = {
+    const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
       state: ChannelState.TRYOPEN,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
-      port_id: event.channelOpenInfo.srcPortId,
-      channel_id: event.channelOpenInfo.srcChannelId,
+      port_id: event.channelOpenCloseInfo.srcPortId,
+      channel_id: event.channelOpenCloseInfo.srcChannelId,
       counterparty_chain_id: chainId,
-      counterparty_connection_id: event.channelOpenInfo.dstConnectionId,
-      counterparty_port_id: event.channelOpenInfo.dstPortId,
-      counterparty_channel_id: event.channelOpenInfo.dstChannelId,
+      counterparty_connection_id: event.channelOpenCloseInfo.dstConnectionId,
+      counterparty_port_id: event.channelOpenCloseInfo.dstPortId,
+      counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
     }
 
     return () => {
-      del<ChannelOnOpenTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.INIT,
           counterparty_chain_id: connection.counterparty_chain_id,
@@ -184,30 +195,30 @@ export class ChannelController {
   private static async feedChannelOpenAckEvent(
     lcd: LCDClient,
     chainId: string,
-    event: ChannelOpenEvent
+    event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
       lcd,
       chainId,
-      event.channelOpenInfo.srcConnectionId
+      event.channelOpenCloseInfo.srcConnectionId
     )
 
     // add channel on open for dst chain
-    const channelOnOpen: ChannelOnOpenTable = {
+    const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
       state: ChannelState.ACK,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
-      port_id: event.channelOpenInfo.dstPortId,
-      channel_id: event.channelOpenInfo.dstChannelId,
+      port_id: event.channelOpenCloseInfo.dstPortId,
+      channel_id: event.channelOpenCloseInfo.dstChannelId,
       counterparty_chain_id: chainId,
-      counterparty_connection_id: event.channelOpenInfo.srcConnectionId,
-      counterparty_port_id: event.channelOpenInfo.srcPortId,
-      counterparty_channel_id: event.channelOpenInfo.srcChannelId,
+      counterparty_connection_id: event.channelOpenCloseInfo.srcConnectionId,
+      counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
+      counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
     }
 
     return () => {
-      del<ChannelOnOpenTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.INIT,
           counterparty_chain_id: chainId,
@@ -222,25 +233,72 @@ export class ChannelController {
   private static async feedChannelOpenConfirmEvent(
     _lcd: LCDClient,
     chainId: string,
-    event: ChannelOpenEvent
+    event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     return () => {
-      del<ChannelOnOpenTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.TRYOPEN,
           counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelOpenInfo.srcPortId,
-          counterparty_channel_id: event.channelOpenInfo.srcChannelId,
+          counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
+          counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
         },
       ]) // remove open try
-      del<ChannelOnOpenTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.ACK,
           counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelOpenInfo.dstPortId,
-          counterparty_channel_id: event.channelOpenInfo.dstChannelId,
+          counterparty_port_id: event.channelOpenCloseInfo.dstPortId,
+          counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
       ]) // remove ack
+    }
+  }
+
+  private static async feedChannelCloseInitEvent(
+    lcd: LCDClient,
+    chainId: string,
+    event: ChannelOpenCloseEvent
+  ): Promise<() => void> {
+    const connection = await ConnectionController.getConnection(
+      lcd,
+      chainId,
+      event.channelOpenCloseInfo.srcConnectionId
+    )
+
+    // add channel on open for dst chain
+    const channelOnOpen: ChannelOpenCloseTable = {
+      in_progress: Boolean.FALSE,
+      state: ChannelState.CLOSE,
+      chain_id: connection.counterparty_chain_id,
+      connection_id: connection.counterparty_connection_id,
+      port_id: event.channelOpenCloseInfo.dstPortId,
+      channel_id: event.channelOpenCloseInfo.dstChannelId,
+      counterparty_chain_id: chainId,
+      counterparty_connection_id: event.channelOpenCloseInfo.srcConnectionId,
+      counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
+      counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
+    }
+
+    return () => {
+      insert(DB, this.tableName, channelOnOpen)
+    }
+  }
+
+  private static async feedChannelCloseConfirmEvent(
+    _lcd: LCDClient,
+    chainId: string,
+    event: ChannelOpenCloseEvent
+  ): Promise<() => void> {
+    return () => {
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
+        {
+          state: ChannelState.CLOSE,
+          chain_id: chainId,
+          port_id: event.channelOpenCloseInfo.dstPortId,
+          channel_id: event.channelOpenCloseInfo.dstChannelId,
+        },
+      ])
     }
   }
 }

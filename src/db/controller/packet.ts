@@ -345,6 +345,10 @@ export class PacketController {
       dst_channel_id: event.packetInfo.dstChannel,
       sequence: Number(event.packetInfo.sequence),
       in_progress: Boolean.FALSE,
+      is_ordered:
+        'ORDER_ORDERED' === event.packetInfo.ordering
+          ? Boolean.TRUE
+          : Boolean.FALSE,
       height: event.packetInfo.height,
       dst_port: event.packetInfo.dstPort,
       src_chain_id: chainId,
@@ -365,6 +369,10 @@ export class PacketController {
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
       in_progress: Boolean.FALSE,
+      is_ordered:
+        'ORDER_ORDERED' === event.packetInfo.ordering
+          ? Boolean.TRUE
+          : Boolean.FALSE,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: connection.counterparty_chain_id,
       dst_connection_id: connection.counterparty_connection_id,
@@ -402,6 +410,10 @@ export class PacketController {
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
       in_progress: Boolean.FALSE,
+      is_ordered:
+        'ORDER_ORDERED' === event.packetInfo.ordering
+          ? Boolean.TRUE
+          : Boolean.FALSE,
       height: event.packetInfo.height,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: chainId,
