@@ -135,6 +135,7 @@ CREATE TABLE channel_open_close (
     in_progress BOOLEAN,
 
     -- channel data
+    height BIGINT NOT NULL,
     state BIGINT NOT NULL, -- 1: INIT, 2: TRYOPEN, 3: ACK, 4: CLOSE (counter party state)
     chain_id TEXT NOT NULL, -- chain_id that need to execute msg
     connection_id TEXT NOT NULL,

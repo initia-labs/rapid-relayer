@@ -30,7 +30,7 @@ interface WalletConfig {
   startHeight?: number
 }
 
-interface PacketFee {
+export interface PacketFee {
   recvFee?: Coin[]
   ackFee?: Coin[]
   timeoutFee?: Coin[]

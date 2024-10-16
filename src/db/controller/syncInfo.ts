@@ -9,7 +9,7 @@ export class SyncInfoController {
     startHeights: number[],
     latestHeight: number
   ): SyncInfoTable[] {
-    startHeights = startHeights.sort().reverse()
+    startHeights = startHeights.sort()
     let syncInfos = this.getSyncInfos(chainId)
 
     if (syncInfos.length === 0) {
@@ -80,9 +80,11 @@ export class SyncInfoController {
       update<SyncInfoTable>(DB, this.tableName, { start_height: startHeight }, [
         {
           chain_id: chainId,
-          start_height: endHeight,
+          start_height: endHeight + 1,
         },
       ])
+
+      console.log(select(DB, this.tableName))
 
       return true
     }

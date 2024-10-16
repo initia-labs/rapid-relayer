@@ -91,6 +91,7 @@ export interface PacketWriteAckTable {
 export interface ChannelOpenCloseTable {
   id?: number
   in_progress: Boolean
+  height: number
   state: ChannelState
   chain_id: string
   connection_id: string

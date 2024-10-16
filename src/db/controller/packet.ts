@@ -16,12 +16,12 @@ import { ConnectionController } from './connection'
 import { Database } from 'better-sqlite3'
 import { LCDClient } from 'src/lib/lcdClient'
 import { PacketFeeController } from './packetFee'
-import { FeeFilter } from 'src/lib/config'
+import { PacketFee } from 'src/lib/config'
 
 export class PacketController {
-  private static tableNamePacketSend = 'packet_send'
-  private static tableNamePacketTimeout = 'packet_timeout'
-  private static tableNamePacketWriteAck = 'packet_write_ack'
+  public static tableNamePacketSend = 'packet_send'
+  public static tableNamePacketTimeout = 'packet_timeout'
+  public static tableNamePacketWriteAck = 'packet_write_ack'
 
   public static async feedEvents(
     lcd: LCDClient,
@@ -59,7 +59,7 @@ export class PacketController {
     chainId: string,
     height: number,
     timestamp: number,
-    chainIdsWithFeeFilters: { chainId: string; feeFilter: FeeFilter }[],
+    chainIdsWithFeeFilters: { chainId: string; feeFilter: PacketFee }[],
     filter: PacketFilter = {},
     limit = 100
   ): PacketSendTable[] {
@@ -120,7 +120,7 @@ export class PacketController {
     height: number,
     timestamp: number,
     counterpartyChainIds: string[],
-    feeFilter: FeeFilter,
+    feeFilter: PacketFee,
     filter: PacketFilter = {},
     limit = 100
   ): PacketTimeoutTable[] {
@@ -169,7 +169,7 @@ export class PacketController {
   public static getWriteAckPackets(
     chainId: string,
     counterpartyChainIds: string[],
-    feeFilter: FeeFilter,
+    feeFilter: PacketFee,
     filter: PacketFilter = {},
     limit = 100
   ): PacketWriteAckTable[] {
@@ -388,6 +388,21 @@ export class PacketController {
     return () => {
       insert(DB, this.tableNamePacketSend, packetSend)
       insert(DB, this.tableNamePacketTimeout, packetTimeout)
+
+      // if channel is ordered channel, update in progress for higher sequence
+      if (packetSend.is_ordered === Boolean.TRUE) {
+        update<PacketSendTable>(
+          DB,
+          this.tableNamePacketSend,
+          { in_progress: Boolean.FALSE },
+          [
+            {
+              dst_chain_id: packetSend.dst_chain_id,
+              dst_channel_id: packetSend.dst_channel_id,
+            },
+          ]
+        )
+      }
     }
   }
 
@@ -432,7 +447,6 @@ export class PacketController {
       del<PacketSendTable>(DB, this.tableNamePacketSend, [
         {
           dst_chain_id: chainId,
-          dst_connection_id: event.packetInfo.connectionId,
           dst_channel_id: event.packetInfo.dstChannel,
           sequence: Number(event.packetInfo.sequence),
         },
@@ -453,6 +467,21 @@ export class PacketController {
       )
 
       insert(DB, this.tableNamePacketWriteAck, packetWriteAck)
+
+      // if channel is ordered channel, update in progress for higher sequence
+      if (packetWriteAck.is_ordered === Boolean.TRUE) {
+        update<PacketSendTable>(
+          DB,
+          this.tableNamePacketSend,
+          { in_progress: Boolean.FALSE },
+          [
+            {
+              dst_chain_id: chainId,
+              dst_channel_id: event.packetInfo.dstChannel,
+            },
+          ]
+        )
+      }
     }
   }
 
@@ -573,6 +602,21 @@ export class PacketController {
         FeeType.ACK
       )
     }
+  }
+
+  // update timeout timestamp to -1
+  public static updateTimeout(chainId: string, channelId: string) {
+    update<PacketTimeoutTable>(
+      DB,
+      PacketController.tableNamePacketTimeout,
+      { timeout_timestamp: -1 },
+      [
+        {
+          dst_channel_id: channelId,
+          dst_chain_id: chainId,
+        },
+      ]
+    )
   }
 }
 

@@ -60,6 +60,12 @@ class IbcAPI extends IbcAPI_ {
       `/ibc/core/connection/v1/connections/${connectionId}`
     )
   }
+
+  async nextSequence(portId: string, channelId: string): Promise<NextSequence> {
+    return this.c.get<NextSequence>(
+      `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/next_sequence`
+    )
+  }
 }
 
 interface ChannelResponse {
@@ -86,5 +92,14 @@ interface ChannelResponseRaw {
   proof_height: {
     revision_number: number
     revision_height: number
+  }
+}
+
+interface NextSequence {
+  next_sequence_receive: string
+  proof: null | string
+  proof_height: {
+    revision_number: string
+    revision_height: string
   }
 }

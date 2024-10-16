@@ -1,6 +1,7 @@
 import { PacketController, PacketFilter } from 'src/db/controller/packet'
 import { ChainWorker } from './chain'
 import {
+  Boolean,
   ChannelOpenCloseTable,
   ChannelState,
   PacketSendTable,
@@ -19,7 +20,7 @@ import { delay } from 'bluebird'
 import { Logger } from 'winston'
 import { ChannelController } from 'src/db/controller/channel'
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
-import { FeeFilter } from 'src/lib/config'
+import { PacketFee } from 'src/lib/config'
 
 // TODO: add update client worker
 export class WalletWorker {
@@ -66,7 +67,7 @@ export class WalletWorker {
     const feeFilter = (
       chainIdsWithFeeFilter.find((v) => v.chainId === this.chain.chainId) as {
         chainId: string
-        feeFilter: FeeFilter
+        feeFilter: PacketFee
       }
     ).feeFilter
 
@@ -124,6 +125,11 @@ export class WalletWorker {
             this.packetFilter,
             undefined,
             remain
+          ).filter(
+            (event) =>
+              event.height <
+              this.workerController.chains[event.counterparty_chain_id]
+                .latestHeight
           )
 
     // update packet in progress
@@ -147,14 +153,13 @@ export class WalletWorker {
         await this.filterWriteAckPackets(writeAckPackets)
       const filteredTimeoutPackets =
         await this.filterTimeoutPackets(timeoutPackets)
-      const filteredChannelOpenEvents =
-        await this.filterChannelOpenEvents(channelOpenEvents)
-
+      const filteredChannelOpenCloseEvents =
+        await this.filterChannelOpenCloseEvents(channelOpenEvents)
       if (
         filteredSendPackets.length === 0 &&
         filteredWriteAckPackets.length === 0 &&
         filteredTimeoutPackets.length === 0 &&
-        filteredChannelOpenEvents.length === 0
+        filteredChannelOpenCloseEvents.length === 0
       ) {
         return
       }
@@ -167,7 +172,7 @@ export class WalletWorker {
         ...filteredSendPackets.map((packet) => packet.dst_connection_id),
         ...filteredWriteAckPackets.map((packet) => packet.src_connection_id),
         ...filteredTimeoutPackets.map((packet) => packet.src_connection_id),
-        ...filteredChannelOpenEvents.map((event) => event.connection_id),
+        ...filteredChannelOpenCloseEvents.map((event) => event.connection_id),
       ].filter((v, i, a) => a.indexOf(v) === i)
 
       const connectionClientMap: Record<string, string> = {}
@@ -247,7 +252,7 @@ export class WalletWorker {
 
       // generate channel open, close msgs
       const channelOpenMsgs = await Promise.all(
-        filteredChannelOpenEvents
+        filteredChannelOpenCloseEvents
           .sort((a, b) => b.state - a.state) // to make execute close first
           .map((event) => {
             const clientId = connectionClientMap[event.connection_id]
@@ -376,6 +381,58 @@ export class WalletWorker {
     await Promise.all(
       Object.keys(sendPacketMap).map(async (path) => {
         if (sendPacketMap[path].length === 0) return
+        // check channel state
+        const dstChannel = await this.chain.lcd.ibc.channel(
+          sendPacketMap[path][0].dst_port,
+          sendPacketMap[path][0].dst_channel_id
+        )
+
+        if (dstChannel.channel.state === State.STATE_CLOSED) {
+          sendPacketsToDel.push(...sendPacketMap[path])
+          delete sendPacketMap[path]
+          return
+        }
+
+        const srcChannel = await this.workerController.chains[
+          sendPacketMap[path][0].src_chain_id
+        ].lcd.ibc.channel(
+          sendPacketMap[path][0].src_port,
+          sendPacketMap[path][0].src_channel_id
+        )
+
+        if (srcChannel.channel.state === State.STATE_CLOSED) {
+          sendPacketsToDel.push(...sendPacketMap[path])
+          delete sendPacketMap[path]
+          return
+        }
+
+        // handle ordered channels
+        if (sendPacketMap[path][0].is_ordered === Boolean.TRUE) {
+          // check next sequence
+          const nextSequence = await this.chain.lcd.ibc.nextSequence(
+            sendPacketMap[path][0].dst_port,
+            sendPacketMap[path][0].dst_channel_id
+          )
+
+          let sequence = Number(nextSequence.next_sequence_receive)
+          const sequences: number[] = []
+
+          for (const packet of sendPacketMap[path]) {
+            if (packet.sequence !== sequence) {
+              break
+            }
+
+            sequences.push(sequence)
+            sequence++
+          }
+
+          sendPacketMap[path] = sendPacketMap[path].filter((packet) =>
+            sequences.includes(packet.sequence)
+          )
+
+          return
+        }
+
         const unrecivedPackets = await this.chain.lcd.ibc.unreceivedPackets(
           sendPacketMap[path][0].dst_port,
           sendPacketMap[path][0].dst_channel_id,
@@ -453,7 +510,7 @@ export class WalletWorker {
   }
 
   private async filterTimeoutPackets(
-    timeoutPackets: PacketTimeoutTable[]
+    timeoutPackets: PacketTimeoutTable[] | PacketSendTable[]
   ): Promise<PacketTimeoutTable[]> {
     // create path => packet map
     const timeoutPacketMap: Record<string, PacketTimeoutTable[]> = {}
@@ -530,7 +587,7 @@ export class WalletWorker {
     return Object.values(timeoutPacketMap).flat()
   }
 
-  private async filterChannelOpenEvents(
+  private async filterChannelOpenCloseEvents(
     channelOnOpens: ChannelOpenCloseTable[]
   ): Promise<ChannelOpenCloseTable[]> {
     // filter duplicated open try
@@ -578,6 +635,11 @@ export class WalletWorker {
           // check dst channel state
           case ChannelState.ACK:
             if (channel && channel.channel.state === State.STATE_TRYOPEN) {
+              return v
+            }
+            break
+          case ChannelState.CLOSE:
+            if (channel && channel.channel.state !== State.STATE_CLOSED) {
               return v
             }
             break

@@ -15,7 +15,7 @@ import { Logger } from 'winston'
 import { LCDClient } from 'src/lib/lcdClient'
 import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
-import { FeeFilter } from 'src/lib/config'
+import { PacketFee } from 'src/lib/config'
 
 export class ChainWorker {
   public latestHeight: number
@@ -28,7 +28,7 @@ export class ChainWorker {
     public lcd: LCDClient,
     public rpc: RPCClient,
     public bech32Prefix: string,
-    public feeFilter: FeeFilter,
+    public feeFilter: PacketFee,
     latestHeight: number,
     startHeights: number[]
   ) {
@@ -53,11 +53,11 @@ export class ChainWorker {
   public terminateSyncWorker(startHeight: number) {
     const endHeight = this.syncWorkers[startHeight].endHeight
 
-    const nextWorker = this.syncWorkers[endHeight]
+    const nextWorker = this.syncWorkers[endHeight + 1]
 
     // drop sync workers
     delete this.syncWorkers[startHeight]
-    delete this.syncWorkers[endHeight]
+    delete this.syncWorkers[endHeight + 1]
 
     // update and store next range worker
     nextWorker.startHeight = startHeight

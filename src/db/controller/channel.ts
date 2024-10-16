@@ -8,7 +8,7 @@ import {
 import { In, WhereOptions, del, insert, select, update } from '../utils'
 import { LCDClient } from 'src/lib/lcdClient'
 import { ConnectionController } from './connection'
-import { PacketFilter } from './packet'
+import { PacketController, PacketFilter } from './packet'
 import { Database } from 'better-sqlite3'
 
 export class ChannelController {
@@ -138,6 +138,7 @@ export class ChannelController {
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
+      height: event.channelOpenCloseInfo.height,
       state: ChannelState.INIT,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
@@ -168,6 +169,7 @@ export class ChannelController {
     // add channel on open for src chain
     const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
+      height: event.channelOpenCloseInfo.height,
       state: ChannelState.TRYOPEN,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
@@ -206,6 +208,7 @@ export class ChannelController {
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
+      height: event.channelOpenCloseInfo.height,
       state: ChannelState.ACK,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
@@ -269,6 +272,7 @@ export class ChannelController {
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
       in_progress: Boolean.FALSE,
+      height: event.channelOpenCloseInfo.height,
       state: ChannelState.CLOSE,
       chain_id: connection.counterparty_chain_id,
       connection_id: connection.counterparty_connection_id,
@@ -299,6 +303,10 @@ export class ChannelController {
           channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
       ])
+      PacketController.updateTimeout(
+        chainId,
+        event.channelOpenCloseInfo.srcChannelId
+      )
     }
   }
 }

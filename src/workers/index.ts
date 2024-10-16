@@ -27,7 +27,7 @@ import {
   APIRequester,
   Wallet,
 } from '@initia/initia.js'
-import { Config, FeeFilter, KeyConfig } from 'src/lib/config'
+import { Config, PacketFee, KeyConfig } from 'src/lib/config'
 import { env } from 'node:process'
 import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
@@ -104,7 +104,7 @@ export class WorkerController {
     }
   }
 
-  public getFeeFilters(): { chainId: string; feeFilter: FeeFilter }[] {
+  public getFeeFilters(): { chainId: string; feeFilter: PacketFee }[] {
     return Object.keys(this.chains).map((chainId) => ({
       chainId,
       feeFilter: this.chains[chainId].feeFilter,
