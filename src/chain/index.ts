@@ -232,7 +232,7 @@ export class Chain {
 
         // height to fetch
         const heights = Array.from(
-          { length: 1 },
+          { length: 20 },
           (_, i) => i + this.fedHeight + 1
         ).filter((height) => height <= this.latestHeight)
 
