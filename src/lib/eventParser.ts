@@ -117,7 +117,7 @@ function getValue(event: Event, key: string): string | undefined {
   {
     // check base64 encoded key
     const vals = event.attributes.filter(
-      (v) => v.key === Buffer.from(`'${key}'`).toString('base64')
+      (v) => v.key === Buffer.from(`${key}`).toString('base64')
     )
     if (vals.length !== 0) {
       return Buffer.from(vals[0].value, 'base64').toString()
