@@ -9,48 +9,33 @@ export function parseSendPacketEvent(
   if (event.type !== 'send_packet') return
 
   // connection filter
-  if (
-    event.attributes.filter((v) => v.key === 'connection_id')[0].value !==
-    connectionId
-  ) {
+  if (getValue(event, 'connection_id') !== connectionId) {
     return
   }
 
-  const sequence = Number(
-    event.attributes.filter((v) => v.key === 'packet_sequence')[0].value
-  )
+  const sequence = Number(getValue(event, 'packet_sequence') as string)
 
-  const srcPort = event.attributes.filter((v) => v.key === 'packet_src_port')[0]
-    .value
+  const srcPort = getValue(event, 'packet_src_port') as string
 
-  const srcChannel = event.attributes.filter(
-    (v) => v.key === 'packet_src_channel'
-  )[0].value
+  const srcChannel = getValue(event, 'packet_src_channel') as string
 
-  const dstPort = event.attributes.filter((v) => v.key === 'packet_dst_port')[0]
-    .value
+  const dstPort = getValue(event, 'packet_dst_port') as string
 
-  const dstChannel = event.attributes.filter(
-    (v) => v.key === 'packet_dst_channel'
-  )[0].value
+  const dstChannel = getValue(event, 'packet_dst_channel') as string
 
   const data = Buffer.from(
-    event.attributes.filter((v) => v.key === 'packet_data_hex')[0].value,
+    getValue(event, 'packet_data_hex') as string,
     'hex'
   ).toString('base64')
 
-  const timeoutHeightRaw = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_height'
-  )[0].value
+  const timeoutHeightRaw = getValue(event, 'packet_timeout_height') as string
 
   const timeoutHeight = new Height(
     Number(timeoutHeightRaw.split('-')[0]),
     Number(timeoutHeightRaw.split('-')[1])
   )
 
-  const timeoutTimestamp = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_timestamp'
-  )[0].value
+  const timeoutTimestamp = getValue(event, 'packet_timeout_timestamp') as string
 
   return new Packet(
     sequence,
@@ -69,49 +54,34 @@ export function parseWriteAckEvent(
   connectionId: string
 ): Ack | undefined {
   if (event.type !== 'write_acknowledgement') return
-
   // connection filter
-  if (
-    event.attributes.filter((v) => v.key === 'connection_id')[0].value !==
-    connectionId
-  ) {
+  if (getValue(event, 'connection_id') !== connectionId) {
     return
   }
 
-  const sequence = Number(
-    event.attributes.filter((v) => v.key === 'packet_sequence')[0].value
-  )
+  const sequence = Number(getValue(event, 'packet_sequence') as string)
 
-  const srcPort = event.attributes.filter((v) => v.key === 'packet_src_port')[0]
-    .value
+  const srcPort = getValue(event, 'packet_src_port') as string
 
-  const srcChannel = event.attributes.filter(
-    (v) => v.key === 'packet_src_channel'
-  )[0].value
+  const srcChannel = getValue(event, 'packet_src_channel') as string
 
-  const dstPort = event.attributes.filter((v) => v.key === 'packet_dst_port')[0]
-    .value
+  const dstPort = getValue(event, 'packet_dst_port') as string
 
-  const dstChannel = event.attributes.filter(
-    (v) => v.key === 'packet_dst_channel'
-  )[0].value
+  const dstChannel = getValue(event, 'packet_dst_channel') as string
 
   const data = Buffer.from(
-    event.attributes.filter((v) => v.key === 'packet_data')[0].value
+    getValue(event, 'packet_data_hex') as string,
+    'hex'
   ).toString('base64')
 
-  const timeoutHeightRaw = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_height'
-  )[0].value
+  const timeoutHeightRaw = getValue(event, 'packet_timeout_height') as string
 
   const timeoutHeight = new Height(
     Number(timeoutHeightRaw.split('-')[0]),
     Number(timeoutHeightRaw.split('-')[1])
   )
 
-  const timeoutTimestamp = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_timestamp'
-  )[0].value
+  const timeoutTimestamp = getValue(event, 'packet_timeout_timestamp') as string
 
   const packet = new Packet(
     sequence,
@@ -133,4 +103,26 @@ export function parseWriteAckEvent(
     packet,
     acknowledgement,
   }
+}
+
+function getValue(event: Event, key: string): string | undefined {
+  // check key
+  {
+    const vals = event.attributes.filter((v) => v.key === key)
+    if (vals.length !== 0) {
+      return vals[0].value
+    }
+  }
+
+  {
+    // check base64 encoded key
+    const vals = event.attributes.filter(
+      (v) => v.key === Buffer.from(`'${key}'`).toString('base64')
+    )
+    if (vals.length !== 0) {
+      return Buffer.from(vals[0].value, 'base64').toString()
+    }
+  }
+
+  return undefined
 }

@@ -490,6 +490,10 @@ export class Chain {
       state.client_state.latest_height.revision_height
     )
 
+    // check only if latest height diff is more than 100
+    if (Math.abs(revisionHeight - this.counterpartyChain.latestHeight) <= 100) {
+      return false
+    }
     const header = await this.counterpartyChain.rpc.header(revisionHeight)
     const revisionTimestamp = new Date(header.header.time).valueOf()
     const timeDiff = new Date().valueOf() - revisionTimestamp
