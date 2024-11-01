@@ -9,7 +9,7 @@ export function parseSendPacketEvent(
   if (event.type !== 'send_packet') return
 
   // connection filter
-  if (getValue(event, 'connection_id') !== connectionId) {
+  if (getConnection(event) !== connectionId) {
     return
   }
 
@@ -55,7 +55,7 @@ export function parseWriteAckEvent(
 ): Ack | undefined {
   if (event.type !== 'write_acknowledgement') return
   // connection filter
-  if (getValue(event, 'connection_id') !== connectionId) {
+  if (getConnection(event) !== connectionId) {
     return
   }
 
@@ -103,6 +103,12 @@ export function parseWriteAckEvent(
     packet,
     acknowledgement,
   }
+}
+
+function getConnection(event: Event): string | undefined {
+  return (
+    getValue(event, 'connection_id') || getValue(event, 'packet_connection')
+  )
 }
 
 function getValue(event: Event, key: string): string | undefined {
