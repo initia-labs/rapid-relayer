@@ -1,37 +1,56 @@
 {
-  "port": 3000,
+  "$schema": "./config.schema.json",
+  "port": 7010,
+  "metricPort": 70001,
   "logLevel": "info",
-  "pairs": [
+  "chains": [
     {
-      "name": "chainA - chainB",
-      "chainA": {
-        "bech32Prefix": "init",
-        "chainId": "chain-1",
-        "gasPrice": "0.2uinit",
-        "lcdUri": "http://rest.chain-1.com",
-        "rpcUri": "http://rpc.chain-1.com",
-        "key": {
-          "type": "raw",
-          "privateKey": "12af.."
+      "bech32Prefix": "init",
+      "chainId": "chain-1",
+      "gasPrice": "0.15gas",
+      "lcdUri": "https://rest.chain-1.com",
+      "rpcUri": "https://rpc.chain-1.com",
+      "wallets": [
+        {
+          "key": {
+            "type": "raw",
+            "privateKey": "123..."
+          },
+          "maxHandlePacket": 10,
+          "startHeight": 0 // if empty start from the latest height
         },
-        "connectionId": "connection-1",
-        "syncInfo": {
-          "height": 12345,
-          "txIndex": 30
+        {
+          "key": {
+            "type": "mnemonic",
+            "privateKey": "repair family apology column ..."
+          },
+          "maxHandlePacket": 10,
+          "packetFilter": {
+            "connections": [{ "connectionId": "conneciton-1" }]
+          },
+          "feeFilter": {
+            "recvFee": "100gas",
+            "timeoutFee": "200gas",
+            "ackFee": "300gas"
+          }
         }
-      },
-      "chainB": {
-        "bech32Prefix": "init",
-        "chainId": "chain-2",
-        "gasPrice": "0umin",
-        "lcdUri": "http://rest.chain-2.com",
-        "rpcUri": "http://rpc.chain-2.com",
-        "key": {
-          "type": "mnemonic",
-          "privateKey": "bus ..."
-        },
-        "connectionId": "connection-0"
-      }
+      ]
+    },
+    {
+      "bech32Prefix": "init",
+      "chainId": "chain-2",
+      "gasPrice": "0umin",
+      "lcdUri": "https://rest.chain-2.com",
+      "rpcUri": "https://rpc.chain-2.com",
+      "wallets": [
+        {
+          "key": {
+            "type": "raw",
+            "privateKey": "123..."
+          },
+          "maxHandlePacket": 10
+        }
+      ]
     }
   ]
 }
