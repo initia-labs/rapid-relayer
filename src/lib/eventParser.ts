@@ -95,7 +95,7 @@ export function parseWriteAckEvent(
   )
 
   const acknowledgement = Buffer.from(
-    event.attributes.filter((v) => v.key === 'packet_ack_hex')[0].value,
+    getValue(event, 'packet_ack_hex') as string,
     'hex'
   ).toString('base64')
 
