@@ -16,6 +16,7 @@ export class WalletManager {
   private requestIndexInprogress: number
   private requestIndex: number
   private sequence: number
+  private accountNumber: number
   constructor(
     private wallet: Wallet,
     private bech32Prefix: string
@@ -29,6 +30,7 @@ export class WalletManager {
   async init() {
     const accountInfo = await this.wallet.lcd.auth.accountInfo(this.address())
     this.sequence = accountInfo.getSequenceNumber()
+    this.accountNumber = accountInfo.getAccountNumber()
   }
 
   async request(msgs: Msg[], executeDelay = 0): Promise<TxResult> {
@@ -104,6 +106,7 @@ export class WalletManager {
         const signedTx = await this.wallet.createAndSignTx({
           msgs: request.msgs,
           sequence: this.sequence,
+          accountNumber: this.accountNumber,
         })
 
         const result = await this.wallet.lcd.tx.broadcastSync(signedTx)
