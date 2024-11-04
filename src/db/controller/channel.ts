@@ -223,6 +223,14 @@ export class ChannelController {
     return () => {
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
+          state: ChannelState.TRYOPEN,
+          counterparty_chain_id: channelOnOpen.chain_id,
+          counterparty_port_id: channelOnOpen.port_id,
+          counterparty_channel_id: channelOnOpen.channel_id,
+        },
+      ]) // remove open try
+      del<ChannelOpenCloseTable>(DB, this.tableName, [
+        {
           state: ChannelState.INIT,
           counterparty_chain_id: chainId,
           counterparty_port_id: channelOnOpen.counterparty_port_id,
@@ -234,25 +242,30 @@ export class ChannelController {
   }
 
   private static async feedChannelOpenConfirmEvent(
-    _lcd: LCDClient,
+    lcd: LCDClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
+    const connection = await ConnectionController.getConnection(
+      lcd,
+      chainId,
+      event.channelOpenCloseInfo.dstConnectionId
+    )
     return () => {
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.TRYOPEN,
           counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
-          counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
+          counterparty_port_id: event.channelOpenCloseInfo.dstPortId,
+          counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
       ]) // remove open try
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.ACK,
-          counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelOpenCloseInfo.dstPortId,
-          counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
+          counterparty_chain_id: connection.counterparty_chain_id,
+          counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
+          counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
         },
       ]) // remove ack
     }
@@ -303,6 +316,7 @@ export class ChannelController {
           channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
       ])
+      // Mark all packets as timed out
       PacketController.updateTimeout(
         chainId,
         event.channelOpenCloseInfo.srcChannelId

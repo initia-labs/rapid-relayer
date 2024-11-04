@@ -27,14 +27,14 @@
           "maxHandlePacket": 10,
           "packetFilter": {
             "connections": [{ "connectionId": "conneciton-1" }]
-          },
-          "feeFilter": {
-            "recvFee": "100gas",
-            "timeoutFee": "200gas",
-            "ackFee": "300gas"
           }
         }
-      ]
+      ],
+      "feeFilter": {
+        "recvFee": [{ "denom": "gas", "amount": 100 }],
+        "timeoutFee": [{ "denom": "gas", "amount": 200 }],
+        "ackFee": [{ "denom": "gas", "amount": 300 }]
+      }
     },
     {
       "bech32Prefix": "init",
