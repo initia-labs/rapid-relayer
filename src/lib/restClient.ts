@@ -2,17 +2,17 @@ import {
   APIRequester,
   Channel,
   IbcAPI as IbcAPI_,
-  LCDClientConfig,
-  LCDClient as LCDClient_,
+  RESTClientConfig,
+  RESTClient as RESTClient_,
 } from '@initia/initia.js'
 import { Order, State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { ClientState, ConnectionInfo } from 'src/types'
 
-export class LCDClient extends LCDClient_ {
+export class RESTClient extends RESTClient_ {
   public ibc: IbcAPI
   constructor(
     URL: string,
-    config?: LCDClientConfig,
+    config?: RESTClientConfig,
     apiRequester?: APIRequester
   ) {
     super(URL, config, apiRequester)

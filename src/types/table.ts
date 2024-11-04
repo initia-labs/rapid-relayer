@@ -33,8 +33,8 @@ export interface PacketSendTable {
   dst_connection_id: string
   dst_channel_id: string
   sequence: number
-  in_progress: Boolean
-  is_ordered: Boolean
+  in_progress: Bool
+  is_ordered: Bool
   height: number
   dst_port: string
   src_chain_id: string
@@ -53,8 +53,8 @@ export interface PacketTimeoutTable {
   src_connection_id: string
   src_channel_id: string
   sequence: number
-  in_progress: Boolean
-  is_ordered: Boolean
+  in_progress: Bool
+  is_ordered: Bool
   src_port: string
   dst_chain_id: string
   dst_connection_id: string
@@ -72,8 +72,8 @@ export interface PacketWriteAckTable {
   src_connection_id: string
   src_channel_id: string
   sequence: number
-  in_progress: Boolean
-  is_ordered: Boolean
+  in_progress: Bool
+  is_ordered: Bool
   height: number
   src_port: string
   dst_chain_id: string
@@ -90,7 +90,7 @@ export interface PacketWriteAckTable {
 
 export interface ChannelOpenCloseTable {
   id?: number
-  in_progress: Boolean
+  in_progress: Bool
   height: number
   state: ChannelState
   chain_id: string
@@ -112,7 +112,7 @@ export interface PacketFeeTable {
   amount: number
 }
 
-export enum Boolean {
+export enum Bool {
   TRUE = 1,
   FALSE = 0,
 }

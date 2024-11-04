@@ -49,7 +49,7 @@ npm install
       "bech32Prefix": "init",
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
-      "lcdUri": "https://rest.chain-1.com",
+      "restUri": "https://rest.chain-1.com",
       "rpcUri": "https://rpc.chain-1.com",
       "wallets": [
         {
@@ -70,13 +70,18 @@ npm install
             "connections": [{ "connectionId": "conneciton-1" }]
           }
         }
-      ]
+      ],
+      "feeFilter": {
+        "recvFee": [{ "denom": "gas", "amount": 100 }],
+        "timeoutFee": [{ "denom": "gas", "amount": 200 }],
+        "ackFee": [{ "denom": "gas", "amount": 300 }]
+      }
     },
     {
       "bech32Prefix": "init",
       "chainId": "chain-2",
-      "gasPrice": "0.15gas",
-      "lcdUri": "https://rest.chain-2.com",
+      "gasPrice": "0umin",
+      "restUri": "https://rest.chain-2.com",
       "rpcUri": "https://rpc.chain-2.com",
       "wallets": [
         {

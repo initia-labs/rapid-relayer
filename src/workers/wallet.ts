@@ -1,7 +1,7 @@
 import { PacketController, PacketFilter } from 'src/db/controller/packet'
 import { ChainWorker } from './chain'
 import {
-  Boolean,
+  Bool,
   ChannelOpenCloseTable,
   ChannelState,
   PacketSendTable,
@@ -10,10 +10,9 @@ import {
 } from 'src/types'
 import { WorkerController } from '.'
 import { DB } from 'src/db'
-import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ConnectionController } from 'src/db/controller/connection'
-import { Wallet, isTxError } from '@initia/initia.js'
+import { Wallet, isTxError, MsgUpdateClient } from '@initia/initia.js'
 import { createLoggerWithPrefix } from 'src/lib/logger'
 import { bech32 } from 'bech32'
 import { delay } from 'bluebird'
@@ -38,7 +37,7 @@ export class WalletWorker {
     this.logger = createLoggerWithPrefix(
       `<Wallet(${this.chain.chainId}-${this.address()})>`
     )
-    this.run()
+    void this.run()
   }
 
   public async run() {
@@ -53,7 +52,7 @@ export class WalletWorker {
   }
 
   private async initAccInfo() {
-    const accInfo = await this.wallet.lcd.auth.accountInfo(this.address())
+    const accInfo = await this.wallet.rest.auth.accountInfo(this.address())
     this.sequence = accInfo.getSequenceNumber()
     this.accountNumber = accInfo.getAccountNumber()
   }
@@ -186,7 +185,7 @@ export class WalletWorker {
       await Promise.all(
         connections.map(async (connection) => {
           const connectionInfo = await ConnectionController.getConnection(
-            this.chain.lcd,
+            this.chain.rest,
             this.chain.chainId,
             connection
           )
@@ -316,7 +315,7 @@ export class WalletWorker {
         accountNumber: this.accountNumber,
       })
 
-      const result = await this.wallet.lcd.tx.broadcast(signedTx)
+      const result = await this.wallet.rest.tx.broadcast(signedTx)
 
       if (isTxError(result)) {
         if (result.raw_log.startsWith('account sequence mismatch')) {
@@ -343,7 +342,9 @@ export class WalletWorker {
 
       this.sequence++
     } catch (e) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (e?.response?.data) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         this.logger.error(e.response.data)
       } else {
         this.logger.error(e)
@@ -393,7 +394,7 @@ export class WalletWorker {
       Object.keys(sendPacketMap).map(async (path) => {
         if (sendPacketMap[path].length === 0) return
         // check channel state
-        const dstChannel = await this.chain.lcd.ibc.channel(
+        const dstChannel = await this.chain.rest.ibc.channel(
           sendPacketMap[path][0].dst_port,
           sendPacketMap[path][0].dst_channel_id
         )
@@ -406,7 +407,7 @@ export class WalletWorker {
 
         const srcChannel = await this.workerController.chains[
           sendPacketMap[path][0].src_chain_id
-        ].lcd.ibc.channel(
+        ].rest.ibc.channel(
           sendPacketMap[path][0].src_port,
           sendPacketMap[path][0].src_channel_id
         )
@@ -418,9 +419,9 @@ export class WalletWorker {
         }
 
         // handle ordered channels
-        if (sendPacketMap[path][0].is_ordered === Boolean.TRUE) {
+        if (sendPacketMap[path][0].is_ordered === Bool.TRUE) {
           // check next sequence
-          const nextSequence = await this.chain.lcd.ibc.nextSequence(
+          const nextSequence = await this.chain.rest.ibc.nextSequence(
             sendPacketMap[path][0].dst_port,
             sendPacketMap[path][0].dst_channel_id
           )
@@ -444,7 +445,7 @@ export class WalletWorker {
           return
         }
 
-        const unrecivedPackets = await this.chain.lcd.ibc.unreceivedPackets(
+        const unrecivedPackets = await this.chain.rest.ibc.unreceivedPackets(
           sendPacketMap[path][0].dst_port,
           sendPacketMap[path][0].dst_channel_id,
           sendPacketMap[path].map((packet) => packet.sequence)
@@ -492,7 +493,7 @@ export class WalletWorker {
     await Promise.all(
       Object.keys(writeAckPacketMap).map(async (path) => {
         if (writeAckPacketMap[path].length === 0) return
-        const unrecivedAcks = await this.chain.lcd.ibc.unreceivedAcks(
+        const unrecivedAcks = await this.chain.rest.ibc.unreceivedAcks(
           writeAckPacketMap[path][0].src_port,
           writeAckPacketMap[path][0].src_channel_id,
           writeAckPacketMap[path].map((packet) => packet.sequence)
@@ -542,7 +543,7 @@ export class WalletWorker {
     await Promise.all(
       Object.keys(timeoutPacketMap).map(async (path) => {
         if (timeoutPacketMap[path].length === 0) return
-        const unrecivedAcks = await this.chain.lcd.ibc.unreceivedAcks(
+        const unrecivedAcks = await this.chain.rest.ibc.unreceivedAcks(
           timeoutPacketMap[path][0].src_port,
           timeoutPacketMap[path][0].src_channel_id,
           timeoutPacketMap[path].map((packet) => packet.sequence)
@@ -570,7 +571,7 @@ export class WalletWorker {
         if (timeoutPacketMap[path].length === 0) return
         const chain =
           this.workerController.chains[timeoutPacketMap[path][0].dst_chain_id]
-        const unrecivedPackets = await chain.lcd.ibc.unreceivedPackets(
+        const unrecivedPackets = await chain.rest.ibc.unreceivedPackets(
           timeoutPacketMap[path][0].dst_port,
           timeoutPacketMap[path][0].dst_channel_id,
           timeoutPacketMap[path].map((packet) => packet.sequence)
@@ -622,13 +623,13 @@ export class WalletWorker {
       channelOnOpens.map(async (v) => {
         const counterpartyChain =
           this.workerController.chains[v.counterparty_chain_id]
-        const counterpartyChannel = await counterpartyChain.lcd.ibc.channel(
+        const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
           v.counterparty_port_id,
           v.counterparty_channel_id
         )
         const channel =
           v.channel_id !== ''
-            ? await this.chain.lcd.ibc.channel(v.port_id, v.channel_id)
+            ? await this.chain.rest.ibc.channel(v.port_id, v.channel_id)
             : undefined
         switch (v.state) {
           // check src channel state

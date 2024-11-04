@@ -12,7 +12,7 @@ import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
 import { delay } from 'bluebird'
 import { Logger } from 'winston'
-import { LCDClient } from 'src/lib/lcdClient'
+import { RESTClient } from 'src/lib/restClient'
 import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
 import { PacketFee } from 'src/lib/config'
@@ -25,7 +25,7 @@ export class ChainWorker {
 
   public constructor(
     public chainId: string,
-    public lcd: LCDClient,
+    public rest: RESTClient,
     public rpc: RPCClient,
     public bech32Prefix: string,
     public feeFilter: PacketFee,
@@ -46,7 +46,7 @@ export class ChainWorker {
         syncInfo.end_height,
         syncInfo.synced_height
       )
-      this.latestHeightWorker()
+      void this.latestHeightWorker()
     }
   }
 
@@ -110,7 +110,7 @@ class SyncWorker {
     this.logger = createLoggerWithPrefix(
       `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})>`
     )
-    this.feedEvents()
+    void this.feedEvents()
   }
 
   private async feedEvents() {
@@ -144,13 +144,13 @@ class SyncWorker {
         let finish = false
 
         const pakcetEventFeed = await PacketController.feedEvents(
-          this.chain.lcd,
+          this.chain.rest,
           this.chain.chainId,
           packetEvents
         )
 
         const channelOpenEventFeed = await ChannelController.feedEvents(
-          this.chain.lcd,
+          this.chain.rest,
           this.chain.chainId,
           channelOpenEvents
         )
@@ -203,7 +203,7 @@ class SyncWorker {
     const channelOpenEvents: ChannelOpenCloseEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
 
-    txData.map((data, i) => {
+    txData.map((data) => {
       for (const event of data.events) {
         if (
           event.type === 'send_packet' ||

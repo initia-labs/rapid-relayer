@@ -2,19 +2,19 @@ import { DB } from '..'
 import { ConnectionTable } from 'src/types'
 import { ClientController } from './client'
 import { insert, selectOne } from '../utils'
-import { LCDClient } from 'src/lib/lcdClient'
+import { RESTClient } from 'src/lib/restClient'
 
 export class ConnectionController {
   static tableName = 'connection'
   public static async addConnection(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
-    const connectionInfo = await lcd.ibc.getConnection(connectionId)
+    const connectionInfo = await rest.ibc.getConnection(connectionId)
 
     const clientId = connectionInfo.connection.client_id
-    const client = await ClientController.getClient(lcd, chainId, clientId)
+    const client = await ClientController.getClient(rest, chainId, clientId)
 
     const connection: ConnectionTable = {
       chain_id: chainId,
@@ -34,7 +34,7 @@ export class ConnectionController {
   // TODO: add connection_open_init event feeder
 
   public static async getConnection(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
@@ -45,6 +45,6 @@ export class ConnectionController {
       },
     ])
 
-    return connection ?? this.addConnection(lcd, chainId, connectionId)
+    return connection ?? this.addConnection(rest, chainId, connectionId)
   }
 }

@@ -1,4 +1,4 @@
-import { MsgChannelOpenAck } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
+import { MsgChannelOpenAck } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { getChannelProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
@@ -15,7 +15,7 @@ export async function generateMsgChannelOpenAck(
 ): Promise<MsgChannelOpenAck> {
   const {
     channel: { version },
-  } = await dstChain.lcd.ibc.channel(dstPortId, dstChannelId)
+  } = await dstChain.rest.ibc.channel(dstPortId, dstChannelId)
 
   return new MsgChannelOpenAck(
     srcPortId,

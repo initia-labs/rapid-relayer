@@ -1,5 +1,5 @@
 import { Channel, ChannelCounterparty, State } from '@initia/initia.js'
-import { MsgChannelOpenTry } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
+import { MsgChannelOpenTry } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { getChannelProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
@@ -16,7 +16,7 @@ export async function generateMsgChannelOpenTry(
 ): Promise<MsgChannelOpenTry> {
   const {
     channel: { ordering, version },
-  } = await srcChain.lcd.ibc.channel(srcPortId, srcChannelId)
+  } = await srcChain.rest.ibc.channel(srcPortId, srcChannelId)
 
   const channel = new Channel(
     State.STATE_TRYOPEN,

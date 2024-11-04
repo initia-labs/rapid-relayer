@@ -17,7 +17,7 @@ interface ChainConfig {
   bech32Prefix: string
   chainId: string
   gasPrice: string
-  lcdUri: string
+  restUri: string
   rpcUri: string
   wallets: WalletConfig[]
   feeFilter?: PacketFee

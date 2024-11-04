@@ -3,16 +3,16 @@ import { insert, selectOne } from '../utils'
 import { Any } from 'cosmjs-types/google/protobuf/any'
 import { UpdateClientEvent, ClientTable } from 'src/types'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
-import { LCDClient } from 'src/lib/lcdClient'
+import { RESTClient } from 'src/lib/restClient'
 
 export class ClientController {
   static tableName = 'client'
   public static async addClient(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    const state = await lcd.ibc.getClientState(clientId)
+    const state = await rest.ibc.getClientState(clientId)
 
     const client: ClientTable = {
       chain_id: chainId,
@@ -33,7 +33,7 @@ export class ClientController {
   }
 
   public static async feedUpdateClientEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: UpdateClientEvent
   ) {
@@ -48,7 +48,7 @@ export class ClientController {
     const header = Header.decode(msg.value)
 
     // get client
-    const client = await this.getClient(lcd, chainId, clientId)
+    const client = await this.getClient(rest, chainId, clientId)
 
     // update client
     client.revision_height = parseInt(
@@ -63,7 +63,7 @@ export class ClientController {
   }
 
   public static async getClient(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
@@ -75,6 +75,6 @@ export class ClientController {
       },
     ])
 
-    return client ?? this.addClient(lcd, chainId, clientId)
+    return client ?? this.addClient(rest, chainId, clientId)
   }
 }

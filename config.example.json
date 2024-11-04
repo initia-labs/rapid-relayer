@@ -8,7 +8,7 @@
       "bech32Prefix": "init",
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
-      "lcdUri": "https://rest.chain-1.com",
+      "restUri": "https://rest.chain-1.com",
       "rpcUri": "https://rpc.chain-1.com",
       "wallets": [
         {
@@ -40,7 +40,7 @@
       "bech32Prefix": "init",
       "chainId": "chain-2",
       "gasPrice": "0umin",
-      "lcdUri": "https://rest.chain-2.com",
+      "restUri": "https://rest.chain-2.com",
       "rpcUri": "https://rpc.chain-2.com",
       "wallets": [
         {

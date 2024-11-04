@@ -7,14 +7,14 @@ import {
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
-  Boolean,
+  Bool,
   FeeType,
 } from 'src/types'
 import { DB } from '..'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
 import { ConnectionController } from './connection'
 import { Database } from 'better-sqlite3'
-import { LCDClient } from 'src/lib/lcdClient'
+import { RESTClient } from 'src/lib/restClient'
 import { PacketFeeController } from './packetFee'
 import { PacketFee } from 'src/lib/config'
 
@@ -24,7 +24,7 @@ export class PacketController {
   public static tableNamePacketWriteAck = 'packet_write_ack'
 
   public static async feedEvents(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     events: PacketEvent[]
   ): Promise<() => void> {
@@ -32,18 +32,18 @@ export class PacketController {
     for (const event of events) {
       switch (event.type) {
         case 'send_packet':
-          feedFns.push(await this.feedSendPacketEvent(lcd, chainId, event))
+          feedFns.push(await this.feedSendPacketEvent(rest, chainId, event))
           break
         case 'write_acknowledgement':
-          feedFns.push(await this.feedWriteAckEvent(lcd, chainId, event))
+          feedFns.push(await this.feedWriteAckEvent(rest, chainId, event))
           break
         case 'acknowledge_packet':
           feedFns.push(
-            await this.feedAcknowledgePacketEvent(lcd, chainId, event)
+            await this.feedAcknowledgePacketEvent(rest, chainId, event)
           )
           break
         case 'timeout_packet':
-          feedFns.push(await this.feedTimeoutPacketEvent(lcd, chainId, event))
+          feedFns.push(await this.feedTimeoutPacketEvent(rest, chainId, event))
           break
       }
     }
@@ -84,7 +84,7 @@ export class PacketController {
         // TODO: make this more efficientnet. filter connection by chain id
         wheres.push(
           ...filter.connections.map((conn) => ({
-            in_progress: Boolean.FALSE,
+            in_progress: Bool.FALSE,
             dst_chain_id: chainId,
             dst_connection_id: conn.connectionId,
             dst_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -94,7 +94,7 @@ export class PacketController {
         )
       } else {
         wheres.push({
-          in_progress: Boolean.FALSE,
+          in_progress: Bool.FALSE,
           dst_chain_id: chainId,
           src_chain_id: counterpartyChainId,
           custom,
@@ -140,7 +140,7 @@ export class PacketController {
       // TODO: make this more efficientnet. filter connection by chain id
       wheres.push(
         ...filter.connections.map((conn) => ({
-          in_progress: Boolean.FALSE,
+          in_progress: Bool.FALSE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -150,7 +150,7 @@ export class PacketController {
       )
     } else {
       wheres.push({
-        in_progress: Boolean.FALSE,
+        in_progress: Bool.FALSE,
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
         custom,
@@ -188,7 +188,7 @@ export class PacketController {
     if (filter.connections) {
       wheres.push(
         ...filter.connections.map((conn) => ({
-          in_progress: Boolean.FALSE,
+          in_progress: Bool.FALSE,
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
@@ -198,7 +198,7 @@ export class PacketController {
       )
     } else {
       wheres.push({
-        in_progress: Boolean.FALSE,
+        in_progress: Bool.FALSE,
         src_chain_id: chainId,
         dst_chain_id: In(counterpartyChainIds),
         custom,
@@ -263,7 +263,7 @@ export class PacketController {
     update<PacketSendTable>(
       DB,
       this.tableNamePacketSend,
-      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
+      { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
           dst_chain_id: packet.dst_chain_id,
@@ -282,7 +282,7 @@ export class PacketController {
     update<PacketTimeoutTable>(
       DB,
       this.tableNamePacketTimeout,
-      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
+      { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
           src_chain_id: packet.src_chain_id,
@@ -301,7 +301,7 @@ export class PacketController {
     update<PacketWriteAckTable>(
       DB,
       this.tableNamePacketWriteAck,
-      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
+      { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
           src_chain_id: packet.src_chain_id,
@@ -316,24 +316,24 @@ export class PacketController {
   public static resetPacketInProgress(db?: Database) {
     db = db ?? DB
     update<PacketSendTable>(db, this.tableNamePacketSend, {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
     })
     update<PacketTimeoutTable>(db, this.tableNamePacketTimeout, {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
     })
     update<PacketWriteAckTable>(db, this.tableNamePacketWriteAck, {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
     })
   }
 
   private static async feedSendPacketEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: SendPacketEvent
   ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.packetInfo.connectionId
     )
@@ -344,11 +344,9 @@ export class PacketController {
       dst_connection_id: connection.counterparty_connection_id,
       dst_channel_id: event.packetInfo.dstChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       is_ordered:
-        'ORDER_ORDERED' === event.packetInfo.ordering
-          ? Boolean.TRUE
-          : Boolean.FALSE,
+        'ORDER_ORDERED' === event.packetInfo.ordering ? Bool.TRUE : Bool.FALSE,
       height: event.packetInfo.height,
       dst_port: event.packetInfo.dstPort,
       src_chain_id: chainId,
@@ -368,11 +366,9 @@ export class PacketController {
       src_connection_id: event.packetInfo.connectionId,
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       is_ordered:
-        'ORDER_ORDERED' === event.packetInfo.ordering
-          ? Boolean.TRUE
-          : Boolean.FALSE,
+        'ORDER_ORDERED' === event.packetInfo.ordering ? Bool.TRUE : Bool.FALSE,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: connection.counterparty_chain_id,
       dst_connection_id: connection.counterparty_connection_id,
@@ -390,11 +386,11 @@ export class PacketController {
       insert(DB, this.tableNamePacketTimeout, packetTimeout)
 
       // if channel is ordered channel, update in progress for higher sequence
-      if (packetSend.is_ordered === Boolean.TRUE) {
+      if (packetSend.is_ordered === Bool.TRUE) {
         update<PacketSendTable>(
           DB,
           this.tableNamePacketSend,
-          { in_progress: Boolean.FALSE },
+          { in_progress: Bool.FALSE },
           [
             {
               dst_chain_id: packetSend.dst_chain_id,
@@ -407,13 +403,13 @@ export class PacketController {
   }
 
   private static async feedWriteAckEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: WriteAckEvent
   ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.packetInfo.connectionId
     )
@@ -424,11 +420,9 @@ export class PacketController {
       src_connection_id: connection.counterparty_connection_id,
       src_channel_id: event.packetInfo.srcChannel,
       sequence: Number(event.packetInfo.sequence),
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       is_ordered:
-        'ORDER_ORDERED' === event.packetInfo.ordering
-          ? Boolean.TRUE
-          : Boolean.FALSE,
+        'ORDER_ORDERED' === event.packetInfo.ordering ? Bool.TRUE : Bool.FALSE,
       height: event.packetInfo.height,
       src_port: event.packetInfo.srcPort,
       dst_chain_id: chainId,
@@ -469,11 +463,11 @@ export class PacketController {
       insert(DB, this.tableNamePacketWriteAck, packetWriteAck)
 
       // if channel is ordered channel, update in progress for higher sequence
-      if (packetWriteAck.is_ordered === Boolean.TRUE) {
+      if (packetWriteAck.is_ordered === Bool.TRUE) {
         update<PacketSendTable>(
           DB,
           this.tableNamePacketSend,
-          { in_progress: Boolean.FALSE },
+          { in_progress: Bool.FALSE },
           [
             {
               dst_chain_id: chainId,
@@ -486,13 +480,13 @@ export class PacketController {
   }
 
   private static async feedAcknowledgePacketEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: AcknowledgePacketEvent
   ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.packetInfo.connectionId
     )
@@ -551,13 +545,13 @@ export class PacketController {
   }
 
   private static async feedTimeoutPacketEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: TimeoutPacketEvent
   ): Promise<() => void> {
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.packetInfo.connectionId
     )

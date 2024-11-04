@@ -1,12 +1,12 @@
 import { DB } from '..'
 import {
-  Boolean,
+  Bool,
   ChannelOpenCloseTable,
   ChannelOpenCloseEvent,
   ChannelState,
 } from 'src/types'
 import { In, WhereOptions, del, insert, select, update } from '../utils'
-import { LCDClient } from 'src/lib/lcdClient'
+import { RESTClient } from 'src/lib/restClient'
 import { ConnectionController } from './connection'
 import { PacketController, PacketFilter } from './packet'
 import { Database } from 'better-sqlite3'
@@ -14,7 +14,7 @@ import { Database } from 'better-sqlite3'
 export class ChannelController {
   static tableName = 'channel_open_close'
   public static async feedEvents(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     events: ChannelOpenCloseEvent[]
   ): Promise<() => void> {
@@ -22,28 +22,30 @@ export class ChannelController {
     for (const event of events) {
       switch (event.type) {
         case 'channel_open_init':
-          feedFns.push(await this.feedChannelOpenInitEvent(lcd, chainId, event))
+          feedFns.push(
+            await this.feedChannelOpenInitEvent(rest, chainId, event)
+          )
           break
         case 'channel_open_try':
-          feedFns.push(await this.feedChannelOpenTryEvent(lcd, chainId, event))
+          feedFns.push(await this.feedChannelOpenTryEvent(rest, chainId, event))
           break
         case 'channel_open_ack':
-          feedFns.push(await this.feedChannelOpenAckEvent(lcd, chainId, event))
+          feedFns.push(await this.feedChannelOpenAckEvent(rest, chainId, event))
           break
         case 'channel_open_confirm':
           feedFns.push(
-            await this.feedChannelOpenConfirmEvent(lcd, chainId, event)
+            await this.feedChannelOpenConfirmEvent(rest, chainId, event)
           )
           break
         case 'channel_close':
         case 'channel_close_init':
           feedFns.push(
-            await this.feedChannelCloseInitEvent(lcd, chainId, event)
+            await this.feedChannelCloseInitEvent(rest, chainId, event)
           )
           break
         case 'channel_close_confirm':
           feedFns.push(
-            await this.feedChannelCloseConfirmEvent(lcd, chainId, event)
+            await this.feedChannelCloseConfirmEvent(rest, chainId, event)
           )
           break
       }
@@ -69,7 +71,7 @@ export class ChannelController {
       for (const connectionFilter of filter.connections) {
         if (connectionFilter.channels) continue
         wheres.push({
-          in_progress: Boolean.FALSE,
+          in_progress: Bool.FALSE,
           state,
           chain_id: chainId,
           connection_id: connectionFilter.connectionId,
@@ -78,7 +80,7 @@ export class ChannelController {
       }
     } else {
       wheres.push({
-        in_progress: Boolean.FALSE,
+        in_progress: Bool.FALSE,
         state,
         chain_id: chainId,
         counterparty_chain_id: In(counterpartyChainIds),
@@ -112,7 +114,7 @@ export class ChannelController {
     update<ChannelOpenCloseTable>(
       DB,
       this.tableName,
-      { in_progress: inProgress ? Boolean.TRUE : Boolean.FALSE },
+      { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [{ id }]
     )
   }
@@ -120,24 +122,24 @@ export class ChannelController {
   public static resetPacketInProgress(db?: Database) {
     db = db ?? DB
     update<ChannelOpenCloseTable>(db, this.tableName, {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
     })
   }
 
   private static async feedChannelOpenInitEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.channelOpenCloseInfo.srcConnectionId
     )
 
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       height: event.channelOpenCloseInfo.height,
       state: ChannelState.INIT,
       chain_id: connection.counterparty_chain_id,
@@ -156,19 +158,19 @@ export class ChannelController {
   }
 
   private static async feedChannelOpenTryEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.channelOpenCloseInfo.dstConnectionId
     )
 
     // add channel on open for src chain
     const channelOnOpen: ChannelOpenCloseTable = {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       height: event.channelOpenCloseInfo.height,
       state: ChannelState.TRYOPEN,
       chain_id: connection.counterparty_chain_id,
@@ -195,19 +197,19 @@ export class ChannelController {
   }
 
   private static async feedChannelOpenAckEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.channelOpenCloseInfo.srcConnectionId
     )
 
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       height: event.channelOpenCloseInfo.height,
       state: ChannelState.ACK,
       chain_id: connection.counterparty_chain_id,
@@ -242,12 +244,12 @@ export class ChannelController {
   }
 
   private static async feedChannelOpenConfirmEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.channelOpenCloseInfo.dstConnectionId
     )
@@ -272,19 +274,19 @@ export class ChannelController {
   }
 
   private static async feedChannelCloseInitEvent(
-    lcd: LCDClient,
+    rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
     const connection = await ConnectionController.getConnection(
-      lcd,
+      rest,
       chainId,
       event.channelOpenCloseInfo.srcConnectionId
     )
 
     // add channel on open for dst chain
     const channelOnOpen: ChannelOpenCloseTable = {
-      in_progress: Boolean.FALSE,
+      in_progress: Bool.FALSE,
       height: event.channelOpenCloseInfo.height,
       state: ChannelState.CLOSE,
       chain_id: connection.counterparty_chain_id,
@@ -302,12 +304,12 @@ export class ChannelController {
     }
   }
 
-  private static async feedChannelCloseConfirmEvent(
-    _lcd: LCDClient,
+  private static feedChannelCloseConfirmEvent(
+    _rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
-    return () => {
+    return new Promise(() => {
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.CLOSE,
@@ -321,6 +323,6 @@ export class ChannelController {
         chainId,
         event.channelOpenCloseInfo.srcChannelId
       )
-    }
+    })
   }
 }

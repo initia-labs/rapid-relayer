@@ -33,7 +33,7 @@
         "bech32Prefix",
         "chainId",
         "gasPrice",
-        "lcdUri",
+        "restUri",
         "rpcUri",
         "wallets"
       ],
@@ -50,7 +50,7 @@
           "type": "string",
           "description": "gas price in format 0.1denom"
         },
-        "lcdUri": {
+        "restUri": {
           "type": "string",
           "description": "cosmos rest api uri"
         },

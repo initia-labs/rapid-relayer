@@ -1,5 +1,5 @@
 import { getSignedHeader } from './signedHeader'
-import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
+import { MsgUpdateClient } from '@initia/initia.js'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
 import {
   ValidatorSet,
@@ -19,7 +19,7 @@ export async function generateMsgUpdateClient(
   height: Height
 }> {
   const latestHeight = Number(
-    ((await dstChain.lcd.ibc.clientState(dstClientId)) as ClientState)
+    ((await dstChain.rest.ibc.clientState(dstClientId)) as ClientState)
       .client_state.latest_height.revision_height
   )
   const signedHeader = await getSignedHeader(srcChain)
@@ -73,12 +73,12 @@ async function getValidatorSet(
   chain: ChainWorker,
   height: number
 ): Promise<ValidatorSet> {
-  let block = await chain.lcd.tendermint
+  let block = await chain.rest.tendermint
     .blockInfo(height)
     .catch(() => undefined)
   let count = 0
   while (block === undefined) {
-    block = await chain.lcd.tendermint.blockInfo(height).catch((e) => {
+    block = await chain.rest.tendermint.blockInfo(height).catch((e) => {
       if (count > 5) {
         throw e
       }

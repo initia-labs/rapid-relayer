@@ -1,5 +1,5 @@
 import { Packet } from '@initia/initia.js'
-import { MsgRecvPacket } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
+import { MsgRecvPacket } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Transfrom } from 'src/lib/transform'
 import { convertProofsToIcs23, getRawProof } from 'src/lib/proof'

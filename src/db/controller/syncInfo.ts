@@ -10,7 +10,7 @@ export class SyncInfoController {
     latestHeight: number
   ): SyncInfoTable[] {
     startHeights = startHeights.sort()
-    let syncInfos = this.getSyncInfos(chainId)
+    const syncInfos = this.getSyncInfos(chainId)
 
     if (syncInfos.length === 0) {
       if (startHeights.length === 0) {

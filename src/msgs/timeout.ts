@@ -1,11 +1,7 @@
-import {
-  MsgTimeout,
-  MsgTimeoutOnClose,
-} from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Uint64 } from '@cosmjs/math'
 import { Transfrom } from 'src/lib/transform'
-import { Packet } from '@initia/initia.js'
+import { Packet, MsgTimeout, MsgTimeoutOnClose } from '@initia/initia.js'
 import {
   convertProofsToIcs23,
   getChannelProof,
@@ -13,7 +9,7 @@ import {
 } from 'src/lib/proof'
 import { delay } from 'bluebird'
 import { ChainWorker } from 'src/workers/chain'
-import { Boolean, PacketTimeoutTable } from 'src/types'
+import { Bool, PacketTimeoutTable } from 'src/types'
 import { packetTableToPacket } from 'src/db/utils'
 
 export async function generateMsgTimeout(
@@ -28,7 +24,7 @@ export async function generateMsgTimeout(
     dstChain,
     packet,
     proofHeight,
-    packetTable.is_ordered === Boolean.TRUE
+    packetTable.is_ordered === Bool.TRUE
   )
 
   return new MsgTimeout(
@@ -52,7 +48,7 @@ export async function generateMsgTimeoutOnClose(
     dstChain,
     packet,
     proofHeight,
-    packetTable.is_ordered === Boolean.TRUE
+    packetTable.is_ordered === Bool.TRUE
   )
 
   const channelProof = await getChannelProof(

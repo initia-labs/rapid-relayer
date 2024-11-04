@@ -58,7 +58,7 @@ export function packetTableToPacket(
 // sql helper
 
 export function insert<T>(db: Database, tableName: string, obj: T) {
-  const keys = Object.keys(obj as Object)
+  const keys = Object.keys(obj as object)
   const placeHolder = keys.map((key) => `$${key}`).join(',')
   const prepare = db.prepare(
     `INSERT INTO ${tableName} (${keys.join(',')}) VALUES (${placeHolder})`
@@ -131,7 +131,7 @@ export function update<T>(
 ) {
   let sql = `UPDATE ${tableName} SET`
   const params = []
-  const keys = Object.keys(set as Object)
+  const keys = Object.keys(set as object)
   const placeHolder = keys.map((key) => ` ${key} = $${key}`).join(',')
   sql += placeHolder
 
@@ -152,13 +152,13 @@ function where<T>(wheres: WhereOptions<T>[]): [string, ParamType[]] {
 
   for (const where of wheres) {
     const condition = []
-    const keys = Object.keys(where) as Array<keyof T>
+    const keys = Object.keys(where) as (keyof T)[]
     for (const key of keys) {
       const value = where[key]
       if (typeof value === 'object' && value !== null) {
         if ('in' in value) {
           const vals = value.in as unknown[]
-          const placeHolder = vals.map((_) => '?').join(',')
+          const placeHolder = vals.map(() => '?').join(',')
           condition.push(`${String(key)} IN(${placeHolder})`)
           params.push(...vals.map(toParamType))
         } else {
@@ -211,7 +211,7 @@ function order<T>(order: Order<T>): string {
   let sql = ''
 
   const orders: string[] = []
-  const keys = Object.keys(where) as Array<keyof T>
+  const keys = Object.keys(where) as (keyof T)[]
   for (const key of keys) {
     orders.push(`${String(key)} ${order[key]}`)
   }

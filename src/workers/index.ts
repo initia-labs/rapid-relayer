@@ -11,7 +11,6 @@ import {
   generateMsgTimeoutOnClose,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
 import { ClientController } from 'src/db/controller/client'
 import {
   ChannelOpenCloseTable,
@@ -21,11 +20,16 @@ import {
 } from 'src/types'
 import {
   MsgRecvPacket,
+  MsgUpdateClient,
   Key,
   MnemonicKey,
   RawKey,
   APIRequester,
   Wallet,
+  MsgChannelCloseConfirm,
+  MsgChannelOpenAck,
+  MsgChannelOpenConfirm,
+  MsgChannelOpenTry,
 } from '@initia/initia.js'
 import { Config, PacketFee, KeyConfig } from 'src/lib/config'
 import { env } from 'node:process'
@@ -33,13 +37,8 @@ import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
 import * as https from 'https'
 import { PacketFilter } from 'src/db/controller/packet'
-import { LCDClient } from 'src/lib/lcdClient'
-import {
-  MsgChannelCloseConfirm,
-  MsgChannelOpenAck,
-  MsgChannelOpenConfirm,
-  MsgChannelOpenTry,
-} from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
+import { RESTClient } from 'src/lib/restClient'
+
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { generateMsgChannelCloseConfirm } from 'src/msgs/channelCloseConfirm'
 
@@ -61,13 +60,13 @@ export class WorkerController {
     this.initiated = true
 
     for (const chainConfig of config.chains) {
-      const lcd = new LCDClient(
-        chainConfig.lcdUri,
+      const rest = new RESTClient(
+        chainConfig.restUri,
         {
           chainId: chainConfig.chainId,
           gasPrices: chainConfig.gasPrice,
         },
-        new APIRequester(chainConfig.lcdUri, {
+        new APIRequester(chainConfig.restUri, {
           httpAgent: new http.Agent({ keepAlive: true }),
           httpsAgent: new https.Agent({ keepAlive: true }),
           timeout: 60000,
@@ -77,7 +76,7 @@ export class WorkerController {
       const latestHeight = await queryLatestHeight(rpc)
       const chain = new ChainWorker(
         chainConfig.chainId,
-        lcd,
+        rest,
         rpc,
         chainConfig.bech32Prefix,
         chainConfig.feeFilter ?? {},
@@ -95,7 +94,7 @@ export class WorkerController {
           chain,
           this,
           walletConfig.maxHandlePakcet ?? 100,
-          new Wallet(lcd, key),
+          new Wallet(rest, key),
           walletConfig.packetFilter
         )
 
@@ -164,7 +163,7 @@ export class WorkerController {
   }> {
     // get client
     const client = await ClientController.getClient(
-      this.chains[chainId].lcd,
+      this.chains[chainId].rest,
       chainId,
       clientId
     )
@@ -202,7 +201,7 @@ export class WorkerController {
   ) {
     const dstChain = this.chains[packet.dst_chain_id]
     // check dst channel state
-    const channel = await dstChain.lcd.ibc.channel(
+    const channel = await dstChain.rest.ibc.channel(
       packet.dst_port,
       packet.dst_channel_id
     )

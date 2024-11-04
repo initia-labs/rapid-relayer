@@ -16,7 +16,7 @@
     "@cosmjs/json-rpc": "^0.32.3",
     "@cosmjs/stargate": "^0.32.3",
     "@cosmjs/tendermint-rpc": "^0.32.3",
-    "@initia/initia.js": "^0.2.5",
+    "@initia/initia.js": "^0.2.20",
     "@initia/initia.proto": "^0.2.0",
     "axios": "^1.7.5",
     "bech32": "^2.0.0",
