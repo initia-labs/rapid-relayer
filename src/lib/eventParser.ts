@@ -2,56 +2,36 @@ import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
 import { ChannelOpenCloseInfo, PacketFeeEvent, PacketInfo } from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
-  const connectionId = event.attributes.filter(
-    (v) => v.key === 'connection_id'
-  )[0].value
+  const connectionId = getConnection(event) as string
 
-  const sequence = Number(
-    event.attributes.filter((v) => v.key === 'packet_sequence')[0].value
-  )
+  const sequence = Number(find(event, 'packet_sequence') as string)
 
-  const srcPort = event.attributes.filter((v) => v.key === 'packet_src_port')[0]
-    .value
+  const srcPort = find(event, 'packet_src_port') as string
 
-  const srcChannel = event.attributes.filter(
-    (v) => v.key === 'packet_src_channel'
-  )[0].value
+  const srcChannel = find(event, 'packet_src_channel') as string
 
-  const dstPort = event.attributes.filter((v) => v.key === 'packet_dst_port')[0]
-    .value
+  const dstPort = find(event, 'packet_dst_port') as string
 
-  const dstChannel = event.attributes.filter(
-    (v) => v.key === 'packet_dst_channel'
-  )[0].value
+  const dstChannel = find(event, 'packet_dst_channel') as string
 
-  const dataHex = event.attributes.filter((v) => v.key === 'packet_data_hex')
+  const dataHex = find(event, 'packet_data_hex') as string
 
-  const data =
-    dataHex.length === 0
-      ? undefined
-      : Buffer.from(dataHex[0].value, 'hex').toString('base64')
+  const data = dataHex
+    ? Buffer.from(dataHex, 'hex').toString('base64')
+    : undefined
 
-  const timeoutHeightRaw = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_height'
-  )[0].value
+  const timeoutHeightRaw = find(event, 'packet_timeout_height') as string
 
   const timeoutHeight = Number(timeoutHeightRaw.split('-')[1])
 
-  const timeoutTimestampRaw = event.attributes.filter(
-    (v) => v.key === 'packet_timeout_timestamp'
-  )[0].value
+  const timeoutTimestampRaw = find(event, 'packet_timeout_timestamp') as string
   const timeoutTimestamp = Number(BigInt(timeoutTimestampRaw) / 1_000_000_000n) // store in second
 
-  const ackHex = event.attributes.filter((v) => v.key === 'packet_ack_hex')
+  const ackHex = find(event, 'packet_ack_hex')
 
-  const ordering = event.attributes.filter(
-    (v) => v.key === 'packet_channel_ordering'
-  )[0].value
+  const ordering = find(event, 'packet_channel_ordering') as string
 
-  const ack =
-    ackHex.length === 0
-      ? undefined
-      : Buffer.from(ackHex[0].value, 'hex').toString('base64')
+  const ack = ackHex ? Buffer.from(ackHex, 'hex').toString('base64') : undefined
 
   return {
     height,
@@ -78,15 +58,15 @@ export function parseChannelOpenEvent(
   const isSrc =
     event.type === 'channel_open_init' || event.type === 'channel_open_ack'
 
-  const connectionId = find(event, 'connection_id')
+  const connectionId = getConnection(event) as string
 
-  const portId = find(event, 'port_id')
+  const portId = find(event, 'port_id') as string
 
-  const channelId = find(event, 'channel_id')
+  const channelId = find(event, 'channel_id') as string
 
-  const counterpartyPortId = find(event, 'counterparty_port_id')
+  const counterpartyPortId = find(event, 'counterparty_port_id') as string
 
-  const counterpartyChannelId = find(event, 'counterparty_channel_id')
+  const counterpartyChannelId = find(event, 'counterparty_channel_id') as string
 
   return {
     height,
@@ -103,11 +83,11 @@ export function parseChannelCloseEvent(
   event: Event,
   height: number
 ): ChannelOpenCloseInfo {
-  const portId = find(event, 'port_id')
-  const channelId = find(event, 'channel_id')
-  const connectionId = find(event, 'connection_id')
-  const counterpartyPortId = find(event, 'counterparty_port_id')
-  const counterpartyChannelId = find(event, 'counterparty_channel_id')
+  const portId = find(event, 'port_id') as string
+  const channelId = find(event, 'channel_id') as string
+  const connectionId = getConnection(event) as string
+  const counterpartyPortId = find(event, 'counterparty_port_id') as string
+  const counterpartyChannelId = find(event, 'counterparty_channel_id') as string
   const isSrc = event.type === 'channel_close_init' || 'channel_close'
 
   return {
@@ -122,17 +102,17 @@ export function parseChannelCloseEvent(
 }
 
 export function parsePacketFeeEvent(event: Event): PacketFeeEvent {
-  const portId = find(event, 'port_id')
+  const portId = find(event, 'port_id') as string
 
-  const channelId = find(event, 'channel_id')
+  const channelId = find(event, 'channel_id') as string
 
-  const sequence = Number(find(event, 'packet_sequence'))
+  const sequence = Number(find(event, 'packet_sequence') as string)
 
-  const recvFee = find(event, 'recv_fee')
+  const recvFee = find(event, 'recv_fee') as string
 
-  const ackFee = find(event, 'ack_fee')
+  const ackFee = find(event, 'ack_fee') as string
 
-  const timeoutFee = find(event, 'timeout_fee')
+  const timeoutFee = find(event, 'timeout_fee') as string
 
   return {
     portId,
@@ -144,12 +124,28 @@ export function parsePacketFeeEvent(event: Event): PacketFeeEvent {
   }
 }
 
-function find(event: Event, key: string, defaultValue = ''): string {
-  const filtered = event.attributes.filter((v) => v.key === key)
+function getConnection(event: Event): string | undefined {
+  return find(event, 'connection_id') || find(event, 'packet_connection')
+}
 
-  if (filtered.length === 0) {
-    return defaultValue
+function find(event: Event, key: string, defaultVal = ''): string | undefined {
+  // check key
+  {
+    const vals = event.attributes.filter((v) => v.key === key)
+    if (vals.length !== 0) {
+      return vals[0].value
+    }
   }
 
-  return filtered[0].value
+  {
+    // check base64 encoded key
+    const vals = event.attributes.filter(
+      (v) => v.key === Buffer.from(`${key}`).toString('base64')
+    )
+    if (vals.length !== 0) {
+      return Buffer.from(vals[0].value, 'base64').toString()
+    }
+  }
+
+  return undefined
 }

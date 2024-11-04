@@ -25,6 +25,7 @@ import { PacketFee } from 'src/lib/config'
 // TODO: add update client worker
 export class WalletWorker {
   private sequence?: number
+  private accountNumber?: number
   private logger: Logger
 
   constructor(
@@ -49,6 +50,12 @@ export class WalletWorker {
       }
       await delay(500)
     }
+  }
+
+  private async initAccInfo() {
+    const accInfo = await this.wallet.lcd.auth.accountInfo(this.address())
+    this.sequence = accInfo.getSequenceNumber()
+    this.accountNumber = accInfo.getAccountNumber()
   }
 
   private async handlePackets() {
@@ -295,15 +302,19 @@ export class WalletWorker {
         ...channelOpenMsgs,
       ]
 
+      // init sequence
+      if (!this.sequence) {
+        await this.initAccInfo()
+        if (this.sequence === undefined) {
+          throw Error('Failed to update sequence number')
+        }
+      }
+
       const signedTx = await this.wallet.createAndSignTx({
         msgs,
         sequence: this.sequence,
+        accountNumber: this.accountNumber,
       })
-
-      // update sequence
-      if (!this.sequence) {
-        this.sequence = signedTx.auth_info.signer_infos[0].sequence
-      }
 
       const result = await this.wallet.lcd.tx.broadcast(signedTx)
 
