@@ -4,8 +4,10 @@ import { info } from './lib/logger'
 
 import { config } from './lib/config'
 import { WorkerController } from './workers'
+import { initDBConnection } from './db'
 
 async function main() {
+  initDBConnection()
   const workerController = new WorkerController()
   await workerController.init(config)
   const app = express()

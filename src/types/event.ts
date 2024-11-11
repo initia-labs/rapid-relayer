@@ -39,7 +39,7 @@ export interface PacketInfo {
   timeoutTimestamp: number
   timeoutHeightRaw: string
   timeoutTimestampRaw: string
-  ordering: string
+  ordering?: string // some version doesn't have ordering in write ack event
   ack?: string
 }
 

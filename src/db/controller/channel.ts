@@ -304,12 +304,12 @@ export class ChannelController {
     }
   }
 
-  private static feedChannelCloseConfirmEvent(
+  private static async feedChannelCloseConfirmEvent(
     _rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
   ): Promise<() => void> {
-    return new Promise(() => {
+    return () => {
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.CLOSE,
@@ -323,6 +323,6 @@ export class ChannelController {
         chainId,
         event.channelOpenCloseInfo.srcChannelId
       )
-    })
+    }
   }
 }

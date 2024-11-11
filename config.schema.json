@@ -11,6 +11,9 @@
     "port": {
       "type": "number"
     },
+    "dbPath": {
+      "type": "string"
+    },
     "metricPort": {
       "type": "number"
     },

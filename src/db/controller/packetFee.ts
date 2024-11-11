@@ -26,7 +26,6 @@ export class PacketFeeController {
             denom: coin.denom,
             amount: Number(coin.amount),
           }
-
           insert(DB, this.tableName, packetFee)
         }
       }

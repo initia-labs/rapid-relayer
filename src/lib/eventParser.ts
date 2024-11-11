@@ -29,7 +29,7 @@ export function parsePacketEvent(event: Event, height: number): PacketInfo {
 
   const ackHex = find(event, 'packet_ack_hex')
 
-  const ordering = find(event, 'packet_channel_ordering') as string
+  const ordering = find(event, 'packet_channel_ordering')
 
   const ack = ackHex ? Buffer.from(ackHex, 'hex').toString('base64') : undefined
 

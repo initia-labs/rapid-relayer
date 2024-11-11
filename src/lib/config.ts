@@ -10,6 +10,7 @@ export interface Config {
   port: number
   metricPort: number
   logLevel: string
+  dbPath?: string
   chains: ChainConfig[]
 }
 

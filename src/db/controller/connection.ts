@@ -12,7 +12,6 @@ export class ConnectionController {
     connectionId: string
   ): Promise<ConnectionTable> {
     const connectionInfo = await rest.ibc.getConnection(connectionId)
-
     const clientId = connectionInfo.connection.client_id
     const client = await ClientController.getClient(rest, chainId, clientId)
 
