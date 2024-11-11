@@ -1,0 +1,41 @@
+{
+  "$schema": "../../config.schema.json",
+  "dbPath": "./test_db",
+  "port": 7010,
+  "metricPort": 70001,
+  "logLevel": "info",
+  "chains": [
+    {
+      "bech32Prefix": "init",
+      "chainId": "chain-1",
+      "gasPrice": "0.15gas",
+      "restUri": "https://rest.chain-1.com",
+      "rpcUri": "https://rpc.chain-1.com",
+      "wallets": [
+        {
+          "key": {
+            "type": "mnemonic",
+            "privateKey": "repair family apology column ..."
+          },
+          "maxHandlePacket": 10
+        }
+      ]
+    },
+    {
+      "bech32Prefix": "init",
+      "chainId": "chain-2",
+      "gasPrice": "0gas",
+      "restUri": "https://rest.chain-2.com",
+      "rpcUri": "https://rpc.chain-2.com",
+      "wallets": [
+        {
+          "key": {
+            "type": "raw",
+            "privateKey": "123..."
+          },
+          "maxHandlePacket": 10
+        }
+      ]
+    }
+  ]
+}
