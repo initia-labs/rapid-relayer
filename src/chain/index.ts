@@ -266,13 +266,13 @@ export class Chain {
   private async latestHeightWorker() {
     // to prevent rerun
     if (
-      (this.workers['latest_height_worekr'] ?? 0) >
+      (this.workers['latest_height_worker'] ?? 0) >
       new Date().valueOf() - 5 * 60 * 1000
     ) {
       return
     }
 
-    this.debug('Activate latest height worekr')
+    this.debug('Activate latest height worker')
 
     // TODO add websocket options
     const MAX_RETRY = 10
@@ -308,7 +308,7 @@ export class Chain {
           )
         }
       } finally {
-        this.workers['latest_height_worekr'] = new Date().valueOf()
+        this.workers['latest_height_worker'] = new Date().valueOf()
         await delay(1000)
       }
     }
