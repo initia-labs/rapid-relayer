@@ -2,7 +2,7 @@ import { Packet } from '@initia/initia.js'
 import { MsgRecvPacket } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Chain } from 'src/chain'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { getRawProof } from 'src/lib/rawProof'
 import { convertProofsToIcs23 } from './ack'
 
@@ -16,7 +16,7 @@ export async function generateMsgRecvPacket(
   const msg = new MsgRecvPacket(
     packet,
     proof,
-    Transfrom.height(height),
+    Transform.height(height),
     srcChain.wallet.address()
   )
 

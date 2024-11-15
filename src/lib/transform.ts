@@ -1,7 +1,7 @@
 import { Height as CosmjsHeight } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Height as InitiajsHeight } from '@initia/initia.js'
 
-export class Transfrom {
+export class Transform {
   static height(height: CosmjsHeight): InitiajsHeight
   static height(height: InitiajsHeight): CosmjsHeight
 

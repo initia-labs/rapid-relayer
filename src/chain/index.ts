@@ -207,7 +207,7 @@ export class Chain {
           this.packetsToHandle = this.packetsToHandle.slice(packets.length)
         }
       } catch (e) {
-        this.error(`Fail to handle packet. resonse - ${e}`)
+        this.error(`Fail to handle packet. response - ${e}`)
       } finally {
         this.workers['packet_handler'] = new Date().valueOf()
         await delay(1000)
@@ -255,7 +255,7 @@ export class Chain {
         this.packetsToHandle.push(...results)
         this.fedHeight = heights[heights.length - 1]
       } catch (e) {
-        this.error(`Fail to fetch block result. resonse - ${e}`)
+        this.error(`Fail to fetch block result. response - ${e}`)
       } finally {
         this.workers['event_feeder'] = new Date().valueOf()
         await delay(100)

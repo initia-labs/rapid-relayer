@@ -3,7 +3,7 @@ import express from 'express'
 import { runPair } from './lib/chainPair'
 import { config } from './lib/config'
 import { ChainStatus } from './chain/types'
-import { registery } from './lib/metric'
+import { registry } from './lib/metric'
 import { info } from './lib/logger'
 
 async function main() {
@@ -33,8 +33,8 @@ async function main() {
   const metricApp = express()
 
   metricApp.get('/metrics', (req, res) => {
-    res.setHeader('content-type', registery.contentType)
-    registery
+    res.setHeader('content-type', registry.contentType)
+    registry
       .metrics()
       .then((response) => res.send(response))
       .catch(() => res.status(500).send('Fail to get metrics'))

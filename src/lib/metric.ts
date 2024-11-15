@@ -1,8 +1,8 @@
 import { Registry, Counter, collectDefaultMetrics } from 'prom-client'
 
-export const registery = new Registry()
+export const registry = new Registry()
 
-collectDefaultMetrics({ register: registery })
+collectDefaultMetrics({ register: registry })
 
 export const metrics = {
   chain: createChainMetric(),
@@ -91,6 +91,6 @@ interface ChainMetric {
 }
 
 function register(metric: Counter): Counter {
-  registery.registerMetric(metric)
+  registry.registerMetric(metric)
   return metric
 }
