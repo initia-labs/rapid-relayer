@@ -346,6 +346,8 @@ export class WalletWorker {
       if (e?.response?.data) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         this.logger.error(e.response.data)
+        // tmp: refresh sequence when got error. TODO: parse sequence from error
+        await this.initAccInfo()
       } else {
         this.logger.error(e)
       }
