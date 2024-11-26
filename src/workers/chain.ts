@@ -87,6 +87,8 @@ export class ChainWorker {
             `<${this.chainId}> [latestHeightWorker] Max retry exceeded`
           )
         }
+      } finally {
+        await delay(1000)
       }
     }
   }
