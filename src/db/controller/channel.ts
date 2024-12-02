@@ -126,6 +126,7 @@ export class ChannelController {
     })
   }
 
+  // executed on the src chain
   private static async feedChannelOpenInitEvent(
     rest: RESTClient,
     chainId: string,
@@ -153,10 +154,11 @@ export class ChannelController {
     }
 
     return () => {
-      insert(DB, this.tableName, channelOnOpen)
+      insert(DB, this.tableName, channelOnOpen) // store INIT state to the dst chain
     }
   }
 
+  // executed on the dst chain
   private static async feedChannelOpenTryEvent(
     rest: RESTClient,
     chainId: string,
@@ -191,11 +193,12 @@ export class ChannelController {
           counterparty_port_id: channelOnOpen.port_id,
           counterparty_channel_id: channelOnOpen.channel_id,
         },
-      ]) // remove init
-      insert(DB, this.tableName, channelOnOpen)
+      ]) // remove INIT from the dst chain
+      insert(DB, this.tableName, channelOnOpen) // store TRYOPEN state to the src chain
     }
   }
 
+  // executed on the src chain
   private static async feedChannelOpenAckEvent(
     rest: RESTClient,
     chainId: string,
@@ -230,7 +233,7 @@ export class ChannelController {
           counterparty_port_id: channelOnOpen.port_id,
           counterparty_channel_id: channelOnOpen.channel_id,
         },
-      ]) // remove open try
+      ]) // remove TRYOPEN from src chain
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.INIT,
@@ -238,11 +241,12 @@ export class ChannelController {
           counterparty_port_id: channelOnOpen.counterparty_port_id,
           counterparty_channel_id: channelOnOpen.counterparty_channel_id,
         },
-      ]) // remove init
-      insert(DB, this.tableName, channelOnOpen)
+      ]) // remove INIT from dst chain
+      insert(DB, this.tableName, channelOnOpen) // store ACK state to the dst chain
     }
   }
 
+  // executed on the dst chain
   private static async feedChannelOpenConfirmEvent(
     rest: RESTClient,
     chainId: string,
@@ -261,7 +265,7 @@ export class ChannelController {
           counterparty_port_id: event.channelOpenCloseInfo.dstPortId,
           counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
-      ]) // remove open try
+      ]) // remove TRYOPEN from src chain
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
           state: ChannelState.ACK,
@@ -269,7 +273,7 @@ export class ChannelController {
           counterparty_port_id: event.channelOpenCloseInfo.srcPortId,
           counterparty_channel_id: event.channelOpenCloseInfo.srcChannelId,
         },
-      ]) // remove ack
+      ]) // remove ACK from dst chain
     }
   }
 
