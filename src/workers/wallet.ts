@@ -77,7 +77,7 @@ export class WalletWorker {
       }
     ).feeFilter
 
-    const sendPakcets = PacketController.getSendPackets(
+    const sendPackets = PacketController.getSendPackets(
       this.chain.chainId,
       this.chain.latestHeight,
       Number((this.chain.latestTimestamp / 1000).toFixed()),
@@ -90,7 +90,7 @@ export class WalletWorker {
         this.workerController.chains[packet.src_chain_id].latestHeight
     )
 
-    remain -= sendPakcets.length
+    remain -= sendPackets.length
 
     const writeAckPackets =
       remain === 0
@@ -140,7 +140,7 @@ export class WalletWorker {
 
     // update packet in progress
     DB.transaction(() => {
-      sendPakcets.map((packet) =>
+      sendPackets.map((packet) =>
         PacketController.updateSendPacketInProgress(packet)
       )
       writeAckPackets.map((packet) =>
@@ -154,7 +154,7 @@ export class WalletWorker {
 
     try {
       // filter packets
-      const filteredSendPackets = await this.filterSendPackets(sendPakcets)
+      const filteredSendPackets = await this.filterSendPackets(sendPackets)
       const filteredWriteAckPackets =
         await this.filterWriteAckPackets(writeAckPackets)
       const filteredTimeoutPackets =
@@ -354,7 +354,7 @@ export class WalletWorker {
 
       // revert packet in progress
       DB.transaction(() => {
-        sendPakcets.map((packet) =>
+        sendPackets.map((packet) =>
           PacketController.updateSendPacketInProgress(packet, false)
         )
         writeAckPackets.map((packet) =>
@@ -447,29 +447,29 @@ export class WalletWorker {
           return
         }
 
-        const unrecivedPackets = await this.chain.rest.ibc.unreceivedPackets(
+        const unreceivedPackets = await this.chain.rest.ibc.unreceivedPackets(
           sendPacketMap[path][0].dst_port,
           sendPacketMap[path][0].dst_channel_id,
           sendPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+        const unreceivedSequences = unreceivedPackets.sequences.map((sequence) =>
           Number(sequence)
         )
 
         sendPacketsToDel.push(
           ...sendPacketMap[path].filter(
-            (packet) => !unrecivedSequences.includes(packet.sequence)
+            (packet) => !unreceivedSequences.includes(packet.sequence)
           )
         )
 
         sendPacketMap[path] = sendPacketMap[path].filter((packet) =>
-          unrecivedSequences.includes(packet.sequence)
+          unreceivedSequences.includes(packet.sequence)
         )
       })
     )
 
-    // delete packets that already executed
+    // delete packets that already executed or in closed channel
     PacketController.delSendPackets(sendPacketsToDel)
 
     return Object.values(sendPacketMap).flat()
@@ -495,24 +495,24 @@ export class WalletWorker {
     await Promise.all(
       Object.keys(writeAckPacketMap).map(async (path) => {
         if (writeAckPacketMap[path].length === 0) return
-        const unrecivedAcks = await this.chain.rest.ibc.unreceivedAcks(
+        const unreceivedAcks = await this.chain.rest.ibc.unreceivedAcks(
           writeAckPacketMap[path][0].src_port,
           writeAckPacketMap[path][0].src_channel_id,
           writeAckPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unrecivedSequences = unrecivedAcks.sequences.map((sequence) =>
+        const unreceivedSequences = unreceivedAcks.sequences.map((sequence) =>
           Number(sequence)
         )
 
         writeAckPacketsToDel.push(
           ...writeAckPacketMap[path].filter(
-            (packet) => !unrecivedSequences.includes(packet.sequence)
+            (packet) => !unreceivedSequences.includes(packet.sequence)
           )
         )
 
         writeAckPacketMap[path] = writeAckPacketMap[path].filter((packet) =>
-          unrecivedSequences.includes(packet.sequence)
+          unreceivedSequences.includes(packet.sequence)
         )
       })
     )
@@ -545,24 +545,24 @@ export class WalletWorker {
     await Promise.all(
       Object.keys(timeoutPacketMap).map(async (path) => {
         if (timeoutPacketMap[path].length === 0) return
-        const unrecivedAcks = await this.chain.rest.ibc.unreceivedAcks(
+        const unreceivedAcks = await this.chain.rest.ibc.unreceivedAcks(
           timeoutPacketMap[path][0].src_port,
           timeoutPacketMap[path][0].src_channel_id,
           timeoutPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unrecivedSequences = unrecivedAcks.sequences.map((sequence) =>
+        const unreceivedSequences = unreceivedAcks.sequences.map((sequence) =>
           Number(sequence)
         )
 
         timeoutPacketsToDel.push(
           ...timeoutPacketMap[path].filter(
-            (packet) => !unrecivedSequences.includes(packet.sequence)
+            (packet) => !unreceivedSequences.includes(packet.sequence)
           )
         )
 
         timeoutPacketMap[path] = timeoutPacketMap[path].filter((packet) =>
-          unrecivedSequences.includes(packet.sequence)
+          unreceivedSequences.includes(packet.sequence)
         )
       })
     )
@@ -573,24 +573,24 @@ export class WalletWorker {
         if (timeoutPacketMap[path].length === 0) return
         const chain =
           this.workerController.chains[timeoutPacketMap[path][0].dst_chain_id]
-        const unrecivedPackets = await chain.rest.ibc.unreceivedPackets(
+        const unreceivedPackets = await chain.rest.ibc.unreceivedPackets(
           timeoutPacketMap[path][0].dst_port,
           timeoutPacketMap[path][0].dst_channel_id,
           timeoutPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+        const unreceivedSequences = unreceivedPackets.sequences.map((sequence) =>
           Number(sequence)
         )
 
         timeoutPacketsToDel.push(
           ...timeoutPacketMap[path].filter(
-            (packet) => !unrecivedSequences.includes(packet.sequence)
+            (packet) => !unreceivedSequences.includes(packet.sequence)
           )
         )
 
         timeoutPacketMap[path] = timeoutPacketMap[path].filter((packet) =>
-          unrecivedSequences.includes(packet.sequence)
+          unreceivedSequences.includes(packet.sequence)
         )
       })
     )

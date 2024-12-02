@@ -1,7 +1,7 @@
 import { Packet } from '@initia/initia.js'
 import { MsgRecvPacket } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { convertProofsToIcs23, getRawProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
 import { PacketSendTable } from 'src/types'
@@ -19,7 +19,7 @@ export async function generateMsgRecvPacket(
   const msg = new MsgRecvPacket(
     packet,
     proof,
-    Transfrom.height(height),
+    Transform.height(height),
     msgExecutor
   )
 

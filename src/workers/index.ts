@@ -93,7 +93,7 @@ export class WorkerController {
         const wallet = new WalletWorker(
           chain,
           this,
-          walletConfig.maxHandlePakcet ?? 100,
+          walletConfig.maxHandlePacket ?? 100,
           new Wallet(rest, key),
           walletConfig.packetFilter
         )
@@ -104,18 +104,17 @@ export class WorkerController {
   }
 
   public getFeeFilters(): { chainId: string; feeFilter: PacketFee }[] {
-    return Object.keys(this.chains).map((chainId) => ({
-      chainId,
-      feeFilter: this.chains[chainId].feeFilter,
-    }))
+    return Object.entries(this.chains).map(([chainId, chain]) => {
+      return {
+        chainId,
+        feeFilter: chain.feeFilter,
+      }
+    })
   }
 
   public getStatus(): { chains: ChainStatus[] } {
-    const chainKeys = Object.keys(this.chains)
-    const walletKeys = Object.keys(this.wallets)
-
-    const chains: ChainStatus[] = chainKeys.map((key) => {
-      const chain = this.chains[key]
+    const wallets = Object.values(this.wallets);
+    const chains: ChainStatus[] = Object.values(this.chains).map(chain => {
       const syncWorkerKeys = Object.keys(chain.syncWorkers)
       const syncWorkers = syncWorkerKeys.map((key) => {
         const syncWorker = chain.syncWorkers[Number(key)]
@@ -126,26 +125,20 @@ export class WorkerController {
         }
       })
 
+      const walletWorkers = wallets.filter(wallet => wallet.chain.chainId === chain.chainId).map(wallet => {
+        return {
+          address: wallet.address(),
+          packetFilter: wallet.packetFilter,
+        }
+      });
+
       return {
         chainId: chain.chainId,
         latestHeight: chain.latestHeight,
         latestTimestamp: new Date(chain.latestTimestamp),
         syncWorkers,
-        walletWorkers: [],
+        walletWorkers,
       }
-    })
-
-    walletKeys.map((key) => {
-      const wallet = this.wallets[key]
-      const walletWorker = {
-        address: wallet.address(),
-        packetFilter: wallet.packetFilter,
-      }
-
-      const chain = chains.filter(
-        (chain) => chain.chainId === wallet.chain.chainId
-      )
-      chain[0].walletWorkers.push(walletWorker)
     })
 
     return {

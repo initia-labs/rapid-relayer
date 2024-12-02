@@ -9,6 +9,9 @@ import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { delay } from 'bluebird'
 import { ChainWorker } from 'src/workers/chain'
 
+// generateMsgUpdateClient generates a MsgUpdateClient message
+// which is used to update the client state on the destination chain
+// with the latest header from the source chain and the latest validator set.
 export async function generateMsgUpdateClient(
   srcChain: ChainWorker,
   dstChain: ChainWorker,

@@ -2,7 +2,7 @@ import { MsgChannelOpenConfirm } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { getChannelProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 
 export async function generateMsgChannelOpenConfirm(
   srcChain: ChainWorker,
@@ -17,7 +17,7 @@ export async function generateMsgChannelOpenConfirm(
     dstPortId,
     dstChannelId,
     await getChannelProof(srcChain, srcPortId, srcChannelId, height),
-    Transfrom.height(height),
+    Transform.height(height),
     msgExecutor
   )
 }

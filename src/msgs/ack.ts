@@ -1,6 +1,6 @@
 import { Packet, MsgAcknowledgement } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { convertProofsToIcs23, getRawProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
 import { PacketWriteAckTable } from 'src/types'
@@ -18,7 +18,7 @@ export async function generateMsgAck(
     packet,
     ack.ack,
     proof,
-    Transfrom.height(height),
+    Transform.height(height),
     executorAddress
   )
 

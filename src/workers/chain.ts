@@ -65,7 +65,7 @@ export class ChainWorker {
   }
 
   private async latestHeightWorker() {
-    this.logger.debug('Activate latest height worekr')
+    this.logger.debug('Activate latest height worker')
     // TODO add websocket options
     const MAX_RETRY = 10
     let retried = 0
@@ -145,7 +145,7 @@ class SyncWorker {
 
         let finish = false
 
-        const pakcetEventFeed = await PacketController.feedEvents(
+        const packetEventFeed = await PacketController.feedEvents(
           this.chain.rest,
           this.chain.chainId,
           packetEvents
@@ -158,7 +158,7 @@ class SyncWorker {
         )
 
         DB.transaction(() => {
-          pakcetEventFeed()
+          packetEventFeed()
           channelOpenEventFeed()
           PacketFeeController.feedEvents(this.chain.chainId, packetFeeEvents)()
 
@@ -197,7 +197,7 @@ class SyncWorker {
     channelOpenEvents: ChannelOpenCloseEvent[]
     packetFeeEvents: PacketFeeEvent[]
   }> {
-    this.logger.debug(`Fecth new block results (height - ${height})`)
+    this.logger.debug(`Fetch new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
     const txData = [...blockResult.results]
 
