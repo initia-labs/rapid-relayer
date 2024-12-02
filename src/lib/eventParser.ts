@@ -128,7 +128,11 @@ function getConnection(event: Event): string | undefined {
   return find(event, 'connection_id') || find(event, 'packet_connection')
 }
 
-function find(event: Event, key: string): string | undefined {
+function find(
+  event: Event,
+  key: string,
+  defaultValue = ''
+): string | undefined {
   // check key
   {
     const vals = event.attributes.filter((v) => v.key === key)
@@ -147,5 +151,5 @@ function find(event: Event, key: string): string | undefined {
     }
   }
 
-  return undefined
+  return defaultValue
 }
