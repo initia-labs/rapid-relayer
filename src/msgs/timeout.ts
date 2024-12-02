@@ -1,6 +1,6 @@
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Uint64 } from '@cosmjs/math'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { Packet, MsgTimeout, MsgTimeoutOnClose } from '@initia/initia.js'
 import {
   convertProofsToIcs23,
@@ -30,7 +30,7 @@ export async function generateMsgTimeout(
   return new MsgTimeout(
     packet,
     proof,
-    Transfrom.height(proofHeight),
+    Transform.height(proofHeight),
     sequence,
     executorAddress
   )
@@ -62,7 +62,7 @@ export async function generateMsgTimeoutOnClose(
     packet,
     proof,
     channelProof,
-    Transfrom.height(proofHeight),
+    Transform.height(proofHeight),
     sequence,
     executorAddress
   )

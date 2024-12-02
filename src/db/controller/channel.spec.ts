@@ -9,7 +9,7 @@ import { DB } from '..'
 import { insert, select } from '../utils'
 import { mockServers } from 'src/test/testSetup'
 
-describe('channel controler', () => {
+describe('channel controller', () => {
   test('channel open e2e', async () => {
     const [mockServer1, mockServer2] = mockServers
     // test channel_open_init
