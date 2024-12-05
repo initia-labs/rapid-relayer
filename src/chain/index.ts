@@ -207,7 +207,7 @@ export class Chain {
           this.packetsToHandle = this.packetsToHandle.slice(packets.length)
         }
       } catch (e) {
-        this.error(`Fail to handle packet. resonse - ${e}`)
+        this.error(`Fail to handle packet. response - ${e}`)
       } finally {
         this.workers['packet_handler'] = new Date().valueOf()
         await delay(1000)
@@ -255,7 +255,7 @@ export class Chain {
         this.packetsToHandle.push(...results)
         this.fedHeight = heights[heights.length - 1]
       } catch (e) {
-        this.error(`Fail to fetch block result. resonse - ${e}`)
+        this.error(`Fail to fetch block result. response - ${e}`)
       } finally {
         this.workers['event_feeder'] = new Date().valueOf()
         await delay(100)
@@ -266,13 +266,13 @@ export class Chain {
   private async latestHeightWorker() {
     // to prevent rerun
     if (
-      (this.workers['latest_height_worekr'] ?? 0) >
+      (this.workers['latest_height_worker'] ?? 0) >
       new Date().valueOf() - 5 * 60 * 1000
     ) {
       return
     }
 
-    this.debug('Activate latest height worekr')
+    this.debug('Activate latest height worker')
 
     // TODO add websocket options
     const MAX_RETRY = 10
@@ -308,7 +308,7 @@ export class Chain {
           )
         }
       } finally {
-        this.workers['latest_height_worekr'] = new Date().valueOf()
+        this.workers['latest_height_worker'] = new Date().valueOf()
         await delay(1000)
       }
     }

@@ -5,7 +5,7 @@ import { ProofOps } from 'cosmjs-types/tendermint/crypto/proof'
 import { CommitmentProof } from 'cosmjs-types/cosmos/ics23/v1/proofs'
 import { MerkleProof } from 'cosmjs-types/ibc/core/commitment/v1/commitment'
 import { Chain } from 'src/chain'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { getRawProof } from 'src/lib/rawProof'
 
 export async function generateMsgAck(
@@ -19,7 +19,7 @@ export async function generateMsgAck(
     ack.packet,
     ack.acknowledgement,
     proof,
-    Transfrom.height(height),
+    Transform.height(height),
     srcChain.wallet.address()
   )
 
