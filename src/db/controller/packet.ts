@@ -598,7 +598,7 @@ export class PacketController {
     }
   }
 
-  // update timeout timestamp to -1
+  // update timeout timestamp to -1 to execute timeout closed channel
   public static updateTimeout(chainId: string, channelId: string) {
     update<PacketTimeoutTable>(
       DB,

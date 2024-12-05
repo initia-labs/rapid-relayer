@@ -122,6 +122,8 @@ export class WalletWorker {
             remain
           )
 
+    remain -= timeoutPackets.length
+
     const channelOpenEvents =
       remain === 0
         ? []
@@ -321,7 +323,7 @@ export class WalletWorker {
         if (result.raw_log.startsWith('account sequence mismatch')) {
           try {
             const expected = result.raw_log.split(', ')[1]
-            this.sequence = Number(expected.split(' ')[1])
+            this.sequence = Number(expected.split(' ')[1]) - 1
             this.logger.info(`update sequence`)
           } catch (e) {
             this.logger.warn(`error to parse sequence`)
@@ -453,8 +455,8 @@ export class WalletWorker {
           sendPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unreceivedSequences = unreceivedPackets.sequences.map((sequence) =>
-          Number(sequence)
+        const unreceivedSequences = unreceivedPackets.sequences.map(
+          (sequence) => Number(sequence)
         )
 
         sendPacketsToDel.push(
@@ -483,7 +485,7 @@ export class WalletWorker {
     const writeAckPacketsToDel: PacketWriteAckTable[] = []
 
     for (const packet of writeAckPackets) {
-      const path = `${packet.src_port}/${packet.src_port}`
+      const path = `${packet.src_port}/${packet.src_channel_id}`
       if (!writeAckPacketMap[path]) {
         writeAckPacketMap[path] = []
       }
@@ -531,7 +533,7 @@ export class WalletWorker {
     const timeoutPacketsToDel: PacketTimeoutTable[] = []
 
     for (const packet of timeoutPackets) {
-      const path = `${packet.src_port}/${packet.src_port}`
+      const path = `${packet.src_port}/${packet.src_channel_id}`
       if (!timeoutPacketMap[path]) {
         timeoutPacketMap[path] = []
       }
@@ -579,8 +581,8 @@ export class WalletWorker {
           timeoutPacketMap[path].map((packet) => packet.sequence)
         )
 
-        const unreceivedSequences = unreceivedPackets.sequences.map((sequence) =>
-          Number(sequence)
+        const unreceivedSequences = unreceivedPackets.sequences.map(
+          (sequence) => Number(sequence)
         )
 
         timeoutPacketsToDel.push(

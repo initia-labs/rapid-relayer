@@ -143,9 +143,8 @@ function find(
 
   {
     // check base64 encoded key
-    const vals = event.attributes.filter(
-      (v) => v.key === Buffer.from(`${key}`).toString('base64')
-    )
+    const base64Key = Buffer.from(key).toString('base64')
+    const vals = event.attributes.filter((v) => v.key === base64Key)
     if (vals.length !== 0) {
       return Buffer.from(vals[0].value, 'base64').toString()
     }

@@ -44,9 +44,7 @@ export class ChannelController {
           )
           break
         case 'channel_close_confirm':
-          feedFns.push(
-            await this.feedChannelCloseConfirmEvent(rest, chainId, event)
-          )
+          feedFns.push(this.feedChannelCloseConfirmEvent(rest, chainId, event))
           break
       }
     }
@@ -308,11 +306,11 @@ export class ChannelController {
     }
   }
 
-  private static async feedChannelCloseConfirmEvent(
+  private static feedChannelCloseConfirmEvent(
     _rest: RESTClient,
     chainId: string,
     event: ChannelOpenCloseEvent
-  ): Promise<() => void> {
+  ): () => void {
     return () => {
       del<ChannelOpenCloseTable>(DB, this.tableName, [
         {
