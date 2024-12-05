@@ -1,5 +1,5 @@
 import express from 'express'
-import { registery } from './lib/metric'
+import { registry } from './lib/metric'
 import { info } from './lib/logger'
 
 import { config } from './lib/config'
@@ -18,8 +18,8 @@ async function main() {
   const metricApp = express()
 
   metricApp.get('/metrics', (req, res) => {
-    res.setHeader('content-type', registery.contentType)
-    registery
+    res.setHeader('content-type', registry.contentType)
+    registry
       .metrics()
       .then((response) => res.send(response))
       .catch(() => res.status(500).send('Fail to get metrics'))
