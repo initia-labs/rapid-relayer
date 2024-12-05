@@ -2,7 +2,7 @@ import { MsgTimeout } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Uint64 } from '@cosmjs/math'
 import { Chain } from 'src/chain'
-import { Transfrom } from 'src/lib/transform'
+import { Transform } from 'src/lib/transform'
 import { Packet } from '@initia/initia.js'
 import { getRawProof } from 'src/lib/rawProof'
 import { convertProofsToIcs23 } from './ack'
@@ -20,7 +20,7 @@ export async function generateMsgTimeout(
   return new MsgTimeout(
     packet,
     proof,
-    Transfrom.height(proofHeight),
+    Transform.height(proofHeight),
     sequence,
     srcChain.wallet.address()
   )
