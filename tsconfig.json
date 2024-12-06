@@ -22,7 +22,8 @@
     "noUnusedLocals": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
+    "esModuleInterop": true
   },
   "include": ["src/**/*.ts", "**/*.mjs"],
-  "exclude": ["node_modules", "dist"],
+  "exclude": ["node_modules", "dist"]
 }

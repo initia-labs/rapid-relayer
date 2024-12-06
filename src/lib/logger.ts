@@ -27,3 +27,15 @@ export function error(msg: string): void {
 export function debug(msg: string): void {
   logger.debug(msg)
 }
+
+export function createLoggerWithPrefix(prefix: string) {
+  const format = winston.format.printf(({ level, message, timestamp }) => {
+    return `${timestamp} ${level}: ${prefix}${message}`
+  })
+
+  return winston.createLogger({
+    level: config.logLevel,
+    format: winston.format.combine(winston.format.timestamp(), format),
+    transports: [new winston.transports.Console()],
+  })
+}

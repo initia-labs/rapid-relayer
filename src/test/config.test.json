@@ -1,5 +1,6 @@
 {
-  "$schema": "./config.schema.json",
+  "$schema": "../../config.schema.json",
+  "dbPath": "./test_db",
   "port": 7010,
   "metricPort": 70001,
   "logLevel": "info",
@@ -13,33 +14,17 @@
       "wallets": [
         {
           "key": {
-            "type": "raw",
-            "privateKey": "123..."
-          },
-          "maxHandlePacket": 10,
-          "startHeight": 0 // if empty start from the latest height
-        },
-        {
-          "key": {
             "type": "mnemonic",
             "privateKey": "repair family apology column ..."
           },
-          "maxHandlePacket": 10,
-          "packetFilter": {
-            "connections": [{ "connectionId": "conneciton-1" }]
-          }
+          "maxHandlePacket": 10
         }
-      ],
-      "feeFilter": {
-        "recvFee": [{ "denom": "gas", "amount": 100 }],
-        "timeoutFee": [{ "denom": "gas", "amount": 200 }],
-        "ackFee": [{ "denom": "gas", "amount": 300 }]
-      }
+      ]
     },
     {
       "bech32Prefix": "init",
       "chainId": "chain-2",
-      "gasPrice": "0umin",
+      "gasPrice": "0gas",
       "restUri": "https://rest.chain-2.com",
       "rpcUri": "https://rpc.chain-2.com",
       "wallets": [

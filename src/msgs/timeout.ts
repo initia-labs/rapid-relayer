@@ -1,43 +1,85 @@
-import { MsgTimeout } from '@initia/initia.js/dist/core/ibc/core/channel/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Uint64 } from '@cosmjs/math'
-import { Chain } from 'src/chain'
 import { Transform } from 'src/lib/transform'
-import { Packet } from '@initia/initia.js'
-import { getRawProof } from 'src/lib/rawProof'
-import { convertProofsToIcs23 } from './ack'
+import { Packet, MsgTimeout, MsgTimeoutOnClose } from '@initia/initia.js'
+import {
+  convertProofsToIcs23,
+  getChannelProof,
+  getRawProof,
+} from 'src/lib/proof'
 import { delay } from 'bluebird'
+import { ChainWorker } from 'src/workers/chain'
+import { Bool, PacketTimeoutTable } from 'src/types'
+import { packetTableToPacket } from 'src/db/utils'
 
 export async function generateMsgTimeout(
-  srcChain: Chain,
-  destChain: Chain,
-  packet: Packet,
-  proofHeight: Height
+  dstChain: ChainWorker,
+  packetTable: PacketTimeoutTable,
+  proofHeight: Height,
+  executorAddress: string
 ): Promise<MsgTimeout> {
-  const sequence = await getNextSequenceRecv(packet, destChain, proofHeight)
-  const proof = await getTimeoutProof(destChain, packet, proofHeight)
+  const packet = packetTableToPacket(packetTable)
+  const sequence = await getNextSequenceRecv(packet, dstChain, proofHeight)
+  const proof = await getTimeoutProof(
+    dstChain,
+    packet,
+    proofHeight,
+    packetTable.is_ordered === Bool.TRUE
+  )
 
   return new MsgTimeout(
     packet,
     proof,
     Transform.height(proofHeight),
     sequence,
-    srcChain.wallet.address()
+    executorAddress
+  )
+}
+
+export async function generateMsgTimeoutOnClose(
+  dstChain: ChainWorker,
+  packetTable: PacketTimeoutTable,
+  proofHeight: Height,
+  executorAddress: string
+): Promise<MsgTimeoutOnClose> {
+  const packet = packetTableToPacket(packetTable)
+  const sequence = await getNextSequenceRecv(packet, dstChain, proofHeight)
+  const proof = await getTimeoutProof(
+    dstChain,
+    packet,
+    proofHeight,
+    packetTable.is_ordered === Bool.TRUE
+  )
+
+  const channelProof = await getChannelProof(
+    dstChain,
+    packet.destination_port,
+    packet.destination_channel,
+    proofHeight
+  )
+
+  return new MsgTimeoutOnClose(
+    packet,
+    proof,
+    channelProof,
+    Transform.height(proofHeight),
+    sequence,
+    executorAddress
   )
 }
 
 async function getNextSequenceRecv(
   packet: Packet,
-  destChain: Chain,
+  dstChain: ChainWorker,
   headerHeight: Height
-) {
+): Promise<number> {
   const key = new Uint8Array(
     Buffer.from(
       `nextSequenceRecv/ports/${packet.destination_port}/channels/${packet.destination_channel}`
     )
   )
 
-  let { value } = await destChain.rpc.abciQuery({
+  let { value } = await dstChain.rpc.abciQuery({
     path: `/store/ibc/key`,
     data: key,
     prove: true,
@@ -46,7 +88,7 @@ async function getNextSequenceRecv(
 
   let count = 0
   while (value.length === 0 && count < 5) {
-    const result = await destChain.rpc.abciQuery({
+    const result = await dstChain.rpc.abciQuery({
       path: `/store/ibc/key`,
       data: key,
       prove: true,
@@ -63,16 +105,19 @@ async function getNextSequenceRecv(
 }
 
 async function getTimeoutProof(
-  destChain: Chain,
+  dstChain: ChainWorker,
   packet: Packet,
-  headerHeight: Height
+  headerHeight: Height,
+  isOrdererd: boolean
 ): Promise<string> {
   const queryKey = new Uint8Array(
     Buffer.from(
-      `receipts/ports/${packet.destination_port}/channels/${packet.destination_channel}/sequences/${packet.sequence}`
+      isOrdererd
+        ? `nextSequenceRecv/ports/${packet.destination_port}/channels/${packet.destination_channel}`
+        : `receipts/ports/${packet.destination_port}/channels/${packet.destination_channel}/sequences/${packet.sequence}`
     )
   )
-  const proof = await getRawProof(destChain, queryKey, headerHeight)
+  const proof = await getRawProof(dstChain, queryKey, headerHeight)
 
   const ics23Proof = convertProofsToIcs23(proof)
   return Buffer.from(ics23Proof).toString('base64')

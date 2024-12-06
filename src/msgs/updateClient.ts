@@ -1,6 +1,5 @@
 import { getSignedHeader } from './signedHeader'
-import { MsgUpdateClient } from '@initia/initia.js/dist/core/ibc/core/client/msgs'
-import { Chain } from 'src/chain'
+import { MsgUpdateClient } from '@initia/initia.js'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
 import {
   ValidatorSet,
@@ -8,16 +7,22 @@ import {
 } from 'cosmjs-types/tendermint/types/validator'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { delay } from 'bluebird'
+import { ChainWorker } from 'src/workers/chain'
 
+// generateMsgUpdateClient generates a MsgUpdateClient message
+// which is used to update the client state on the destination chain
+// with the latest header from the source chain and the latest validator set.
 export async function generateMsgUpdateClient(
-  srcChain: Chain,
-  destChain: Chain
+  srcChain: ChainWorker,
+  dstChain: ChainWorker,
+  dstClientId: string,
+  executorAddress: string
 ): Promise<{
   msg: MsgUpdateClient
   height: Height
 }> {
   const latestHeight = Number(
-    ((await destChain.lcd.ibc.clientState(destChain.clientId)) as ClientState)
+    ((await dstChain.rest.ibc.clientState(dstClientId)) as ClientState)
       .client_state.latest_height.revision_height
   )
   const signedHeader = await getSignedHeader(srcChain)
@@ -45,11 +50,7 @@ export async function generateMsgUpdateClient(
   const revisionHeight = getRevisionHeight(currentHeight, header.chainId)
 
   return {
-    msg: new MsgUpdateClient(
-      destChain.clientId,
-      tmHeader,
-      destChain.wallet.address()
-    ),
+    msg: new MsgUpdateClient(dstClientId, tmHeader, executorAddress),
     height: revisionHeight,
   }
 }
@@ -72,15 +73,15 @@ export function getRevisionHeight(height: number, chainId: string): Height {
 }
 
 async function getValidatorSet(
-  chain: Chain,
+  chain: ChainWorker,
   height: number
 ): Promise<ValidatorSet> {
-  let block = await chain.lcd.tendermint
+  let block = await chain.rest.tendermint
     .blockInfo(height)
     .catch(() => undefined)
   let count = 0
   while (block === undefined) {
-    block = await chain.lcd.tendermint.blockInfo(height).catch((e) => {
+    block = await chain.rest.tendermint.blockInfo(height).catch((e) => {
       if (count > 5) {
         throw e
       }

@@ -6,3 +6,7 @@ node_modules/
 
 config.json
 /.idea
+
+/.db
+
+/test_db

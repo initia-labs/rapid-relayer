@@ -1,35 +1,20 @@
-import { Chain } from './chain'
 import express from 'express'
-import { runPair } from './lib/chainPair'
-import { config } from './lib/config'
-import { ChainStatus } from './chain/types'
 import { registry } from './lib/metric'
 import { info } from './lib/logger'
 
-async function main() {
-  const pairs: Record<string, { chainA: Chain; chainB: Chain }> = {}
-  await Promise.all(
-    config.pairs.map(async (config) => {
-      const pair = await runPair(config)
-      pairs[pair.name] = { chainA: pair.chainA, chainB: pair.chainB }
-    })
-  )
+import { config } from './lib/config'
+import { WorkerController } from './workers'
+import { initDBConnection } from './db'
 
+async function main() {
+  initDBConnection()
+  const workerController = new WorkerController()
+  await workerController.init(config)
   const app = express()
 
   app.get('/status', (req, res) => {
-    const result: Record<string, { chainA: ChainStatus; chainB: ChainStatus }> =
-      {}
-    Object.keys(pairs).map((name) => {
-      result[name] = {
-        chainA: pairs[name].chainA.chainStatus(),
-        chainB: pairs[name].chainB.chainStatus(),
-      }
-    })
-
-    res.json(result)
+    res.json(workerController.getStatus())
   })
-
   const metricApp = express()
 
   metricApp.get('/metrics', (req, res) => {
@@ -42,6 +27,9 @@ async function main() {
 
   app.listen(config.port)
   info(`status app listen to port ${config.port}`)
+  info(`rapid relayer has been started`)
+  info(JSON.stringify(workerController.getStatus(), undefined, 2))
+
   metricApp.listen(config.metricPort)
   info(`metric app listen to port ${config.metricPort}`)
 }
