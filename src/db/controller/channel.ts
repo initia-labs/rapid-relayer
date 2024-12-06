@@ -303,6 +303,12 @@ export class ChannelController {
 
     return () => {
       insert(DB, this.tableName, channelOnOpen)
+
+      // Mark all packets as timed out
+      PacketController.updateTimeout(
+        chainId,
+        event.channelOpenCloseInfo.srcChannelId
+      )
     }
   }
 
