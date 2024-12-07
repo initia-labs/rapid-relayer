@@ -1,4 +1,4 @@
-import { Packet } from '@initia/initia.js'
+import { Packet} from '@initia/initia.js'
 import { MsgRecvPacket } from '@initia/initia.js'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { Transform } from 'src/lib/transform'
