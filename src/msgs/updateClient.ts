@@ -90,7 +90,7 @@ async function getValidatorSet(
     count++
   }
   const proposerAddress = block.block.header.proposer_address
-  // we need to query the header to find out who the proposer was, and pull them out
+  // we need to query the header to find out who the proposer was and pull them out
   const validators = await chain.rpc.validatorsAll(height)
   let totalVotingPower = BigInt(0)
   const mappedValidators: Validator[] = validators.validators.map((val) => {
