@@ -33,7 +33,7 @@ export async function getRawProof(
     )
   }
 
-  // we don't need the results, but we can ensure the data is the proper format
+  // we don't need the results, but we can ensure the data is in the proper format
   checkAndParseOp(proof.ops[0], 'ics23:iavl')
   checkAndParseOp(proof.ops[1], 'ics23:simple')
 
