@@ -140,7 +140,7 @@ export class WalletManager {
         )
         retried++
 
-        // if fail to broadcast, return error result to make regenerate msgs
+        // if fails to broadcast, return an error result to make regenerate msgs
         if (retried >= MAX_RETRY) {
           this.requestIndexInprogress++
           error(`[runRequestWorker] Max retry exceeded`)
