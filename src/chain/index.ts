@@ -353,12 +353,12 @@ export class Chain {
       }
     }
 
-    // filter timeout that already done.
+    // filter timeout that is already done.
     // filter by unreceivedAcks
     await Promise.all(
       Object.keys(timeoutPackets).map(async (path) => {
         if (timeoutPackets[path].length === 0) return
-        const unrecivedPackets = await this.lcd.ibc.unreceivedAcks(
+        const unreceivedPackets = await this.lcd.ibc.unreceivedAcks(
           timeoutPackets[path][0].packetData.source_port,
           timeoutPackets[path][0].packetData.source_channel,
           timeoutPackets[path].map((packet) => packet.packetData.sequence)
@@ -378,14 +378,14 @@ export class Chain {
     await Promise.all(
       Object.keys(timeoutPackets).map(async (path) => {
         if (timeoutPackets[path].length === 0) return
-        const unrecivedPackets =
+        const unreceivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             timeoutPackets[path][0].packetData.destination_port,
             timeoutPackets[path][0].packetData.destination_channel,
             timeoutPackets[path].map((packet) => packet.packetData.sequence)
           )
 
-        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+        const unreceivedSequences = unrecivedPackets.sequences.map((sequence) =>
           Number(sequence)
         )
 
@@ -395,23 +395,23 @@ export class Chain {
       })
     )
 
-    // filter recv packets that already done.
+    // filter recv packets that are already done.
     await Promise.all(
       Object.keys(recvPackets).map(async (path) => {
         if (recvPackets[path].length === 0) return
-        const unrecivedPackets =
+        const unreceivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedPackets(
             recvPackets[path][0].packetData.destination_port,
             recvPackets[path][0].packetData.destination_channel,
             recvPackets[path].map((packet) => packet.packetData.sequence)
           )
 
-        const unrecivedSequences = unrecivedPackets.sequences.map((sequence) =>
+        const unreceivedSequences = unreceivedPackets.sequences.map((sequence) =>
           Number(sequence)
         )
 
         recvPackets[path] = recvPackets[path].filter((packet) =>
-          unrecivedSequences.includes(packet.packetData.sequence)
+          unreceivedSequences.includes(packet.packetData.sequence)
         )
       })
     )
@@ -444,7 +444,7 @@ export class Chain {
     const unrecivedSequences: number[] = []
     await Promise.all(
       packets.map(async (packet) => {
-        const unrecivedPackets =
+        const unreceivedPackets =
           await this.counterpartyChain.lcd.ibc.unreceivedAcks(
             packet.packetData.packet.source_port,
             packet.packetData.packet.source_channel,
