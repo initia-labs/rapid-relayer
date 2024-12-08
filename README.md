@@ -12,7 +12,7 @@ Rapid Relayer does not use the `tx_search` query of Hermes to handle packets fro
 - We need something more rapid.
 
 ### How We Fix This
-- We removed the `tx_search` query, and handle packets in parallel across several blocks at once.
+- We removed the `tx_search` query, and handled packets in parallel across several blocks at once.
 - Keep track of `synced_height` and `latest_height`.
 - Multi-threaded workers: packet handler and event feeder. The event feeder feeds the packet from new blocks to a cache and the packet handler fetches packets from it. This way, even if the packet handler stops, the event feeder will continue to operate.
 - We remove the slow call of `tx_search`. 
@@ -90,7 +90,7 @@ and a /syncInfo volume which will contain the state
 ```bash
 docker run -it -v/tmp/rr/config:/config -v/tmp/rr/syncInfo:/syncInfo -d  rapid-relayer:latest
 ```
-this should start the relayer in a docker container using your config, and placing the state in a separate volume
+this should start the relayer in a docker container using your config, and place the state in a separate volume
 
 ## SyncInfo
 
