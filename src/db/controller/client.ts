@@ -1,5 +1,5 @@
 import { DB } from '..'
-import { insert, selectOne } from '../utils'
+import { insert, select, selectOne, update } from '../utils'
 import { Any } from 'cosmjs-types/google/protobuf/any'
 import { UpdateClientEvent, ClientTable } from 'src/types'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
@@ -51,15 +51,35 @@ export class ClientController {
     const client = await this.getClient(rest, chainId, clientId)
 
     // update client
-    client.revision_height = parseInt(
+    const revisionHeight = parseInt(
       event.consensusHeights.split(',')[0].split('-')[1]
     )
 
-    if (header.signedHeader?.header?.time.seconds) {
-      client.last_update_time = Number(header.signedHeader.header.time.seconds)
+    if (revisionHeight > client.revision_height) {
+      client.revision_height = revisionHeight
     }
 
-    insert(DB, this.tableName, client)
+    if (header.signedHeader?.header?.time.seconds) {
+      const lastUpdateTime = Number(header.signedHeader.header.time.seconds)
+      if (lastUpdateTime > client.last_update_time) {
+        client.last_update_time = lastUpdateTime
+      }
+    }
+
+    update<ClientTable>(
+      DB,
+      this.tableName,
+      {
+        revision_height: client.revision_height,
+        last_update_time: client.last_update_time,
+      },
+      [
+        {
+          chain_id: client.chain_id,
+          client_id: client.client_id,
+        },
+      ]
+    )
   }
 
   public static async getClient(
@@ -76,5 +96,39 @@ export class ClientController {
     ])
 
     return client ?? this.addClient(rest, chainId, clientId)
+  }
+
+  public static getClientsToUpdate(
+    chainId: string,
+    counterpartyChainIds: string[]
+  ): ClientTable[] {
+    const clients = select<ClientTable>(
+      DB,
+      this.tableName,
+      counterpartyChainIds.map((counterpartyChainId) => ({
+        chain_id: chainId,
+        counterparty_chain_id: counterpartyChainId,
+      }))
+    )
+
+    // check need updates
+    const currentTimestamp = new Date().valueOf() / 1000
+
+    return clients.filter((client) => {
+      // check expired
+      if (client.last_update_time + client.trusting_period < currentTimestamp) {
+        return false
+      }
+
+      // check need update
+      if (
+        client.last_update_time + client.trusting_period * 0.666 <
+        currentTimestamp
+      ) {
+        return true
+      }
+
+      return false
+    })
   }
 }
