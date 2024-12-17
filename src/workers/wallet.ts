@@ -669,6 +669,6 @@ export class WalletWorker {
 
     ChannelController.delOpenEvents(eventsToDel)
 
-    return res.filter((v) => v !== undefined) as ChannelOpenCloseTable[]
+    return res.filter((v) => v !== undefined)
   }
 }

@@ -83,7 +83,7 @@ export class WorkerController {
         latestHeight,
         chainConfig.wallets
           .map((wallet) => wallet.startHeight)
-          .filter((v) => v !== undefined) as number[]
+          .filter((v) => v !== undefined)
       )
 
       this.chains[chainConfig.chainId] = chain
