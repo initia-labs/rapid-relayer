@@ -1,11 +1,17 @@
 import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
-import { ChannelOpenCloseEvent, PacketEvent, PacketFeeEvent } from 'src/types'
+import {
+  ChannelOpenCloseEvent,
+  PacketEvent,
+  PacketFeeEvent,
+  UpdateClientEvent,
+} from 'src/types'
 import {
   parseChannelCloseEvent,
   parseChannelOpenEvent,
   parsePacketEvent,
   parsePacketFeeEvent,
+  parseUpdateClientEvent,
 } from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
@@ -16,6 +22,7 @@ import { RESTClient } from 'src/lib/restClient'
 import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
 import { PacketFee } from 'src/lib/config'
+import { ClientController } from 'src/db/controller/client'
 
 export class ChainWorker {
   public latestHeight: number
@@ -138,10 +145,22 @@ class SyncWorker {
         const packetEvents = events.map((e) => e.packetEvents).flat()
         const channelOpenEvents = events.map((e) => e.channelOpenEvents).flat()
         const packetFeeEvents = events.map((e) => e.packetFeeEvents).flat()
+        const updateClientEvents = events
+          .map((e) => e.updateClientEvents)
+          .flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
         )
+
+        // `feedUpdateClient` does not need to be included in the db transaction
+        for (const event of updateClientEvents) {
+          await ClientController.feedUpdateClientEvent(
+            this.chain.rest,
+            this.chain.chainId,
+            event
+          )
+        }
 
         let finish = false
 
@@ -196,6 +215,7 @@ class SyncWorker {
     packetEvents: PacketEvent[]
     channelOpenEvents: ChannelOpenCloseEvent[]
     packetFeeEvents: PacketFeeEvent[]
+    updateClientEvents: UpdateClientEvent[]
   }> {
     this.logger.debug(`Fetch new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
@@ -204,6 +224,7 @@ class SyncWorker {
     const packetEvents: PacketEvent[] = []
     const channelOpenEvents: ChannelOpenCloseEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
+    const updateClientEvents: UpdateClientEvent[] = []
 
     txData.map((data) => {
       for (const event of data.events) {
@@ -245,6 +266,10 @@ class SyncWorker {
         if (event.type === 'incentivized_ibc_packet') {
           packetFeeEvents.push(parsePacketFeeEvent(event))
         }
+
+        if (event.type === 'update_client') {
+          updateClientEvents.push(parseUpdateClientEvent(event))
+        }
       }
     })
 
@@ -252,6 +277,7 @@ class SyncWorker {
       packetEvents,
       channelOpenEvents,
       packetFeeEvents,
+      updateClientEvents,
     }
   }
 }

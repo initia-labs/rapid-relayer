@@ -25,7 +25,7 @@ export class ConnectionController {
       counterparty_client_id: connectionInfo.connection.counterparty.client_id,
     }
 
-    insert(DB, this.tableName, connection)
+    insert(DB, ConnectionController.tableName, connection)
 
     return connection
   }
@@ -37,12 +37,16 @@ export class ConnectionController {
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
-    const connection = selectOne<ConnectionTable>(DB, this.tableName, [
-      {
-        chain_id: chainId,
-        connection_id: connectionId,
-      },
-    ])
+    const connection = selectOne<ConnectionTable>(
+      DB,
+      ConnectionController.tableName,
+      [
+        {
+          chain_id: chainId,
+          connection_id: connectionId,
+        },
+      ]
+    )
 
     return connection ?? this.addConnection(rest, chainId, connectionId)
   }

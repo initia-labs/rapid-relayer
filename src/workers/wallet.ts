@@ -20,8 +20,8 @@ import { Logger } from 'winston'
 import { ChannelController } from 'src/db/controller/channel'
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { PacketFee } from 'src/lib/config'
+import { ClientController } from 'src/db/controller/client'
 
-// TODO: add update client worker
 export class WalletWorker {
   private sequence?: number
   private accountNumber?: number
@@ -163,19 +163,10 @@ export class WalletWorker {
         await this.filterTimeoutPackets(timeoutPackets)
       const filteredChannelOpenCloseEvents =
         await this.filterChannelOpenCloseEvents(channelOpenEvents)
-      if (
-        filteredSendPackets.length === 0 &&
-        filteredWriteAckPackets.length === 0 &&
-        filteredTimeoutPackets.length === 0 &&
-        filteredChannelOpenCloseEvents.length === 0
-      ) {
-        return
-      }
 
       // create msgs
 
       // generate update client msgs
-      // get unique client id
       const connections = [
         ...filteredSendPackets.map((packet) => packet.dst_connection_id),
         ...filteredWriteAckPackets.map((packet) => packet.src_connection_id),
@@ -183,6 +174,7 @@ export class WalletWorker {
         ...filteredChannelOpenCloseEvents.map((event) => event.connection_id),
       ].filter((v, i, a) => a.indexOf(v) === i)
 
+      // get client ids from connections
       const connectionClientMap: Record<string, string> = {}
       await Promise.all(
         connections.map(async (connection) => {
@@ -195,9 +187,17 @@ export class WalletWorker {
         })
       )
 
-      const clientIds = Object.values(connectionClientMap).filter(
-        (v, i, a) => a.indexOf(v) === i
+      // check clients that need to update
+      const clientsToUpdate = ClientController.getClientsToUpdate(
+        this.chain.chainId,
+        counterpartyChainIdsWithFeeFilter.map((f) => f.chainId)
       )
+
+      // get unique client id
+      const clientIds = [
+        ...Object.values(connectionClientMap),
+        ...clientsToUpdate.map((c) => c.client_id),
+      ].filter((v, i, a) => a.indexOf(v) === i)
 
       // generate msgs
       const updateClientMsgs: Record<
@@ -302,6 +302,8 @@ export class WalletWorker {
         ...timeoutMsgs,
         ...channelOpenMsgs,
       ]
+
+      if (msgs.length === 0) return
 
       // init sequence
       if (!this.sequence) {

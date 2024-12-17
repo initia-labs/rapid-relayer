@@ -104,7 +104,7 @@ export class PacketController {
       res.push(
         ...select<PacketSendTable>(
           DB,
-          this.tableNamePacketSend,
+          PacketController.tableNamePacketSend,
           wheres,
           { sequence: 'ASC' },
           limit - res.length
@@ -159,7 +159,7 @@ export class PacketController {
 
     return select<PacketTimeoutTable>(
       DB,
-      this.tableNamePacketTimeout,
+      PacketController.tableNamePacketTimeout,
       wheres,
       { sequence: 'ASC' },
       limit
@@ -207,7 +207,7 @@ export class PacketController {
 
     return select<PacketWriteAckTable>(
       DB,
-      this.tableNamePacketWriteAck,
+      PacketController.tableNamePacketWriteAck,
       wheres,
       { sequence: 'ASC' },
       limit
@@ -218,7 +218,7 @@ export class PacketController {
     if (packets.length === 0) return
     del<PacketSendTable>(
       DB,
-      this.tableNamePacketSend,
+      PacketController.tableNamePacketSend,
       packets.map((packet) => ({
         dst_chain_id: packet.dst_chain_id,
         dst_connection_id: packet.dst_connection_id,
@@ -232,7 +232,7 @@ export class PacketController {
     if (packets.length === 0) return
     del<PacketTimeoutTable>(
       DB,
-      this.tableNamePacketTimeout,
+      PacketController.tableNamePacketTimeout,
       packets.map((packet) => ({
         src_chain_id: packet.src_chain_id,
         src_connection_id: packet.src_connection_id,
@@ -246,7 +246,7 @@ export class PacketController {
     if (packets.length === 0) return
     del<PacketWriteAckTable>(
       DB,
-      this.tableNamePacketWriteAck,
+      PacketController.tableNamePacketWriteAck,
       packets.map((packet) => ({
         src_chain_id: packet.src_chain_id,
         src_connection_id: packet.src_connection_id,
@@ -262,7 +262,7 @@ export class PacketController {
   ) {
     update<PacketSendTable>(
       DB,
-      this.tableNamePacketSend,
+      PacketController.tableNamePacketSend,
       { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
@@ -281,7 +281,7 @@ export class PacketController {
   ) {
     update<PacketTimeoutTable>(
       DB,
-      this.tableNamePacketTimeout,
+      PacketController.tableNamePacketTimeout,
       { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
@@ -300,7 +300,7 @@ export class PacketController {
   ) {
     update<PacketWriteAckTable>(
       DB,
-      this.tableNamePacketWriteAck,
+      PacketController.tableNamePacketWriteAck,
       { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [
         {
@@ -315,13 +315,13 @@ export class PacketController {
 
   public static resetPacketInProgress(db?: Database) {
     db = db ?? DB
-    update<PacketSendTable>(db, this.tableNamePacketSend, {
+    update<PacketSendTable>(db, PacketController.tableNamePacketSend, {
       in_progress: Bool.FALSE,
     })
-    update<PacketTimeoutTable>(db, this.tableNamePacketTimeout, {
+    update<PacketTimeoutTable>(db, PacketController.tableNamePacketTimeout, {
       in_progress: Bool.FALSE,
     })
-    update<PacketWriteAckTable>(db, this.tableNamePacketWriteAck, {
+    update<PacketWriteAckTable>(db, PacketController.tableNamePacketWriteAck, {
       in_progress: Bool.FALSE,
     })
   }
@@ -382,14 +382,14 @@ export class PacketController {
     }
 
     return () => {
-      insert(DB, this.tableNamePacketSend, packetSend)
-      insert(DB, this.tableNamePacketTimeout, packetTimeout)
+      insert(DB, PacketController.tableNamePacketSend, packetSend)
+      insert(DB, PacketController.tableNamePacketTimeout, packetTimeout)
 
       // if channel is ordered channel, update in progress for higher sequence
       if (packetSend.is_ordered === Bool.TRUE) {
         update<PacketSendTable>(
           DB,
-          this.tableNamePacketSend,
+          PacketController.tableNamePacketSend,
           { in_progress: Bool.FALSE },
           [
             {
@@ -438,7 +438,7 @@ export class PacketController {
     }
     return () => {
       // remove pakcet send
-      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+      del<PacketSendTable>(DB, PacketController.tableNamePacketSend, [
         {
           dst_chain_id: chainId,
           dst_channel_id: event.packetInfo.dstChannel,
@@ -460,13 +460,13 @@ export class PacketController {
         FeeType.TIMEOUT
       )
 
-      insert(DB, this.tableNamePacketWriteAck, packetWriteAck)
+      insert(DB, PacketController.tableNamePacketWriteAck, packetWriteAck)
 
       // if channel is ordered channel, update in progress for higher sequence
       if (packetWriteAck.is_ordered === Bool.TRUE) {
         update<PacketSendTable>(
           DB,
-          this.tableNamePacketSend,
+          PacketController.tableNamePacketSend,
           { in_progress: Bool.FALSE },
           [
             {
@@ -493,7 +493,7 @@ export class PacketController {
 
     return () => {
       // remove pakcet send
-      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+      del<PacketSendTable>(DB, PacketController.tableNamePacketSend, [
         {
           dst_chain_id: connection.counterparty_chain_id,
           dst_connection_id: connection.counterparty_connection_id,
@@ -503,7 +503,7 @@ export class PacketController {
       ])
 
       // remove packet timeout
-      del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
+      del<PacketTimeoutTable>(DB, PacketController.tableNamePacketSend, [
         {
           src_chain_id: chainId,
           src_connection_id: event.packetInfo.connectionId,
@@ -513,7 +513,7 @@ export class PacketController {
       ])
 
       // remove packet write ack
-      del<PacketWriteAckTable>(DB, this.tableNamePacketSend, [
+      del<PacketWriteAckTable>(DB, PacketController.tableNamePacketSend, [
         {
           src_chain_id: chainId,
           src_connection_id: event.packetInfo.connectionId,
@@ -557,7 +557,7 @@ export class PacketController {
     )
     return () => {
       // remove pakcet send
-      del<PacketSendTable>(DB, this.tableNamePacketSend, [
+      del<PacketSendTable>(DB, PacketController.tableNamePacketSend, [
         {
           dst_chain_id: connection.counterparty_chain_id,
           dst_connection_id: connection.counterparty_connection_id,
@@ -567,7 +567,7 @@ export class PacketController {
       ])
 
       // remove packet timeout
-      del<PacketTimeoutTable>(DB, this.tableNamePacketSend, [
+      del<PacketTimeoutTable>(DB, PacketController.tableNamePacketSend, [
         {
           src_chain_id: chainId,
           src_connection_id: event.packetInfo.connectionId,

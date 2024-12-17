@@ -1,5 +1,10 @@
 import { Event } from '@cosmjs/tendermint-rpc/build/comet38/responses'
-import { ChannelOpenCloseInfo, PacketFeeEvent, PacketInfo } from 'src/types'
+import {
+  ChannelOpenCloseInfo,
+  PacketFeeEvent,
+  PacketInfo,
+  UpdateClientEvent,
+} from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
   const connectionId = getConnection(event) as string
@@ -121,6 +126,18 @@ export function parsePacketFeeEvent(event: Event): PacketFeeEvent {
     recvFee,
     ackFee,
     timeoutFee,
+  }
+}
+
+export function parseUpdateClientEvent(event: Event): UpdateClientEvent {
+  const clientId = find(event, 'client_id') as string
+  const header = find(event, 'header') as string
+  const consensusHeights = find(event, 'consensus_heights') as string
+
+  return {
+    clientId,
+    header,
+    consensusHeights,
   }
 }
 

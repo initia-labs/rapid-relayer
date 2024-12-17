@@ -87,7 +87,7 @@ export class ChannelController {
 
     return select<ChannelOpenCloseTable>(
       DB,
-      this.tableName,
+      ChannelController.tableName,
       wheres,
       { id: 'ASC' },
       limit
@@ -103,7 +103,7 @@ export class ChannelController {
 
     del<ChannelOpenCloseTable>(
       DB,
-      this.tableName,
+      ChannelController.tableName,
       events.map((v) => ({ id: v.id as number }))
     )
   }
@@ -111,7 +111,7 @@ export class ChannelController {
   public static updateInProgress(id?: number, inProgress = true) {
     update<ChannelOpenCloseTable>(
       DB,
-      this.tableName,
+      ChannelController.tableName,
       { in_progress: inProgress ? Bool.TRUE : Bool.FALSE },
       [{ id }]
     )
@@ -119,7 +119,7 @@ export class ChannelController {
 
   public static resetPacketInProgress(db?: Database) {
     db = db ?? DB
-    update<ChannelOpenCloseTable>(db, this.tableName, {
+    update<ChannelOpenCloseTable>(db, ChannelController.tableName, {
       in_progress: Bool.FALSE,
     })
   }
@@ -152,7 +152,7 @@ export class ChannelController {
     }
 
     return () => {
-      insert(DB, this.tableName, channelOnOpen) // store INIT state to the dst chain
+      insert(DB, ChannelController.tableName, channelOnOpen) // store INIT state to the dst chain
     }
   }
 
@@ -184,7 +184,7 @@ export class ChannelController {
     }
 
     return () => {
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.INIT,
           counterparty_chain_id: connection.counterparty_chain_id,
@@ -192,7 +192,7 @@ export class ChannelController {
           counterparty_channel_id: channelOnOpen.channel_id,
         },
       ]) // remove INIT from the dst chain
-      insert(DB, this.tableName, channelOnOpen) // store TRYOPEN state to the src chain
+      insert(DB, ChannelController.tableName, channelOnOpen) // store TRYOPEN state to the src chain
     }
   }
 
@@ -224,7 +224,7 @@ export class ChannelController {
     }
 
     return () => {
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.TRYOPEN,
           counterparty_chain_id: channelOnOpen.chain_id,
@@ -232,7 +232,7 @@ export class ChannelController {
           counterparty_channel_id: channelOnOpen.channel_id,
         },
       ]) // remove TRYOPEN from src chain
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.INIT,
           counterparty_chain_id: chainId,
@@ -240,7 +240,7 @@ export class ChannelController {
           counterparty_channel_id: channelOnOpen.counterparty_channel_id,
         },
       ]) // remove INIT from dst chain
-      insert(DB, this.tableName, channelOnOpen) // store ACK state to the dst chain
+      insert(DB, ChannelController.tableName, channelOnOpen) // store ACK state to the dst chain
     }
   }
 
@@ -256,7 +256,7 @@ export class ChannelController {
       event.channelOpenCloseInfo.dstConnectionId
     )
     return () => {
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.TRYOPEN,
           counterparty_chain_id: chainId,
@@ -264,7 +264,7 @@ export class ChannelController {
           counterparty_channel_id: event.channelOpenCloseInfo.dstChannelId,
         },
       ]) // remove TRYOPEN from src chain
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.ACK,
           counterparty_chain_id: connection.counterparty_chain_id,
@@ -302,7 +302,7 @@ export class ChannelController {
     }
 
     return () => {
-      insert(DB, this.tableName, channelOnOpen)
+      insert(DB, ChannelController.tableName, channelOnOpen)
 
       // Mark all packets as timed out
       PacketController.updateTimeout(
@@ -318,7 +318,7 @@ export class ChannelController {
     event: ChannelOpenCloseEvent
   ): () => void {
     return () => {
-      del<ChannelOpenCloseTable>(DB, this.tableName, [
+      del<ChannelOpenCloseTable>(DB, ChannelController.tableName, [
         {
           state: ChannelState.CLOSE,
           chain_id: chainId,

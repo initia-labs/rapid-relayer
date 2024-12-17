@@ -87,7 +87,7 @@ describe('event parser', () => {
         timeoutTimestamp: 1730467768,
         timeoutHeightRaw: '0-0',
         timeoutTimestampRaw: '1730467768229000000',
-        ordering: undefined,
+        ordering: '',
         ack: 'eyJyZXN1bHQiOiJBUT09In0=',
       }
 

@@ -76,12 +76,10 @@ async function getValidatorSet(
   chain: ChainWorker,
   height: number
 ): Promise<ValidatorSet> {
-  let block = await chain.rest.tendermint
-    .blockInfo(height)
-    .catch(() => undefined)
+  let header = await chain.rpc.header(height).catch(() => undefined)
   let count = 0
-  while (block === undefined) {
-    block = await chain.rest.tendermint.blockInfo(height).catch((e) => {
+  while (header === undefined) {
+    header = await chain.rpc.header(height).catch((e) => {
       if (count > 5) {
         throw e
       }
@@ -90,7 +88,7 @@ async function getValidatorSet(
     await delay(100)
     count++
   }
-  const proposerAddress = block.block.header.proposer_address
+  const proposerAddress = header.header.proposer_address
   // we need to query the header to find out who the proposer was, and pull them out
   const validators = await chain.rpc.validatorsAll(height)
   let totalVotingPower = BigInt(0)
@@ -117,7 +115,9 @@ async function getValidatorSet(
   })
 
   const proposer: Validator | undefined = mappedValidators.find(
-    (val) => Buffer.from(val.address).toString('base64') === proposerAddress
+    (val) =>
+      Buffer.from(val.address).toString('hex').toLowerCase() ===
+      proposerAddress.toLowerCase()
   )
 
   return ValidatorSet.fromPartial({
