@@ -27,7 +27,7 @@ export class ClientController {
       last_update_time: 0,
     }
 
-    insert(DB, this.tableName, client)
+    insert(DB, ClientController.tableName, client)
 
     return client
   }
@@ -68,7 +68,7 @@ export class ClientController {
 
     update<ClientTable>(
       DB,
-      this.tableName,
+      ClientController.tableName,
       {
         revision_height: client.revision_height,
         last_update_time: client.last_update_time,
@@ -88,7 +88,7 @@ export class ClientController {
     clientId: string
   ): Promise<ClientTable> {
     // get client
-    const client = selectOne<ClientTable>(DB, this.tableName, [
+    const client = selectOne<ClientTable>(DB, ClientController.tableName, [
       {
         chain_id: chainId,
         client_id: clientId,
@@ -104,7 +104,7 @@ export class ClientController {
   ): ClientTable[] {
     const clients = select<ClientTable>(
       DB,
-      this.tableName,
+      ClientController.tableName,
       counterpartyChainIds.map((counterpartyChainId) => ({
         chain_id: chainId,
         counterparty_chain_id: counterpartyChainId,

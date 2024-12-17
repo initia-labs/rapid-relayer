@@ -116,7 +116,8 @@ async function getValidatorSet(
 
   const proposer: Validator | undefined = mappedValidators.find(
     (val) =>
-      Buffer.from(val.address).toString('hex') === proposerAddress.toLowerCase()
+      Buffer.from(val.address).toString('hex').toLowerCase() ===
+      proposerAddress.toLowerCase()
   )
 
   return ValidatorSet.fromPartial({
