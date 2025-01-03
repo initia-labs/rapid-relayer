@@ -101,11 +101,13 @@ export class WalletWorker {
             feeFilter,
             this.packetFilter,
             remain
-          ).filter(
-            (packet) =>
+          ).filter((packet) => {
+            console.log(packet)
+            return (
               packet.height <
               this.workerController.chains[packet.dst_chain_id].latestHeight
-          )
+            )
+          })
 
     remain -= writeAckPackets.length
 
@@ -243,7 +245,9 @@ export class WalletWorker {
         filteredSendPackets
           .filter(
             (packet) =>
-              connectionClientMap[packet.dst_connection_id] !== undefined
+              updateClientMsgs[
+                connectionClientMap[packet.dst_connection_id]
+              ] !== undefined
           ) // filter expired client
           .map((packet) => {
             const clientId = connectionClientMap[packet.dst_connection_id]
@@ -262,7 +266,9 @@ export class WalletWorker {
         filteredWriteAckPackets
           .filter(
             (packet) =>
-              connectionClientMap[packet.src_connection_id] !== undefined
+              updateClientMsgs[
+                connectionClientMap[packet.src_connection_id]
+              ] !== undefined
           ) // filter expired client
           .map((packet) => {
             const clientId = connectionClientMap[packet.src_connection_id]
@@ -281,7 +287,9 @@ export class WalletWorker {
         filteredTimeoutPackets
           .filter(
             (packet) =>
-              connectionClientMap[packet.src_connection_id] !== undefined
+              updateClientMsgs[
+                connectionClientMap[packet.src_connection_id]
+              ] !== undefined
           ) // filter expired client
           .map((packet) => {
             const clientId = connectionClientMap[packet.src_connection_id]
