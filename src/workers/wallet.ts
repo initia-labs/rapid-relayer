@@ -101,13 +101,11 @@ export class WalletWorker {
             feeFilter,
             this.packetFilter,
             remain
-          ).filter((packet) => {
-            console.log(packet)
-            return (
+          ).filter(
+            (packet) =>
               packet.height <
               this.workerController.chains[packet.dst_chain_id].latestHeight
-            )
-          })
+          )
 
     remain -= writeAckPackets.length
 
