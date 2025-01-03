@@ -195,9 +195,31 @@ export class WalletWorker {
 
       // get unique client id
       const clientIds = [
-        ...Object.values(connectionClientMap),
-        ...clientsToUpdate.map((c) => c.client_id),
-      ].filter((v, i, a) => a.indexOf(v) === i)
+        ...new Set([
+          ...Object.values(connectionClientMap),
+          ...clientsToUpdate.map((c) => c.client_id),
+        ]),
+      ]
+
+      // check client expiration
+      const fileterExpiredClient = async (clientId: string) => {
+        const currentTimestamp = new Date().valueOf() / 1000
+
+        const client = await ClientController.getClient(
+          this.chain.rest,
+          this.chain.chainId,
+          clientId
+        )
+
+        return (
+          client.last_update_time + client.trusting_period < currentTimestamp
+        )
+      }
+
+      const filteredClientIds = await asyncFilter(
+        clientIds,
+        fileterExpiredClient
+      )
 
       // generate msgs
       const updateClientMsgs: Record<
@@ -206,7 +228,7 @@ export class WalletWorker {
       > = {}
 
       await Promise.all(
-        clientIds.map(async (clientId) => {
+        filteredClientIds.map(async (clientId) => {
           updateClientMsgs[clientId] =
             await this.workerController.generateMsgUpdateClient(
               this.chain.chainId,
@@ -218,50 +240,68 @@ export class WalletWorker {
 
       // generate recv packet msgs
       const recvPacketMsgs = await Promise.all(
-        filteredSendPackets.map((packet) => {
-          const clientId = connectionClientMap[packet.dst_connection_id]
-          const height = updateClientMsgs[clientId].height
+        filteredSendPackets
+          .filter(
+            (packet) =>
+              connectionClientMap[packet.dst_connection_id] !== undefined
+          ) // filter expired client
+          .map((packet) => {
+            const clientId = connectionClientMap[packet.dst_connection_id]
+            const height = updateClientMsgs[clientId].height
 
-          return this.workerController.generateRecvPacketMsg(
-            packet,
-            height,
-            this.address()
-          )
-        })
+            return this.workerController.generateRecvPacketMsg(
+              packet,
+              height,
+              this.address()
+            )
+          })
       )
 
       // generate ack msgs
       const ackMsgs = await Promise.all(
-        filteredWriteAckPackets.map((packet) => {
-          const clientId = connectionClientMap[packet.src_connection_id]
-          const height = updateClientMsgs[clientId].height
+        filteredWriteAckPackets
+          .filter(
+            (packet) =>
+              connectionClientMap[packet.src_connection_id] !== undefined
+          ) // filter expired client
+          .map((packet) => {
+            const clientId = connectionClientMap[packet.src_connection_id]
+            const height = updateClientMsgs[clientId].height
 
-          return this.workerController.generateAckMsg(
-            packet,
-            height,
-            this.address()
-          )
-        })
+            return this.workerController.generateAckMsg(
+              packet,
+              height,
+              this.address()
+            )
+          })
       )
 
       // generate timeout msgs
       const timeoutMsgs = await Promise.all(
-        filteredTimeoutPackets.map((packet) => {
-          const clientId = connectionClientMap[packet.src_connection_id]
-          const height = updateClientMsgs[clientId].height
+        filteredTimeoutPackets
+          .filter(
+            (packet) =>
+              connectionClientMap[packet.src_connection_id] !== undefined
+          ) // filter expired client
+          .map((packet) => {
+            const clientId = connectionClientMap[packet.src_connection_id]
+            const height = updateClientMsgs[clientId].height
 
-          return this.workerController.generateTimeoutMsg(
-            packet,
-            height,
-            this.address()
-          )
-        })
+            return this.workerController.generateTimeoutMsg(
+              packet,
+              height,
+              this.address()
+            )
+          })
       )
 
       // generate channel open, close msgs
       const channelOpenMsgs = await Promise.all(
         filteredChannelOpenCloseEvents
           .sort((a, b) => b.state - a.state) // to make execute close first
+          .filter(
+            (event) => connectionClientMap[event.connection_id] !== undefined
+          ) // filter expired client
           .map((event) => {
             const clientId = connectionClientMap[event.connection_id]
             const height = updateClientMsgs[clientId].height
@@ -671,6 +711,14 @@ export class WalletWorker {
 
     ChannelController.delOpenEvents(eventsToDel)
 
-    return res.filter((v) => v !== undefined) as ChannelOpenCloseTable[]
+    return res.filter((v) => v !== undefined)
   }
+}
+
+async function asyncFilter<T>(
+  array: T[],
+  filter: (v: T) => Promise<boolean>
+): Promise<T[]> {
+  const filterRes = await Promise.all(array.map((v) => filter(v)))
+  return array.filter((v, i) => filterRes[i])
 }

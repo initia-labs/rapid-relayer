@@ -1,9 +1,10 @@
 import { DB } from '..'
-import { insert, select, selectOne, update } from '../utils'
+import { del, insert, select, selectOne, update } from '../utils'
 import { Any } from 'cosmjs-types/google/protobuf/any'
 import { UpdateClientEvent, ClientTable } from 'src/types'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
 import { RESTClient } from 'src/lib/restClient'
+import { PacketController } from './packet'
 
 export class ClientController {
   static tableName = 'client'
@@ -28,6 +29,37 @@ export class ClientController {
     }
 
     insert(DB, ClientController.tableName, client)
+
+    return client
+  }
+
+  public static async replaceClient(
+    rest: RESTClient,
+    chainId: string,
+    clientId: string
+  ): Promise<ClientTable> {
+    const state = await rest.ibc.getClientState(clientId)
+
+    const client: ClientTable = {
+      chain_id: chainId,
+      client_id: clientId,
+      counterparty_chain_id: state.client_state.chain_id,
+      trusting_period: parseInt(
+        state.client_state.trusting_period.replace('s', '')
+      ),
+      revision_height: parseInt(
+        state.client_state.latest_height.revision_height
+      ),
+      last_update_time: 0,
+    }
+
+    del(DB, ClientController.tableName, [
+      { chain_id: chainId, client_id: clientId },
+    ])
+    insert(DB, ClientController.tableName, client)
+
+    // to recheck expired packets
+    PacketController.resetPacketInProgress()
 
     return client
   }
