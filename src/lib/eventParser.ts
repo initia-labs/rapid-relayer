@@ -144,7 +144,7 @@ export function parseUpdateClientEvent(event: Event): UpdateClientEvent {
 // recover_client or upgrade_client
 export function parseReplaceClientEvent(event: Event): string {
   const clientId =
-    find(event, 'subject_client_id') ?? (find(event, 'client_id"') as string)
+    find(event, 'subject_client_id') ?? (find(event, 'client_id') as string)
 
   return clientId
 }

@@ -202,7 +202,7 @@ export class WalletWorker {
       ]
 
       // check client expiration
-      const fileterExpiredClient = async (clientId: string) => {
+      const filterExpiredClient = async (clientId: string) => {
         const currentTimestamp = new Date().valueOf() / 1000
 
         const client = await ClientController.getClient(
@@ -218,7 +218,7 @@ export class WalletWorker {
 
       const filteredClientIds = await asyncFilter(
         clientIds,
-        fileterExpiredClient
+        filterExpiredClient
       )
 
       // generate msgs

@@ -58,9 +58,14 @@ export class ClientController {
     const client = await this.getClient(rest, chainId, clientId)
 
     // update client
-    const revisionHeight = parseInt(
-      event.consensusHeights.split(',')[0].split('-')[1]
-    )
+    const splitted = event.consensusHeights.split(',')[0].split('-')[1]
+    if (splitted.length < 2) {
+      throw new Error(
+        'Invalid consensusHeights format. Expected "revision-height"'
+      )
+    }
+
+    const revisionHeight = parseInt(splitted[1])
 
     if (revisionHeight > client.revision_height) {
       client.revision_height = revisionHeight
