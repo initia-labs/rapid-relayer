@@ -212,7 +212,7 @@ export class WalletWorker {
         )
 
         return (
-          client.last_update_time + client.trusting_period < currentTimestamp
+          client.last_update_time + client.trusting_period > currentTimestamp
         )
       }
 
