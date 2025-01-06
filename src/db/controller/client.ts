@@ -58,7 +58,7 @@ export class ClientController {
     const client = await this.getClient(rest, chainId, clientId)
 
     // update client
-    const splitted = event.consensusHeights.split(',')[0].split('-')[1]
+    const splitted = event.consensusHeights.split(',')[0].split('-')
     if (splitted.length < 2) {
       throw new Error(
         'Invalid consensusHeights format. Expected "revision-height"'
