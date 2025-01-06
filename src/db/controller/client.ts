@@ -8,25 +8,13 @@ import { PacketController } from './packet'
 
 export class ClientController {
   static tableName = 'client'
+
   public static async addClient(
     rest: RESTClient,
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    const state = await rest.ibc.getClientState(clientId)
-
-    const client: ClientTable = {
-      chain_id: chainId,
-      client_id: clientId,
-      counterparty_chain_id: state.client_state.chain_id,
-      trusting_period: parseInt(
-        state.client_state.trusting_period.replace('s', '')
-      ),
-      revision_height: parseInt(
-        state.client_state.latest_height.revision_height
-      ),
-      last_update_time: 0,
-    }
+    const client = await ClientController.fetchClient(rest, chainId, clientId)
 
     insert(DB, ClientController.tableName, client)
 
@@ -38,20 +26,7 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    const state = await rest.ibc.getClientState(clientId)
-
-    const client: ClientTable = {
-      chain_id: chainId,
-      client_id: clientId,
-      counterparty_chain_id: state.client_state.chain_id,
-      trusting_period: parseInt(
-        state.client_state.trusting_period.replace('s', '')
-      ),
-      revision_height: parseInt(
-        state.client_state.latest_height.revision_height
-      ),
-      last_update_time: 0,
-    }
+    const client = await ClientController.fetchClient(rest, chainId, clientId)
 
     del(DB, ClientController.tableName, [
       { chain_id: chainId, client_id: clientId },
@@ -162,5 +137,31 @@ export class ClientController {
 
       return false
     })
+  }
+
+  public static async fetchClient(
+    rest: RESTClient,
+    chainId: string,
+    clientId: string
+  ): Promise<ClientTable> {
+    const state = await rest.ibc.getClientState(clientId)
+
+    // get latest cons state
+    const consState = await rest.ibc.lastConsensusState(clientId)
+
+    return {
+      chain_id: chainId,
+      client_id: clientId,
+      counterparty_chain_id: state.client_state.chain_id,
+      trusting_period: parseInt(
+        state.client_state.trusting_period.replace('s', '')
+      ),
+      revision_height: parseInt(
+        state.client_state.latest_height.revision_height
+      ),
+      last_update_time: Math.floor(
+        new Date(consState.consensus_state.timestamp).valueOf() / 1000
+      ),
+    }
   }
 }
