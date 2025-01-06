@@ -57,7 +57,8 @@ class IbcAPI extends IbcAPI_ {
 
   async lastConsensusState(clientId: string) {
     return this.c.get<ConsState>(
-      `/ibc/core/client/v1/consensus_states/${clientId}/revision/0/height/0?latest_height=true`
+      `/ibc/core/client/v1/consensus_states/${clientId}/revision/0/height/0`,
+      { latest_height: 'true' }
     )
   }
 
