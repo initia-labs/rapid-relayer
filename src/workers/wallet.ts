@@ -306,7 +306,9 @@ export class WalletWorker {
         filteredChannelOpenCloseEvents
           .sort((a, b) => b.state - a.state) // to make execute close first
           .filter(
-            (event) => connectionClientMap[event.connection_id] !== undefined
+            (event) =>
+              updateClientMsgs[connectionClientMap[event.connection_id]] !==
+              undefined
           ) // filter expired client
           .map((event) => {
             const clientId = connectionClientMap[event.connection_id]

@@ -5,6 +5,7 @@ import { UpdateClientEvent, ClientTable } from 'src/types'
 import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
 import { RESTClient } from 'src/lib/restClient'
 import { PacketController } from './packet'
+import { ChannelController } from './channel'
 
 export class ClientController {
   static tableName = 'client'
@@ -33,8 +34,10 @@ export class ClientController {
     ])
     insert(DB, ClientController.tableName, client)
 
-    // to recheck expired packets
+    // to recheck packets
     PacketController.resetPacketInProgress()
+    // to recheck channel
+    ChannelController.resetPacketInProgress()
 
     return client
   }
