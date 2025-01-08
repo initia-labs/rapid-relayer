@@ -25,7 +25,7 @@ export class SyncInfoController {
         synced_height: startHeight - 1,
       }
 
-      insert(DB, this.tableName, syncInfo)
+      insert(DB, SyncInfoController.tableName, syncInfo)
       syncInfos.unshift(syncInfo)
     }
 
@@ -41,7 +41,7 @@ export class SyncInfoController {
           }
 
           syncInfos.unshift(newSyncInfo)
-          insert(DB, this.tableName, newSyncInfo)
+          insert(DB, SyncInfoController.tableName, newSyncInfo)
         }
 
         // TODO: split sync info when syncInfo.syncedHeight < startHeight < syncInfo.endHeight
@@ -53,7 +53,9 @@ export class SyncInfoController {
   }
 
   public static getSyncInfos(chainId: string): SyncInfoTable[] {
-    return select<SyncInfoTable>(DB, this.tableName, [{ chain_id: chainId }])
+    return select<SyncInfoTable>(DB, SyncInfoController.tableName, [
+      { chain_id: chainId },
+    ])
   }
 
   /**
@@ -73,28 +75,38 @@ export class SyncInfoController {
   ): boolean {
     // check finish
     if (syncedHeight === endHeight) {
-      del(DB, this.tableName, [
+      del(DB, SyncInfoController.tableName, [
         { chain_id: chainId, start_height: startHeight },
       ])
 
-      update<SyncInfoTable>(DB, this.tableName, { start_height: startHeight }, [
-        {
-          chain_id: chainId,
-          start_height: endHeight + 1,
-        },
-      ])
+      update<SyncInfoTable>(
+        DB,
+        SyncInfoController.tableName,
+        { start_height: startHeight },
+        [
+          {
+            chain_id: chainId,
+            start_height: endHeight + 1,
+          },
+        ]
+      )
 
-      console.log(select(DB, this.tableName))
+      console.log(select(DB, SyncInfoController.tableName))
 
       return true
     }
 
-    update<SyncInfoTable>(DB, this.tableName, { synced_height: syncedHeight }, [
-      {
-        chain_id: chainId,
-        start_height: startHeight,
-      },
-    ])
+    update<SyncInfoTable>(
+      DB,
+      SyncInfoController.tableName,
+      { synced_height: syncedHeight },
+      [
+        {
+          chain_id: chainId,
+          start_height: startHeight,
+        },
+      ]
+    )
 
     return false
   }

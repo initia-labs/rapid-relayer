@@ -26,7 +26,7 @@ export class PacketFeeController {
             denom: coin.denom,
             amount: Number(coin.amount),
           }
-          insert(DB, this.tableName, packetFee)
+          insert(DB, PacketFeeController.tableName, packetFee)
         }
       }
     }
@@ -52,7 +52,7 @@ export class PacketFeeController {
     sequence: number,
     type: FeeType
   ) {
-    del<PacketFeeTable>(DB, this.tableName, [
+    del<PacketFeeTable>(DB, PacketFeeController.tableName, [
       { chain_id: chainId, channel_id: channelId, sequence, fee_type: type },
     ])
   }

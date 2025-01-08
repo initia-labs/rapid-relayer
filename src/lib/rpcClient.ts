@@ -40,7 +40,7 @@ export class RPCClient {
       }
     )
     metrics.rpcClient.labels({ uri: this.baseUri, path: 'block_results' }).inc()
-    return Responses.decodeBlockResults(rawResponse)
+    return decodeBlockResults(rawResponse)
   }
 
   public async abciQuery(params: {
@@ -132,6 +132,39 @@ export class RPCClient {
   }
 }
 
+function decodeBlockResults(
+  rpcBlockResult: JsonRpcSuccessResponseGeneric<RpcBlockResultsResponse>
+) {
+  if (rpcBlockResult.result.finalize_block_events) {
+    const begin_block_events: RpcEvent[] = []
+    const end_block_events: RpcEvent[] = []
+    rpcBlockResult.result.finalize_block_events.map((event) => {
+      if (event.attributes) {
+        let attribute: RpcEventAttribute | undefined =
+          event.attributes[event.attributes.length - 1]
+        if (attribute.key !== 'mode') {
+          attribute = event.attributes.find((a) => a.key === 'mode')
+        }
+
+        if (attribute) {
+          if (attribute.value === 'BeginBlock') {
+            begin_block_events.push(event)
+          } else if (attribute.value === 'EndBlock') {
+            end_block_events.push(event)
+          } else {
+            throw Error(`unknown mode ${JSON.stringify(attribute)}`)
+          }
+        }
+      }
+    })
+
+    rpcBlockResult.result.begin_block_events = begin_block_events
+    rpcBlockResult.result.end_block_events = end_block_events
+  }
+
+  return Responses.decodeBlockResults(rpcBlockResult)
+}
+
 interface Header {
   header: {
     version: {
@@ -157,4 +190,42 @@ interface Header {
     evidence_hash: string
     proposer_address: string
   }
+}
+
+interface JsonRpcSuccessResponseGeneric<T> {
+  readonly jsonrpc: '2.0'
+  readonly id: JsonRpcId
+  readonly result: T
+}
+
+export type JsonRpcId = number | string
+
+interface RpcBlockResultsResponse {
+  height: string
+  txs_results: RpcTxData[] | null
+  begin_block_events: RpcEvent[] | null
+  end_block_events: RpcEvent[] | null
+  finalize_block_events: RpcEvent[] | null
+}
+
+interface RpcTxData {
+  codespace?: string
+  code?: number
+  log?: string
+  /** base64 encoded */
+  data?: string
+  events?: RpcEvent[]
+  gas_wanted?: string
+  gas_used?: string
+}
+
+interface RpcEvent {
+  type: string
+  /** Can be omitted (see https://github.com/cosmos/cosmjs/pull/1198) */
+  attributes?: RpcEventAttribute[]
+}
+
+interface RpcEventAttribute {
+  key: string
+  value?: string
 }

@@ -1,11 +1,18 @@
 import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
-import { ChannelOpenCloseEvent, PacketEvent, PacketFeeEvent } from 'src/types'
+import {
+  ChannelOpenCloseEvent,
+  PacketEvent,
+  PacketFeeEvent,
+  UpdateClientEvent,
+} from 'src/types'
 import {
   parseChannelCloseEvent,
   parseChannelOpenEvent,
   parsePacketEvent,
   parsePacketFeeEvent,
+  parseReplaceClientEvent,
+  parseUpdateClientEvent,
 } from 'src/lib/eventParser'
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
@@ -16,6 +23,7 @@ import { RESTClient } from 'src/lib/restClient'
 import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
 import { PacketFee } from 'src/lib/config'
+import { ClientController } from 'src/db/controller/client'
 
 export class ChainWorker {
   public latestHeight: number
@@ -138,10 +146,34 @@ class SyncWorker {
         const packetEvents = events.map((e) => e.packetEvents).flat()
         const channelOpenEvents = events.map((e) => e.channelOpenEvents).flat()
         const packetFeeEvents = events.map((e) => e.packetFeeEvents).flat()
+        const updateClientEvents = events
+          .map((e) => e.updateClientEvents)
+          .flat()
+        const replaceClientEvents = events
+          .map((e) => e.replaceClientEvents)
+          .flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
         )
+
+        // `feedUpdateClient` does not need to be included in the db transaction
+        for (const event of updateClientEvents) {
+          await ClientController.feedUpdateClientEvent(
+            this.chain.rest,
+            this.chain.chainId,
+            event
+          )
+        }
+
+        // `upgradeClient` and `recoverClient` does not need to be included in the db transaction
+        for (const clientId of replaceClientEvents) {
+          await ClientController.replaceClient(
+            this.chain.rest,
+            this.chain.chainId,
+            clientId
+          )
+        }
 
         let finish = false
 
@@ -196,62 +228,84 @@ class SyncWorker {
     packetEvents: PacketEvent[]
     channelOpenEvents: ChannelOpenCloseEvent[]
     packetFeeEvents: PacketFeeEvent[]
+    updateClientEvents: UpdateClientEvent[]
+    replaceClientEvents: string[]
   }> {
     this.logger.debug(`Fetch new block results (height - ${height})`)
     const blockResult = await this.chain.rpc.blockResults(height)
-    const txData = [...blockResult.results]
+
+    const events = [
+      // parse events from begin block
+      ...blockResult.beginBlockEvents,
+
+      // parse events from txs
+      ...blockResult.results.map((res) => res.events).flat(),
+
+      // parse events from end block
+      ...blockResult.endBlockEvents,
+    ]
 
     const packetEvents: PacketEvent[] = []
     const channelOpenEvents: ChannelOpenCloseEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
+    const updateClientEvents: UpdateClientEvent[] = []
+    const replaceClientEvents: string[] = []
 
-    txData.map((data) => {
-      for (const event of data.events) {
-        if (
-          event.type === 'send_packet' ||
-          event.type === 'write_acknowledgement' ||
-          event.type === 'acknowledge_packet' ||
-          event.type === 'timeout_packet'
-        ) {
-          packetEvents.push({
-            type: event.type,
-            packetInfo: parsePacketEvent(event, height),
-          })
-        }
-
-        if (
-          event.type === 'channel_open_init' ||
-          event.type === 'channel_open_try' ||
-          event.type === 'channel_open_ack' ||
-          event.type === 'channel_open_confirm'
-        ) {
-          channelOpenEvents.push({
-            type: event.type,
-            channelOpenCloseInfo: parseChannelOpenEvent(event, height),
-          })
-        }
-
-        if (
-          event.type === 'channel_close_init' ||
-          event.type === 'channel_close' ||
-          event.type === 'channel_close_confirm'
-        ) {
-          channelOpenEvents.push({
-            type: event.type,
-            channelOpenCloseInfo: parseChannelCloseEvent(event, height),
-          })
-        }
-
-        if (event.type === 'incentivized_ibc_packet') {
-          packetFeeEvents.push(parsePacketFeeEvent(event))
-        }
+    for (const event of events) {
+      if (
+        event.type === 'send_packet' ||
+        event.type === 'write_acknowledgement' ||
+        event.type === 'acknowledge_packet' ||
+        event.type === 'timeout_packet'
+      ) {
+        packetEvents.push({
+          type: event.type,
+          packetInfo: parsePacketEvent(event, height),
+        })
       }
-    })
+
+      if (
+        event.type === 'channel_open_init' ||
+        event.type === 'channel_open_try' ||
+        event.type === 'channel_open_ack' ||
+        event.type === 'channel_open_confirm'
+      ) {
+        channelOpenEvents.push({
+          type: event.type,
+          channelOpenCloseInfo: parseChannelOpenEvent(event, height),
+        })
+      }
+
+      if (
+        event.type === 'channel_close_init' ||
+        event.type === 'channel_close' ||
+        event.type === 'channel_close_confirm'
+      ) {
+        channelOpenEvents.push({
+          type: event.type,
+          channelOpenCloseInfo: parseChannelCloseEvent(event, height),
+        })
+      }
+
+      if (event.type === 'incentivized_ibc_packet') {
+        packetFeeEvents.push(parsePacketFeeEvent(event))
+      }
+
+      if (event.type === 'update_client') {
+        updateClientEvents.push(parseUpdateClientEvent(event))
+      }
+
+      if (event.type === 'upgrade_client' || event.type === 'recover_client') {
+        replaceClientEvents.push(parseReplaceClientEvent(event))
+      }
+    }
 
     return {
       packetEvents,
       channelOpenEvents,
       packetFeeEvents,
+      updateClientEvents,
+      replaceClientEvents,
     }
   }
 }

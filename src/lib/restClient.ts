@@ -55,6 +55,13 @@ class IbcAPI extends IbcAPI_ {
     )
   }
 
+  async lastConsensusState(clientId: string) {
+    return this.c.get<ConsState>(
+      `/ibc/core/client/v1/consensus_states/${clientId}/revision/0/height/0`,
+      { latest_height: 'true' }
+    )
+  }
+
   async getConnection(connectionId: string): Promise<ConnectionInfo> {
     return this.c.get<ConnectionInfo>(
       `/ibc/core/connection/v1/connections/${connectionId}`
@@ -97,6 +104,22 @@ interface ChannelResponseRaw {
 
 interface NextSequence {
   next_sequence_receive: string
+  proof: null | string
+  proof_height: {
+    revision_number: string
+    revision_height: string
+  }
+}
+
+interface ConsState {
+  consensus_state: {
+    '@type': string
+    timestamp: string
+    root: {
+      hash: string
+    }
+    next_validators_hash: string
+  }
   proof: null | string
   proof_height: {
     revision_number: string
