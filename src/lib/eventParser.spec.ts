@@ -25,7 +25,7 @@ describe('event parser', () => {
       expect(expectValue).toEqual(packetInfo)
     }
 
-    // test wirte ack
+    // test write ack
     {
       const packetInfo = parsePacketEvent(writeAck, 123)
       const expectValue = {
@@ -71,7 +71,7 @@ describe('event parser', () => {
       expect(expectValue).toEqual(packetInfo)
     }
 
-    // test wirte ack (base64 encoded events)
+    // test write ack (base64 encoded events)
     {
       const packetInfo = parsePacketEvent(writeAckBase64, 123)
       const expectValue = {
