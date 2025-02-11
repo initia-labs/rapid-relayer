@@ -393,18 +393,6 @@ export class WalletWorker {
         `Handled msgs(${msgs.length}). txhash - ${result.txhash}`
       )
 
-      // update balance
-      this.gasTokenBalance = BigInt(
-        await this.wallet.rest.bank
-          .balanceByDenom(
-            this.address(),
-            new Coins(
-              this.wallet.rest.config.gasPrices as Coins.Input
-            ).toArray()[0].denom
-          )
-          .then((coin) => coin.amount)
-      )
-
       this.sequence++
     } catch (e) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
@@ -433,6 +421,18 @@ export class WalletWorker {
         )
       })()
     }
+
+    // update balance
+    this.gasTokenBalance = BigInt(
+      await this.wallet.rest.bank
+        .balanceByDenom(
+          this.address(),
+          new Coins(
+            this.wallet.rest.config.gasPrices as Coins.Input
+          ).toArray()[0].denom
+        )
+        .then((coin) => coin.amount)
+    )
   }
 
   public address(): string {
