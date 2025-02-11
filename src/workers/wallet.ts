@@ -12,7 +12,7 @@ import { WorkerController } from '.'
 import { DB } from 'src/db'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ConnectionController } from 'src/db/controller/connection'
-import { Wallet, isTxError, MsgUpdateClient } from '@initia/initia.js'
+import { Wallet, isTxError, MsgUpdateClient, Coins } from '@initia/initia.js'
 import { createLoggerWithPrefix } from 'src/lib/logger'
 import { bech32 } from 'bech32'
 import { delay } from 'bluebird'
@@ -32,6 +32,7 @@ export class WalletWorker {
     public workerController: WorkerController,
     private maxHandlePacket: number,
     public wallet: Wallet,
+    public gasTokenBalance: bigint,
     public packetFilter?: PacketFilter
   ) {
     this.logger = createLoggerWithPrefix(
@@ -420,6 +421,18 @@ export class WalletWorker {
         )
       })()
     }
+
+    // update balance
+    this.gasTokenBalance = BigInt(
+      await this.wallet.rest.bank
+        .balanceByDenom(
+          this.address(),
+          new Coins(
+            this.wallet.rest.config.gasPrices as Coins.Input
+          ).toArray()[0].denom
+        )
+        .then((coin) => coin.amount)
+    )
   }
 
   public address(): string {

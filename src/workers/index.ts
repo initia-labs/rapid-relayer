@@ -30,6 +30,7 @@ import {
   MsgChannelOpenAck,
   MsgChannelOpenConfirm,
   MsgChannelOpenTry,
+  Coins,
 } from '@initia/initia.js'
 import { Config, PacketFee, KeyConfig } from 'src/lib/config'
 import { env } from 'node:process'
@@ -41,6 +42,7 @@ import { RESTClient } from 'src/lib/restClient'
 
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { generateMsgChannelCloseConfirm } from 'src/msgs/channelCloseConfirm'
+import { bech32 } from 'bech32'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -90,15 +92,28 @@ export class WorkerController {
 
       for (const walletConfig of chainConfig.wallets) {
         const key = createKey(walletConfig.key)
+        const address = bech32.encode(
+          chainConfig.bech32Prefix,
+          bech32.decode(key.accAddress).words
+        )
+        const balance = BigInt(
+          await rest.bank
+            .balanceByDenom(
+              address,
+              new Coins(rest.config.gasPrices as Coins.Input).toArray()[0].denom
+            )
+            .then((coin) => coin.amount)
+        )
         const wallet = new WalletWorker(
           chain,
           this,
           walletConfig.maxHandlePacket ?? 100,
           new Wallet(rest, key),
+          balance,
           walletConfig.packetFilter
         )
 
-        this.wallets[`${chainConfig.chainId}::${wallet.address()}`] = wallet
+        this.wallets[`${chainConfig.chainId}::${address}`] = wallet
       }
     }
   }
@@ -113,8 +128,8 @@ export class WorkerController {
   }
 
   public getStatus(): { chains: ChainStatus[] } {
-    const wallets = Object.values(this.wallets);
-    const chains: ChainStatus[] = Object.values(this.chains).map(chain => {
+    const wallets = Object.values(this.wallets)
+    const chains: ChainStatus[] = Object.values(this.chains).map((chain) => {
       const syncWorkerKeys = Object.keys(chain.syncWorkers)
       const syncWorkers = syncWorkerKeys.map((key) => {
         const syncWorker = chain.syncWorkers[Number(key)]
@@ -125,12 +140,15 @@ export class WorkerController {
         }
       })
 
-      const walletWorkers = wallets.filter(wallet => wallet.chain.chainId === chain.chainId).map(wallet => {
-        return {
-          address: wallet.address(),
-          packetFilter: wallet.packetFilter,
-        }
-      });
+      const walletWorkers = wallets
+        .filter((wallet) => wallet.chain.chainId === chain.chainId)
+        .map((wallet) => {
+          return {
+            address: wallet.address(),
+            gasTokenBalance: wallet.gasTokenBalance.toString(),
+            packetFilter: wallet.packetFilter,
+          }
+        })
 
       return {
         chainId: chain.chainId,
@@ -324,6 +342,7 @@ interface ChainStatus {
   }[]
   walletWorkers: {
     address: string
+    gasTokenBalance: string
     packetFilter?: PacketFilter
   }[]
 }
