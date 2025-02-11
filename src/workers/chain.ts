@@ -217,7 +217,7 @@ class SyncWorker {
           break
         }
       } catch (e) {
-        this.logger.error(`Fail to fecth block result. resonse - ${e}`)
+        this.logger.error(`Fail to fecth block result. response - ${e}`)
       } finally {
         await delay(500)
       }
