@@ -27,6 +27,7 @@ export class WalletWorker {
   private sequence?: number
   private accountNumber?: number
   private logger: Logger
+  private errorTracker = new Map<string, number>()
 
   constructor(
     public chain: ChainWorker,
@@ -66,6 +67,15 @@ export class WalletWorker {
     const accInfo = await this.wallet.rest.auth.accountInfo(this.address())
     this.sequence = accInfo.getSequenceNumber()
     this.accountNumber = accInfo.getAccountNumber()
+  }
+
+  private async checkAndStoreError(code: string, error: Error) {
+    const now = Date.now()
+    const lastErrorTime = this.errorTracker.get(code) ?? 0
+    if (now - lastErrorTime > 10 * 60 * 1000) {
+      this.errorTracker.set(code, now)
+      await captureException(error)
+    }
   }
 
   private async handlePackets() {
@@ -395,7 +405,7 @@ export class WalletWorker {
           `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
         )
 
-        await captureException(error)
+        await this.checkAndStoreError(result.code.toString(), error)
         this.logger.error(error)
         throw error
       }
