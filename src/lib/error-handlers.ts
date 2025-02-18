@@ -21,8 +21,4 @@ export function setupErrorHandlers(): void {
 
     setTimeout(() => process.exit(1), 1000)
   })
-
-  process.on('warning', (warning) => {
-    console.warn('Process warning:', warning)
-  })
 }
