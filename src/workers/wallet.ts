@@ -43,12 +43,20 @@ export class WalletWorker {
   }
 
   public async run() {
+    let retried = 0
+    const MAX_RETRY = 10
+
     for (;;) {
       try {
         await this.handlePackets()
+        retried = 0
       } catch (e) {
-        await captureException(e instanceof Error ? e : new Error(String(e)))
-        this.logger.error(`[run] ${e}`)
+        retried++
+        if (retried === MAX_RETRY) {
+          await captureException(e instanceof Error ? e : new Error(String(e)))
+        }
+
+        this.logger.error(`[run] ${e} (attempt ${retried})`)
       }
       await delay(500)
     }
@@ -378,20 +386,18 @@ export class WalletWorker {
             const expected = result.raw_log.split(', ')[1]
             this.sequence = Number(expected.split(' ')[1]) - 1
             this.logger.info(`update sequence`)
-          } catch (e) {
-            await captureException(
-              e instanceof Error ? e : new Error(String(e))
-            )
+          } catch {
             this.logger.warn(`error to parse sequence`)
           }
         }
 
-        this.logger.error(
+        const error = new Error(
           `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
         )
-        throw Error(
-          `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
-        )
+
+        await captureException(error)
+        this.logger.error(error)
+        throw error
       }
 
       this.logger.info(
@@ -407,7 +413,6 @@ export class WalletWorker {
         // tmp: refresh sequence when got error. TODO: parse sequence from error
         await this.initAccInfo()
       } else {
-        await captureException(e instanceof Error ? e : new Error(String(e)))
         this.logger.error(e)
       }
 
