@@ -5,8 +5,10 @@ import { info } from './lib/logger'
 import { config } from './lib/config'
 import { WorkerController } from './workers'
 import { initDBConnection } from './db'
+import { initSentry } from './lib/sentry'
 
 async function main() {
+  initSentry('rapid-relayer')
   initDBConnection()
   const workerController = new WorkerController()
   await workerController.init(config)

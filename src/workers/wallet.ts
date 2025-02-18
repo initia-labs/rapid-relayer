@@ -21,6 +21,7 @@ import { ChannelController } from 'src/db/controller/channel'
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
+import { captureException } from 'src/lib/sentry'
 
 export class WalletWorker {
   private sequence?: number
@@ -46,6 +47,7 @@ export class WalletWorker {
       try {
         await this.handlePackets()
       } catch (e) {
+        await captureException(e instanceof Error ? e : new Error(String(e)))
         this.logger.error(`[run] ${e}`)
       }
       await delay(500)
@@ -377,6 +379,9 @@ export class WalletWorker {
             this.sequence = Number(expected.split(' ')[1]) - 1
             this.logger.info(`update sequence`)
           } catch (e) {
+            await captureException(
+              e instanceof Error ? e : new Error(String(e))
+            )
             this.logger.warn(`error to parse sequence`)
           }
         }
@@ -402,6 +407,7 @@ export class WalletWorker {
         // tmp: refresh sequence when got error. TODO: parse sequence from error
         await this.initAccInfo()
       } else {
+        await captureException(e instanceof Error ? e : new Error(String(e)))
         this.logger.error(e)
       }
 

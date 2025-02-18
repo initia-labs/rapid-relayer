@@ -24,6 +24,7 @@ import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
 import { PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
+import { captureException } from 'src/lib/sentry'
 
 export class ChainWorker {
   public latestHeight: number
@@ -91,6 +92,7 @@ export class ChainWorker {
         )
         retried++
         if (retried >= MAX_RETRY) {
+          await captureException(e instanceof Error ? e : new Error(String(e)))
           throw Error(
             `<${this.chainId}> [latestHeightWorker] Max retry exceeded`
           )
@@ -125,7 +127,8 @@ class SyncWorker {
 
   private async feedEvents() {
     this.logger.debug('Activate event feeder')
-
+    const MAX_RETRY = 10
+    let retried = 0
     for (;;) {
       try {
         // height to fetch
@@ -207,7 +210,7 @@ class SyncWorker {
         })()
 
         this.syncedHeight = heights[heights.length - 1]
-
+        retried = 0
         // terminate worker
         if (finish) {
           this.logger.info(
@@ -217,7 +220,14 @@ class SyncWorker {
           break
         }
       } catch (e) {
-        this.logger.error(`Fail to fecth block result. resonse - ${e}`)
+        retried++
+        const errorMsg = `Fail to fecth block result. resonse - ${e}`
+        if (retried === MAX_RETRY) {
+          await captureException(
+            e instanceof Error ? e : new Error(String(errorMsg))
+          )
+        }
+        this.logger.error(errorMsg)
       } finally {
         await delay(500)
       }
