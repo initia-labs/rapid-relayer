@@ -67,7 +67,7 @@ npm install
           },
           "maxHandlePacket": 10,
           "packetFilter": {
-            "connections": [{ "connectionId": "conneciton-1" }]
+            "connections": [{ "connectionId": "connection-1" }]
           }
         }
       ],
