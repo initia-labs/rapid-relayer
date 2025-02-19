@@ -2,6 +2,10 @@ FROM node:alpine
 
 WORKDIR /usr/rapid-relayer
 COPY package.json .
+
+# Install build dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 RUN npm install
 #    && npm install typescript -g
 COPY . .
