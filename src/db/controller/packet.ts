@@ -17,6 +17,7 @@ import { Database } from 'better-sqlite3'
 import { RESTClient } from 'src/lib/restClient'
 import { PacketFeeController } from './packetFee'
 import { PacketFee } from 'src/lib/config'
+import * as Sentry from '@sentry/node'
 
 export class PacketController {
   public static tableNamePacketSend = 'packet_send'
@@ -63,56 +64,69 @@ export class PacketController {
     filter: PacketFilter = {},
     limit = 100
   ): PacketSendTable[] {
-    const res: PacketSendTable[] = []
+    const executeQuery = () => {
+      const res: PacketSendTable[] = []
+      // query for each chain id
+      for (const {
+        chainId: counterpartyChainId,
+        feeFilter,
+      } of chainIdsWithFeeFilters) {
+        const wheres: WhereOptions<PacketSendTable>[] = []
+        let custom = `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})` // filter timeout packet
+        if (feeFilter.recvFee && feeFilter.recvFee.length !== 0) {
+          const conditions = feeFilter.recvFee.map(
+            (v) =>
+              `((SELECT amount FROM packet_fee WHERE chain_id = packet_send.src_chain_id AND channel_id = packet_send.src_channel_id AND sequence = packet_send.sequence AND fee_type = ${FeeType.RECV} AND denom = '${v.denom}') >= ${v.amount})`
+          )
+          custom += ` AND (${conditions.join(' OR ')})`
+        }
 
-    // query for each chain id
-    for (const {
-      chainId: counterpartyChainId,
-      feeFilter,
-    } of chainIdsWithFeeFilters) {
-      const wheres: WhereOptions<PacketSendTable>[] = []
-      let custom = `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})` // filter timeout packet
-      if (feeFilter.recvFee && feeFilter.recvFee.length !== 0) {
-        const conditions = feeFilter.recvFee.map(
-          (v) =>
-            `((SELECT amount FROM packet_fee WHERE chain_id = packet_send.src_chain_id AND channel_id = packet_send.src_channel_id AND sequence = packet_send.sequence AND fee_type = ${FeeType.RECV} AND denom = '${v.denom}') >= ${v.amount})`
-        )
-        custom += ` AND (${conditions.join(' OR ')})`
-      }
-
-      if (filter.connections) {
-        // TODO: make this more efficientnet. filter connection by chain id
-        wheres.push(
-          ...filter.connections.map((conn) => ({
+        if (filter.connections) {
+          // TODO: make this more efficientnet. filter connection by chain id
+          wheres.push(
+            ...filter.connections.map((conn) => ({
+              in_progress: Bool.FALSE,
+              dst_chain_id: chainId,
+              dst_connection_id: conn.connectionId,
+              dst_channel_id: conn.channels ? In(conn.channels) : undefined,
+              src_chain_id: counterpartyChainId,
+              custom,
+            }))
+          )
+        } else {
+          wheres.push({
             in_progress: Bool.FALSE,
             dst_chain_id: chainId,
-            dst_connection_id: conn.connectionId,
-            dst_channel_id: conn.channels ? In(conn.channels) : undefined,
             src_chain_id: counterpartyChainId,
             custom,
-          }))
+          })
+        }
+
+        res.push(
+          ...select<PacketSendTable>(
+            DB,
+            PacketController.tableNamePacketSend,
+            wheres,
+            { sequence: 'ASC' },
+            limit - res.length
+          )
         )
-      } else {
-        wheres.push({
-          in_progress: Bool.FALSE,
-          dst_chain_id: chainId,
-          src_chain_id: counterpartyChainId,
-          custom,
-        })
       }
 
-      res.push(
-        ...select<PacketSendTable>(
-          DB,
-          PacketController.tableNamePacketSend,
-          wheres,
-          { sequence: 'ASC' },
-          limit - res.length
-        )
-      )
+      return res
     }
 
-    return res
+    if (!process.env.SENTRY_DSN) {
+      return executeQuery()
+    }
+
+    return Sentry.startSpan(
+      {
+        op: 'db.query',
+        name: 'getSendPackets',
+      },
+      executeQuery
+    )
   }
 
   public static getTimeoutPackets(

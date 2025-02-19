@@ -21,11 +21,13 @@ import { ChannelController } from 'src/db/controller/channel'
 import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
+import { captureException } from 'src/lib/sentry'
 
 export class WalletWorker {
   private sequence?: number
   private accountNumber?: number
   private logger: Logger
+  private errorTracker = new Map<string, number>()
 
   constructor(
     public chain: ChainWorker,
@@ -42,11 +44,20 @@ export class WalletWorker {
   }
 
   public async run() {
+    let retried = 0
+    const MAX_RETRY = 10
+
     for (;;) {
       try {
         await this.handlePackets()
+        retried = 0
       } catch (e) {
-        this.logger.error(`[run] ${e}`)
+        retried++
+        if (retried === MAX_RETRY) {
+          await captureException(e instanceof Error ? e : new Error(String(e)))
+        }
+
+        this.logger.error(`[run] ${e} (attempt ${retried})`)
       }
       await delay(500)
     }
@@ -56,6 +67,15 @@ export class WalletWorker {
     const accInfo = await this.wallet.rest.auth.accountInfo(this.address())
     this.sequence = accInfo.getSequenceNumber()
     this.accountNumber = accInfo.getAccountNumber()
+  }
+
+  private async checkAndStoreError(code: string, error: Error) {
+    const now = Date.now()
+    const lastErrorTime = this.errorTracker.get(code) ?? 0
+    if (now - lastErrorTime > 10 * 60 * 1000) {
+      this.errorTracker.set(code, now)
+      await captureException(error)
+    }
   }
 
   private async handlePackets() {
@@ -376,17 +396,18 @@ export class WalletWorker {
             const expected = result.raw_log.split(', ')[1]
             this.sequence = Number(expected.split(' ')[1]) - 1
             this.logger.info(`update sequence`)
-          } catch (e) {
+          } catch {
             this.logger.warn(`error to parse sequence`)
           }
         }
 
-        this.logger.error(
+        const error = new Error(
           `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
         )
-        throw Error(
-          `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
-        )
+
+        await this.checkAndStoreError(result.code.toString(), error)
+        this.logger.error(error)
+        throw error
       }
 
       this.logger.info(
