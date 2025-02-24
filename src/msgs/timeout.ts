@@ -7,7 +7,7 @@ import {
   getChannelProof,
   getRawProof,
 } from 'src/lib/proof'
-import { delay } from 'bluebird'
+import { setTimeout as delay } from 'timers/promises'
 import { ChainWorker } from 'src/workers/chain'
 import { Bool, PacketTimeoutTable } from 'src/types'
 import { packetTableToPacket } from 'src/db/utils'

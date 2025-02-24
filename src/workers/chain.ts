@@ -17,7 +17,7 @@ import {
 import { DB } from 'src/db'
 import { SyncInfoController } from 'src/db/controller/syncInfo'
 import { PacketController } from 'src/db/controller/packet'
-import { delay } from 'bluebird'
+import { setTimeout as delay } from 'timers/promises'
 import { Logger } from 'winston'
 import { RESTClient } from 'src/lib/restClient'
 import { ChannelController } from 'src/db/controller/channel'
