@@ -1,11 +1,9 @@
 // jest.config.js
-module.exports = {
-  preset: 'ts-jest',
-  setupFilesAfterEnv: ['<rootDir>/src/test/testSetup.ts'],
-  testEnvironment: 'node',
-  testMatch: ['**/?(*.)spec.ts'],
-  moduleNameMapper: {
-    '^src/(.*)$': '<rootDir>/src/$1',
-  },
-  maxWorkers: 1,
+export const preset = 'ts-jest'
+export const setupFilesAfterEnv = ['<rootDir>/src/test/testSetup.ts']
+export const testEnvironment = 'node'
+export const testMatch = ['**/?(*.)spec.ts']
+export const moduleNameMapper = {
+  '^src/(.*)$': '<rootDir>/src/$1',
 }
+export const maxWorkers = 1

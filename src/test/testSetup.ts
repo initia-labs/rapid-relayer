@@ -61,7 +61,7 @@ const setup = () => {
               connectionId as string
             )
             return HttpResponse.json(connectionInfo)
-          } catch (error) {
+          } catch {
             return new HttpResponse('Failed to retrieve connection info', {
               status: 500,
             })
@@ -80,11 +80,37 @@ const setup = () => {
           try {
             const clientState = restServer.getClientState(clientId as string)
             return HttpResponse.json(clientState)
-          } catch (error) {
+          } catch {
             return new HttpResponse('Failed to retrieve client info', {
               status: 500,
             })
           }
+        }
+      )
+    )
+
+    handlers.push(
+      http.get(
+        new URL(
+          '/ibc/core/client/v1/consensus_states/:clientId/revision/0/height/0',
+          chain.restUri
+        ).href,
+        () => {
+          return HttpResponse.json({
+            consensus_state: {
+              '@type': 'mock',
+              timestamp: new Date().toISOString(),
+              root: {
+                hash: '',
+              },
+              next_validators_hash: '',
+            },
+            proof: '',
+            proof_height: {
+              revision_number: '0',
+              revision_height: '0',
+            },
+          })
         }
       )
     )
