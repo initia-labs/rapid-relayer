@@ -6,7 +6,7 @@ import {
   Validator,
 } from 'cosmjs-types/tendermint/types/validator'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { delay } from 'bluebird'
+import { setTimeout as delay } from 'timers/promises'
 import { ChainWorker } from 'src/workers/chain'
 
 // generateMsgUpdateClient generates a MsgUpdateClient message

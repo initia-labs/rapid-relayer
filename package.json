@@ -25,7 +25,6 @@
     "axios": "^1.7.5",
     "bech32": "^2.0.0",
     "better-sqlite3": "^11.3.0",
-    "bluebird": "^3.7.2",
     "cosmjs-types": "^0.9.0",
     "express": "^4.19.2",
     "http": "^0.0.1-security",
@@ -38,7 +37,6 @@
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
-    "@types/bluebird": "^3.5.42",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.14",
     "@types/node": "^22.5.4",
