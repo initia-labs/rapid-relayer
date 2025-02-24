@@ -5,8 +5,8 @@ import { mockServers } from 'src/test/testSetup'
 import { ClientController } from './client'
 
 describe('client controller', () => {
-  mockServers // to set set config file
-  test('client controller e2e', async () => {
+  void mockServers // to set set config file
+  test('client controller e2e', () => {
     const currentTimestamp = Math.floor(new Date().valueOf() / 1000)
     // add clients for test
     const testClients: ClientTable[] = [
