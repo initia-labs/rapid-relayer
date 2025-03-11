@@ -300,9 +300,13 @@ function createKey(rawKey: KeyConfig): Key {
   let keyReturn
   switch (rawKey.type) {
     case 'mnemonic': {
-      const options = rawKey.options || {}
+      const options = rawKey.options || { coinType: 118 }
 
-      keyReturn = new MnemonicKey({ mnemonic: rawKey.privateKey, ...options })
+      keyReturn = new MnemonicKey({
+        mnemonic: rawKey.privateKey,
+        ...options,
+        eth: false,
+      })
       break
     }
     case 'env_mnemonic': {
@@ -310,13 +314,13 @@ function createKey(rawKey: KeyConfig): Key {
       if (!key) {
         throw Error(`missing environment ${rawKey.privateKey}`)
       }
-      const options = rawKey.options || {}
+      const options = rawKey.options || { coinType: 118 }
 
-      keyReturn = new MnemonicKey({ mnemonic: key, ...options })
+      keyReturn = new MnemonicKey({ mnemonic: key, ...options, eth: false })
       break
     }
     case 'raw': {
-      keyReturn = new RawKey(Buffer.from(rawKey.privateKey, 'hex'))
+      keyReturn = new RawKey(Buffer.from(rawKey.privateKey, 'hex'), false)
       break
     }
     case 'env_raw': {
@@ -324,7 +328,7 @@ function createKey(rawKey: KeyConfig): Key {
       if (!key) {
         throw Error(`missing environment ${rawKey.privateKey}`)
       }
-      keyReturn = new RawKey(Buffer.from(key, 'hex'))
+      keyReturn = new RawKey(Buffer.from(key, 'hex'), false)
       break
     }
   }
