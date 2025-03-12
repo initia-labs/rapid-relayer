@@ -17,7 +17,7 @@
     "@cosmjs/json-rpc": "^0.32.4",
     "@cosmjs/stargate": "^0.32.4",
     "@cosmjs/tendermint-rpc": "^0.32.4",
-    "@initia/initia.js": "^0.2.23",
+    "@initia/initia.js": "^1.0.0",
     "@initia/initia.proto": "^0.2.4",
     "@sentry/node": "^8.51.0",
     "@sentry/profiling-node": "^8.51.0",
