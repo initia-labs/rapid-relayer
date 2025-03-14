@@ -112,6 +112,12 @@ export interface PacketFeeTable {
   amount: number
 }
 
+export interface ChannelConnectionTable {
+  chain_id: string
+  channel_id: string
+  connection_id: string
+}
+
 export enum Bool {
   TRUE = 1,
   FALSE = 0,
