@@ -28,6 +28,7 @@ export class WalletWorker {
   private accountNumber?: number
   private logger: Logger
   private errorTracker = new Map<string, number>()
+  public lastExecutionTimestamp: Date
 
   constructor(
     public chain: ChainWorker,
@@ -40,6 +41,7 @@ export class WalletWorker {
     this.logger = createLoggerWithPrefix(
       `<Wallet(${this.chain.chainId}-${this.address()})>`
     )
+    this.lastExecutionTimestamp = new Date()
     void this.run()
   }
 
@@ -415,6 +417,7 @@ export class WalletWorker {
       )
 
       this.sequence++
+      this.lastExecutionTimestamp = new Date()
     } catch (e) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (e?.response?.data) {
@@ -454,6 +457,49 @@ export class WalletWorker {
         )
         .then((coin) => coin.amount)
     )
+  }
+
+  public getPendingPacketCount(): number {
+    const chainIdsWithFeeFilter = this.workerController.getFeeFilters()
+    const counterpartyChainIdsWithFeeFilter = chainIdsWithFeeFilter.filter(
+      (v) => v.chainId !== this.chain.chainId
+    )
+    const counterpartyChainIds = counterpartyChainIdsWithFeeFilter.map(
+      (v) => v.chainId
+    )
+    const feeFilter = (
+      chainIdsWithFeeFilter.find((v) => v.chainId === this.chain.chainId) as {
+        chainId: string
+        feeFilter: PacketFee
+      }
+    ).feeFilter
+
+    let count = 0
+    count += PacketController.getSendPacketsCount(
+      this.chain.chainId,
+      this.chain.latestHeight,
+      Number((this.chain.latestTimestamp / 1000).toFixed()),
+      counterpartyChainIdsWithFeeFilter,
+      this.packetFilter
+    )
+
+    count += PacketController.getWriteAckPacketsCount(
+      this.chain.chainId,
+      counterpartyChainIds,
+      feeFilter,
+      this.packetFilter
+    )
+
+    count += PacketController.getTimeoutPacketsCount(
+      this.chain.chainId,
+      this.chain.latestHeight,
+      Number((this.chain.latestTimestamp / 1000).toFixed()),
+      counterpartyChainIds,
+      feeFilter,
+      this.packetFilter
+    )
+
+    return count
   }
 
   public address(): string {

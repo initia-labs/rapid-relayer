@@ -146,6 +146,8 @@ export class WorkerController {
           return {
             address: wallet.address(),
             gasTokenBalance: wallet.gasTokenBalance.toString(),
+            lastExecutionTimestamp: wallet.lastExecutionTimestamp,
+            pendingPacketCount: wallet.getPendingPacketCount(),
             packetFilter: wallet.packetFilter,
           }
         })
@@ -347,6 +349,8 @@ interface ChainStatus {
   walletWorkers: {
     address: string
     gasTokenBalance: string
+    lastExecutionTimestamp: Date
+    pendingPacketCount: number
     packetFilter?: PacketFilter
   }[]
 }

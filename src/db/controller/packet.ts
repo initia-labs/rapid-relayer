@@ -11,7 +11,7 @@ import {
   FeeType,
 } from 'src/types'
 import { DB } from '..'
-import { In, WhereOptions, del, insert, select, update } from '../utils'
+import { In, WhereOptions, count, del, insert, select, update } from '../utils'
 import { ConnectionController } from './connection'
 import { Database } from 'better-sqlite3'
 import { RESTClient } from 'src/lib/restClient'
@@ -72,36 +72,15 @@ export class PacketController {
         chainId: counterpartyChainId,
         feeFilter,
       } of chainIdsWithFeeFilters) {
-        const wheres: WhereOptions<PacketSendTable>[] = []
-        let custom = `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})` // filter timeout packet
-        if (feeFilter.recvFee && feeFilter.recvFee.length !== 0) {
-          const conditions = feeFilter.recvFee.map(
-            (v) =>
-              `((SELECT amount FROM packet_fee WHERE chain_id = packet_send.src_chain_id AND channel_id = packet_send.src_channel_id AND sequence = packet_send.sequence AND fee_type = ${FeeType.RECV} AND denom = '${v.denom}') >= ${v.amount})`
+        const wheres: WhereOptions<PacketSendTable>[] =
+          PacketController.getSendPacketsWhere(
+            chainId,
+            height,
+            timestamp,
+            counterpartyChainId,
+            feeFilter,
+            filter
           )
-          custom += ` AND (${conditions.join(' OR ')})`
-        }
-
-        if (filter.connections) {
-          // TODO: make this more efficientnet. filter connection by chain id
-          wheres.push(
-            ...filter.connections.map((conn) => ({
-              in_progress: Bool.FALSE,
-              dst_chain_id: chainId,
-              dst_connection_id: conn.connectionId,
-              dst_channel_id: conn.channels ? In(conn.channels) : undefined,
-              src_chain_id: counterpartyChainId,
-              custom,
-            }))
-          )
-        } else {
-          wheres.push({
-            in_progress: Bool.FALSE,
-            dst_chain_id: chainId,
-            src_chain_id: counterpartyChainId,
-            custom,
-          })
-        }
 
         res.push(
           ...select<PacketSendTable>(
@@ -130,6 +109,81 @@ export class PacketController {
     )
   }
 
+  public static getSendPacketsCount(
+    chainId: string,
+    height: number,
+    timestamp: number,
+    chainIdsWithFeeFilters: { chainId: string; feeFilter: PacketFee }[],
+    filter: PacketFilter = {}
+  ): number {
+    let packetCount = 0
+    // query for each chain id
+    for (const {
+      chainId: counterpartyChainId,
+      feeFilter,
+    } of chainIdsWithFeeFilters) {
+      const wheres: WhereOptions<PacketSendTable>[] =
+        PacketController.getSendPacketsWhere(
+          chainId,
+          height,
+          timestamp,
+          counterpartyChainId,
+          feeFilter,
+          filter
+        )
+
+      packetCount += count<PacketSendTable>(
+        DB,
+        PacketController.tableNamePacketSend,
+        wheres
+      )
+    }
+
+    return packetCount
+  }
+
+  private static getSendPacketsWhere(
+    chainId: string,
+    height: number,
+    timestamp: number,
+    counterpartyChainId: string,
+    feeFilter: PacketFee,
+    filter: PacketFilter = {}
+  ): WhereOptions<PacketSendTable>[] {
+    const wheres: WhereOptions<PacketSendTable>[] = []
+    let custom = `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})` // filter timeout packet
+    if (feeFilter.recvFee && feeFilter.recvFee.length !== 0) {
+      const conditions = feeFilter.recvFee.map(
+        (v) =>
+          `((SELECT amount FROM packet_fee WHERE chain_id = packet_send.src_chain_id AND channel_id = packet_send.src_channel_id AND sequence = packet_send.sequence AND fee_type = ${FeeType.RECV} AND denom = '${v.denom}') >= ${v.amount})`
+      )
+      custom += ` AND (${conditions.join(' OR ')})`
+    }
+
+    if (filter.connections) {
+      // TODO: make this more efficientnet. filter connection by chain id
+      wheres.push(
+        ...filter.connections.map((conn) => ({
+          in_progress: Bool.FALSE,
+          dst_chain_id: chainId,
+          dst_connection_id: conn.connectionId,
+          dst_channel_id: conn.channels ? In(conn.channels) : undefined,
+          src_chain_id: counterpartyChainId,
+          custom,
+        }))
+      )
+    } else {
+      wheres.push({
+        in_progress: Bool.FALSE,
+        dst_chain_id: chainId,
+        src_chain_id: counterpartyChainId,
+        custom,
+      })
+    }
+
+    return wheres
+  }
+
   public static getTimeoutPackets(
     chainId: string,
     height: number,
@@ -139,6 +193,56 @@ export class PacketController {
     filter: PacketFilter = {},
     limit = 100
   ): PacketTimeoutTable[] {
+    const wheres = PacketController.getTimeoutPacketsWhere(
+      chainId,
+      height,
+      timestamp,
+      counterpartyChainIds,
+      feeFilter,
+      filter
+    )
+
+    return select<PacketTimeoutTable>(
+      DB,
+      PacketController.tableNamePacketTimeout,
+      wheres,
+      { sequence: 'ASC' },
+      limit
+    )
+  }
+
+  public static getTimeoutPacketsCount(
+    chainId: string,
+    height: number,
+    timestamp: number,
+    counterpartyChainIds: string[],
+    feeFilter: PacketFee,
+    filter: PacketFilter = {}
+  ): number {
+    const wheres = PacketController.getTimeoutPacketsWhere(
+      chainId,
+      height,
+      timestamp,
+      counterpartyChainIds,
+      feeFilter,
+      filter
+    )
+
+    return count<PacketTimeoutTable>(
+      DB,
+      PacketController.tableNamePacketTimeout,
+      wheres
+    )
+  }
+
+  private static getTimeoutPacketsWhere(
+    chainId: string,
+    height: number,
+    timestamp: number,
+    counterpartyChainIds: string[],
+    feeFilter: PacketFee,
+    filter: PacketFilter = {}
+  ): WhereOptions<PacketSendTable>[] {
     let custom = `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)` // filter timeout packet
 
     if (feeFilter.timeoutFee && feeFilter.timeoutFee.length !== 0) {
@@ -172,13 +276,7 @@ export class PacketController {
       })
     }
 
-    return select<PacketTimeoutTable>(
-      DB,
-      PacketController.tableNamePacketTimeout,
-      wheres,
-      { sequence: 'ASC' },
-      limit
-    )
+    return wheres
   }
 
   public static getWriteAckPackets(
@@ -188,6 +286,48 @@ export class PacketController {
     filter: PacketFilter = {},
     limit = 100
   ): PacketWriteAckTable[] {
+    const wheres = PacketController.getWriteAckPacketsWhere(
+      chainId,
+      counterpartyChainIds,
+      feeFilter,
+      filter
+    )
+
+    return select<PacketWriteAckTable>(
+      DB,
+      PacketController.tableNamePacketWriteAck,
+      wheres,
+      { sequence: 'ASC' },
+      limit
+    )
+  }
+
+  public static getWriteAckPacketsCount(
+    chainId: string,
+    counterpartyChainIds: string[],
+    feeFilter: PacketFee,
+    filter: PacketFilter = {}
+  ): number {
+    const wheres = PacketController.getWriteAckPacketsWhere(
+      chainId,
+      counterpartyChainIds,
+      feeFilter,
+      filter
+    )
+
+    return count<PacketWriteAckTable>(
+      DB,
+      PacketController.tableNamePacketWriteAck,
+      wheres
+    )
+  }
+
+  private static getWriteAckPacketsWhere(
+    chainId: string,
+    counterpartyChainIds: string[],
+    feeFilter: PacketFee,
+    filter: PacketFilter = {}
+  ): WhereOptions<PacketWriteAckTable>[] {
     let custom = 'TRUE'
 
     if (feeFilter.ackFee && feeFilter.ackFee.length !== 0) {
@@ -220,13 +360,7 @@ export class PacketController {
       })
     }
 
-    return select<PacketWriteAckTable>(
-      DB,
-      PacketController.tableNamePacketWriteAck,
-      wheres,
-      { sequence: 'ASC' },
-      limit
-    )
+    return wheres
   }
 
   public static delSendPackets(packets: PacketSendTable[]) {

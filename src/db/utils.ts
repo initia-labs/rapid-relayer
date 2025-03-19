@@ -95,6 +95,23 @@ export function select<T>(
   return db.prepare<unknown[], T>(sql).all(params)
 }
 
+export function count<T>(
+  db: Database,
+  tableName: string,
+  wheres?: WhereOptions<T>[]
+): number {
+  let sql = `SELECT COUNT(*) as count FROM ${tableName}`
+  const params: ParamType[] = []
+
+  if (wheres) {
+    const [whereSql, whereParams] = where(wheres)
+    sql += whereSql
+    params.push(...whereParams)
+  }
+
+  return db.prepare<unknown[], { count: number }>(sql).all(params)[0].count
+}
+
 export function selectOne<T>(
   db: Database,
   tableName: string,
