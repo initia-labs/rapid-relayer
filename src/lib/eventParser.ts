@@ -132,7 +132,12 @@ export function parsePacketFeeEvent(event: Event): PacketFeeEvent {
 export function parseUpdateClientEvent(event: Event): UpdateClientEvent {
   const clientId = find(event, 'client_id') as string
   const header = find(event, 'header') as string
-  const consensusHeights = find(event, 'consensus_heights') as string
+  let consensusHeights = find(event, 'consensus_heights') as string
+
+  // to support old version of ibc-go
+  if (consensusHeights === '') {
+    consensusHeights = find(event, 'consensus_height') as string
+  }
 
   return {
     clientId,

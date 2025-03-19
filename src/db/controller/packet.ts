@@ -18,6 +18,7 @@ import { RESTClient } from 'src/lib/restClient'
 import { PacketFeeController } from './packetFee'
 import { PacketFee } from 'src/lib/config'
 import * as Sentry from '@sentry/node'
+import { ChannelController } from './channel'
 
 export class PacketController {
   public static tableNamePacketSend = 'packet_send'
@@ -563,6 +564,17 @@ export class PacketController {
     chainId: string,
     event: TimeoutPacketEvent
   ): Promise<() => void> {
+    // old version of ibc-go does not have connection_id in event
+    if (event.packetInfo.connectionId === '') {
+      event.packetInfo.connectionId =
+        await ChannelController.getChannelConnection(
+          rest,
+          chainId,
+          event.packetInfo.srcPort,
+          event.packetInfo.srcChannel
+        ).then((channelConnection) => channelConnection.connection_id)
+    }
+
     // get counterparty's info
     const connection = await ConnectionController.getConnection(
       rest,

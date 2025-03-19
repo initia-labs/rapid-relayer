@@ -4,8 +4,17 @@ import {
   ChannelOpenCloseTable,
   ChannelOpenCloseEvent,
   ChannelState,
+  ChannelConnectionTable,
 } from 'src/types'
-import { In, WhereOptions, del, insert, select, update } from '../utils'
+import {
+  In,
+  WhereOptions,
+  del,
+  insert,
+  select,
+  selectOne,
+  update,
+} from '../utils'
 import { RESTClient } from 'src/lib/restClient'
 import { ConnectionController } from './connection'
 import { PacketController, PacketFilter } from './packet'
@@ -13,6 +22,7 @@ import { Database } from 'better-sqlite3'
 
 export class ChannelController {
   static tableName = 'channel_open_close'
+  static channelConnectionTableName = 'channel_connection'
   public static async feedEvents(
     rest: RESTClient,
     chainId: string,
@@ -332,5 +342,48 @@ export class ChannelController {
         event.channelOpenCloseInfo.srcChannelId
       )
     }
+  }
+
+  // channel_connection
+  public static async addChannelConnection(
+    rest: RESTClient,
+    chainId: string,
+    portId: string,
+    channelId: string
+  ): Promise<ChannelConnectionTable> {
+    const channelInfo = await rest.ibc.channel(portId, channelId)
+
+    const channelConnection: ChannelConnectionTable = {
+      chain_id: chainId,
+      channel_id: channelId,
+      connection_id: channelInfo.channel.connection_hops[0],
+    }
+
+    insert(DB, ChannelController.channelConnectionTableName, channelConnection)
+
+    return channelConnection
+  }
+
+  public static async getChannelConnection(
+    rest: RESTClient,
+    chainId: string,
+    portId: string,
+    channelId: string
+  ): Promise<ChannelConnectionTable> {
+    const channelConnection = selectOne<ChannelConnectionTable>(
+      DB,
+      ChannelController.channelConnectionTableName,
+      [
+        {
+          chain_id: chainId,
+          channel_id: channelId,
+        },
+      ]
+    )
+
+    return (
+      channelConnection ??
+      this.addChannelConnection(rest, chainId, portId, channelId)
+    )
   }
 }
