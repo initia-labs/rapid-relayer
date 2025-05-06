@@ -396,7 +396,7 @@ export class WalletWorker {
         if (result.raw_log.startsWith('account sequence mismatch')) {
           try {
             const expected = result.raw_log.split(', ')[1]
-            this.sequence = Number(expected.split(' ')[1]) - 1
+            this.sequence = Number(expected.split(' ')[1])
             this.logger.info(`update sequence`)
           } catch {
             this.logger.warn(`error to parse sequence`)
