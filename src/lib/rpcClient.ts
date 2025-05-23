@@ -40,6 +40,7 @@ export class RPCClient {
       }
     )
     metrics.rpcClient.labels({ uri: this.baseUri, path: 'block_results' }).inc()
+
     return decodeBlockResults(rawResponse)
   }
 
@@ -154,6 +155,9 @@ function decodeBlockResults(
           } else {
             throw Error(`unknown mode ${JSON.stringify(attribute)}`)
           }
+          // handle to support other versions of cometbft
+        } else {
+          end_block_events.push(event)
         }
       }
     })
