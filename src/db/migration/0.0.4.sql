@@ -1,3 +1,6 @@
+-- update version
+UPDATE version set version = '0.0.4' WHERE id == 1;
+
 -- Update pk
 
 -- Create the new table with updated primary key
