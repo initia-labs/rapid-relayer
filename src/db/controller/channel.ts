@@ -19,15 +19,18 @@ import { RESTClient } from 'src/lib/restClient'
 import { ConnectionController } from './connection'
 import { PacketController, PacketFilter } from './packet'
 import { Database } from 'better-sqlite3'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class ChannelController {
   static tableName = 'channel_open_close'
   static channelConnectionTableName = 'channel_connection'
+  private static logger = createLoggerWithPrefix('[ChannelController] ');
   public static async feedEvents(
     rest: RESTClient,
     chainId: string,
     events: ChannelOpenCloseEvent[]
   ): Promise<() => void> {
+    this.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`);
     const feedFns: (() => void)[] = []
     for (const event of events) {
       switch (event.type) {

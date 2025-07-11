@@ -19,17 +19,20 @@ import { PacketFeeController } from './packetFee'
 import { PacketFee } from 'src/lib/config'
 import * as Sentry from '@sentry/node'
 import { ChannelController } from './channel'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class PacketController {
   public static tableNamePacketSend = 'packet_send'
   public static tableNamePacketTimeout = 'packet_timeout'
   public static tableNamePacketWriteAck = 'packet_write_ack'
+  private static logger = createLoggerWithPrefix('[PacketController] ');
 
   public static async feedEvents(
     rest: RESTClient,
     chainId: string,
     events: PacketEvent[]
   ): Promise<() => void> {
+    this.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`);
     const feedFns: (() => void)[] = []
     for (const event of events) {
       switch (event.type) {

@@ -12,6 +12,17 @@ export interface Config {
   logLevel: string
   dbPath?: string
   chains: ChainConfig[]
+  raft?: RaftConfig
+}
+
+export interface RaftConfig {
+  enabled: boolean
+  nodeId: string
+  host: string
+  port: number
+  peers: { id: string; host: string; port: number }[]
+  electionTimeout?: number
+  heartbeatInterval?: number
 }
 
 interface ChainConfig {
