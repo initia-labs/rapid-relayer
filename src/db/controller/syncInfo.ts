@@ -1,14 +1,17 @@
 import { DB } from '..'
 import { SyncInfoTable } from 'src/types'
 import { del, insert, select, update } from '../utils'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class SyncInfoController {
   private static tableName = 'sync_info'
+  private static logger = createLoggerWithPrefix('[SyncInfoController] ');
   public static init(
     chainId: string,
     startHeights: number[],
     latestHeight: number
   ): SyncInfoTable[] {
+    this.logger.info(`init: chainId=${chainId}, startHeights=${JSON.stringify(startHeights)}, latestHeight=${latestHeight}`);
     startHeights = startHeights.sort()
     const syncInfos = this.getSyncInfos(chainId)
 
@@ -25,27 +28,25 @@ export class SyncInfoController {
         synced_height: startHeight - 1,
       }
 
+      this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
       insert(DB, SyncInfoController.tableName, syncInfo)
       syncInfos.unshift(syncInfo)
     }
 
     while (startHeights.length !== 0) {
       const startHeight = startHeights.pop() as number
-      for (const syncInfo of syncInfos) {
-        if (syncInfo.start_height > startHeight) {
-          const newSyncInfo: SyncInfoTable = {
-            chain_id: chainId,
-            start_height: startHeight,
-            end_height: syncInfo.start_height - 1,
-            synced_height: startHeight - 1,
-          }
-
-          syncInfos.unshift(newSyncInfo)
-          insert(DB, SyncInfoController.tableName, newSyncInfo)
+      const syncInfo = syncInfos[0]
+      if (syncInfo && syncInfo.start_height > startHeight) {
+        const newSyncInfo: SyncInfoTable = {
+          chain_id: chainId,
+          start_height: startHeight,
+          end_height: syncInfo.start_height - 1,
+          synced_height: startHeight - 1,
         }
 
-        // TODO: split sync info when syncInfo.syncedHeight < startHeight < syncInfo.endHeight
-        break
+        this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
+        syncInfos.unshift(newSyncInfo)
+        insert(DB, SyncInfoController.tableName, newSyncInfo)
       }
     }
 
@@ -73,8 +74,10 @@ export class SyncInfoController {
     endHeight: number,
     syncedHeight: number
   ): boolean {
+    this.logger.info(`update: table=${this.tableName}, chainId=${chainId}, startHeight=${startHeight}, endHeight=${endHeight}, syncedHeight=${syncedHeight}`);
     // check finish
     if (syncedHeight === endHeight) {
+      this.logger.info(`delete: table=${this.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
       del(DB, SyncInfoController.tableName, [
         { chain_id: chainId, start_height: startHeight },
       ])
@@ -96,6 +99,7 @@ export class SyncInfoController {
       return true
     }
 
+    this.logger.info(`update: table=${this.tableName}, chainId=${chainId}, startHeight=${startHeight}, syncedHeight=${syncedHeight}`);
     update<SyncInfoTable>(
       DB,
       SyncInfoController.tableName,

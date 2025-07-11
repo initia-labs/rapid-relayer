@@ -117,3 +117,71 @@ docker run -it -v/tmp/rr/config:/config -v/tmp/rr/syncInfo:/syncInfo -d  rapid-r
 ```
 
 this should start the relayer in a docker container using your config, and placing the state in a separate volume
+
+## Raft-Based Cluster Mode
+
+Rapid Relayer supports running in cluster mode using the Raft consensus algorithm for high availability and leader election. This allows multiple relayer nodes to coordinate, ensuring only one leader node executes transactions, while all nodes stay in sync.
+
+### 1. Brief Description
+- **Cluster mode** uses Raft for automatic leader election and failover.
+- Only the leader node executes transactions; followers stay in sync and can take over if the leader fails.
+- Supports both single-node and multi-node clusters.
+
+### 2. How to Configure
+
+Add a `raft` section to your config (example for single-node and multi-node):
+
+#### Single Node (for development/testing)
+```json
+"raft": {
+  "id": "node1",
+  "host": "127.0.0.1",
+  "port": 4001,
+  "peers": []
+}
+```
+
+#### Multi-Node Cluster
+Each node must have a unique `id`, its own `host`/`port`, and list all other nodes in `peers`:
+```json
+"raft": {
+  "id": "node1",
+  "host": "10.0.0.1",
+  "port": 4001,
+  "peers": [
+    { "id": "node2", "host": "10.0.0.2", "port": 4002 },
+    { "id": "node3", "host": "10.0.0.3", "port": 4003 }
+  ]
+}
+```
+- Repeat for each node, changing `id`, `host`, and `port` accordingly.
+
+### 3. How to Run
+- Start each node with its own config (with correct `raft` section).
+- Nodes will automatically discover each other, elect a leader, and synchronize.
+- You can run a single node for development, or multiple nodes for production/high-availability.
+
+#### Example (single node):
+```bash
+npm start
+```
+
+#### Example (multi-node, on different machines or ports):
+```bash
+# On node1
+npm start -- --config config-node1.json
+# On node2
+npm start -- --config config-node2.json
+# On node3
+npm start -- --config config-node3.json
+```
+
+### 4. How to Test
+- **Single node:** The node will elect itself as leader and process transactions normally.
+- **Multi-node:**
+  - Start all nodes. Check logs for messages like `became LEADER` and `heartbeat`.
+  - Stop the leader node; another node should be elected as leader automatically.
+  - All nodes should log their state and election/heartbeat events.
+- You can check cluster status and leadership in the logs.
+
+---
