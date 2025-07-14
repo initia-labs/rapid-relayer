@@ -20,6 +20,61 @@
     "logLevel": {
       "type": "string"
     },
+    "raft": {
+      "type": "object",
+      "description": "RAFT cluster configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable RAFT cluster mode"
+        },
+        "nodeId": {
+          "type": "string",
+          "description": "Unique identifier for this node in the cluster"
+        },
+        "host": {
+          "type": "string",
+          "description": "Host address for this node"
+        },
+        "port": {
+          "type": "number",
+          "description": "Port for RAFT communication"
+        },
+        "peers": {
+          "type": "array",
+          "description": "List of all nodes in the cluster",
+          "items": {
+            "type": "object",
+            "required": ["id", "host", "port"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Node ID"
+              },
+              "host": {
+                "type": "string",
+                "description": "Node host address"
+              },
+              "port": {
+                "type": "number",
+                "description": "Node port"
+              }
+            }
+          },
+          "minContains": 1
+        },
+        "electionTimeout": {
+          "type": "number",
+          "description": "Election timeout in milliseconds",
+          "default": 10000
+        },
+        "heartbeatInterval": {
+          "type": "number",
+          "description": "Heartbeat interval in milliseconds",
+          "default": 1000
+        }
+      }
+    },
     "chains": {
       "type": "array",
       "items": {

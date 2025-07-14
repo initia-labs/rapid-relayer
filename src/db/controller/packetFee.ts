@@ -12,14 +12,14 @@ export class PacketFeeController {
     chainId: string,
     events: PacketFeeEvent[]
   ): () => void {
-    this.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`);
+    PacketFeeController.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`);
     const feedFns: (() => void)[] = []
     const toFn = (
       event: PacketFeeEvent,
       coins: Coin[],
       type: FeeType
     ): (() => void) => {
-      this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, channelId=${event.channelId}, sequence=${event.sequence}, feeType=${type}`);
+      PacketFeeController.logger.info(`insert: table=${PacketFeeController.tableName}, chainId=${chainId}, channelId=${event.channelId}, sequence=${event.sequence}, feeType=${type}`);
       return () => {
         for (const coin of coins) {
           const packetFee: PacketFeeTable = {
@@ -56,7 +56,7 @@ export class PacketFeeController {
     sequence: number,
     type: FeeType
   ) {
-    this.logger.info(`delete: table=${this.tableName}, chainId=${chainId}, channelId=${channelId}, sequence=${sequence}, feeType=${type}`);
+    PacketFeeController.logger.info(`delete: table=${PacketFeeController.tableName}, chainId=${chainId}, channelId=${channelId}, sequence=${sequence}, feeType=${type}`);
     del<PacketFeeTable>(DB, PacketFeeController.tableName, [
       { chain_id: chainId, channel_id: channelId, sequence, fee_type: type },
     ])

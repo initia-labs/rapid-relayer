@@ -118,12 +118,12 @@ docker run -it -v/tmp/rr/config:/config -v/tmp/rr/syncInfo:/syncInfo -d  rapid-r
 
 this should start the relayer in a docker container using your config, and placing the state in a separate volume
 
-## Raft-Based Cluster Mode
+## RAFT-Based Cluster Mode
 
-Rapid Relayer supports running in cluster mode using the Raft consensus algorithm for high availability and leader election. This allows multiple relayer nodes to coordinate, ensuring only one leader node executes transactions, while all nodes stay in sync.
+Rapid Relayer supports running in cluster mode using the RAFT consensus algorithm for high availability and leader election. This allows multiple relayer nodes to coordinate, ensuring only one leader node executes transactions, while all nodes stay in sync.
 
 ### 1. Brief Description
-- **Cluster mode** uses Raft for automatic leader election and failover.
+- **Cluster mode** uses RAFT for automatic leader election and failover.
 - Only the leader node executes transactions; followers stay in sync and can take over if the leader fails.
 - Supports both single-node and multi-node clusters.
 
