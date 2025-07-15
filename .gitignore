@@ -12,3 +12,4 @@ config.json
 /test_db
 
 .env*
+data
