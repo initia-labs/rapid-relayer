@@ -51,6 +51,9 @@ export class RaftService extends EventEmitter {
   private peerRetryCounts = new Map<string, number>();
   private peerRetryTimeouts = new Map<string, NodeJS.Timeout>();
 
+  // Buffer for partial TCP messages per peer
+  private messageBuffer = new Map<string, Uint8Array>();
+
   constructor(raftConfig: RaftNodeConfig) {
     super()
     this.config = raftConfig
@@ -121,7 +124,7 @@ export class RaftService extends EventEmitter {
 
     socket.on('data', (data) => {
       try {
-        const messages = this.parseMessages(data)
+        const messages = this.parseMessages(socket, data, peer.id)
         messages.forEach(msg => this.handleMessage(msg))
       } catch (err) {
         error(`Error parsing message from ${peer.id}: ${err}`)
@@ -162,9 +165,10 @@ export class RaftService extends EventEmitter {
   }
 
   private handleIncomingConnection(socket: net.Socket): void {
+    const peerId = `${socket.remoteAddress}:${socket.remotePort}`;
     socket.on('data', (data) => {
       try {
-        const messages = this.parseMessages(data)
+        const messages = this.parseMessages(socket, data, peerId)
         messages.forEach(msg => this.handleMessage(msg))
       } catch (err) {
         error(`Error parsing incoming message: ${err}`)
@@ -176,30 +180,52 @@ export class RaftService extends EventEmitter {
     })
   }
 
-  private parseMessages(data: Buffer): RaftMessage[] {
-    const messages: RaftMessage[] = []
-    const lines = data.toString().split('\n').filter(line => line.trim())
+  // Length-prefixed message framing
+  private parseMessages(socket: net.Socket, data: Buffer, peerId: string): RaftMessage[] {
+    let buffer = this.messageBuffer.get(peerId) || new Uint8Array();
+    // Concatenate Uint8Arrays
+    const combined = new Uint8Array(buffer.length + data.length);
+    combined.set(buffer, 0);
+    combined.set(data, buffer.length);
+    buffer = combined;
 
-    for (const line of lines) {
+    const messages: RaftMessage[] = [];
+    let offset = 0;
+
+    while (offset + 4 <= buffer.length) {
+      // Read 4-byte big-endian length
+      const view = new DataView(buffer.buffer, buffer.byteOffset + offset, 4);
+      const messageLength = view.getUint32(0);
+      if (offset + 4 + messageLength > buffer.length) break;
+
+      const messageData = buffer.slice(offset + 4, offset + 4 + messageLength);
       try {
-        const message = JSON.parse(line) as RaftMessage
-        info(`[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`)
-        messages.push(message)
-      } catch {
-        error(`Failed to parse message: ${line}`)
+        const message = JSON.parse(new TextDecoder().decode(messageData)) as RaftMessage;
+        info(`[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`);
+        messages.push(message);
+      } catch (err) {
+        error(`Failed to parse message: ${err}`);
       }
+      offset += 4 + messageLength;
     }
 
-    return messages
+    this.messageBuffer.set(peerId, buffer.slice(offset));
+    return messages;
   }
 
   private sendMessage(socket: net.Socket, message: RaftMessage): void {
     try {
-      const messageStr = JSON.stringify(message) + '\n'
-      info(`[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`)
-      socket.write(messageStr)
+      const messageStr = JSON.stringify(message);
+      const messageBuffer = new TextEncoder().encode(messageStr);
+      const lengthBuffer = new Uint8Array(4);
+      new DataView(lengthBuffer.buffer).setUint32(0, messageBuffer.length);
+      const fullBuffer = new Uint8Array(lengthBuffer.length + messageBuffer.length);
+      fullBuffer.set(lengthBuffer, 0);
+      fullBuffer.set(messageBuffer, lengthBuffer.length);
+      info(`[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`);
+      socket.write(fullBuffer);
     } catch (err) {
-      error(`Failed to send message: ${err}`)
+      error(`Failed to send message: ${err}`);
     }
   }
 
@@ -258,10 +284,14 @@ export class RaftService extends EventEmitter {
     }
 
     // Calculate majority based on actual connected nodes + self
-    const connectedNodes = this.connections.size + 1 // +1 for self
-    const majority = Math.floor(connectedNodes / 2) + 1
+    // const connectedNodes = this.connections.size + 1 // +1 for self
+    // const majority = Math.floor(connectedNodes / 2) + 1
 
-    info(`[ELECTION RESULT] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${connectedNodes} total connected nodes)`)
+    // Calculate majority based on total cluster size for proper quorum
+    const totalNodes = this.config.peers.length + 1 // +1 for self
+    const majority = Math.floor(totalNodes / 2) + 1
+
+    info(`[ELECTION RESULT] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
 
     if (this.voteCount >= majority) {
       this.becomeLeader()
