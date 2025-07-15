@@ -20,7 +20,7 @@ export class ClientController {
     ClientController.logger.info(`addClient: chainId=${chainId}, clientId=${clientId}`)
     const client = await ClientController.fetchClient(rest, chainId, clientId)
 
-    ClientController.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
+    ClientController.logger.info(`insert: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`)
     insert(DB, ClientController.tableName, client)
 
     return client
@@ -89,7 +89,7 @@ export class ClientController {
       }
     }
 
-    ClientController.logger.info(`update: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
+    ClientController.logger.info(`update: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`)
     update<ClientTable>(
       DB,
       ClientController.tableName,
