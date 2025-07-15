@@ -134,7 +134,7 @@ Add a `raft` section to your config (example for single-node and multi-node):
 #### Single Node (for development/testing)
 ```json
 "raft": {
-  "id": "node1",
+  "nodeId": "node1",
   "host": "127.0.0.1",
   "port": 4001,
   "peers": []
@@ -145,7 +145,7 @@ Add a `raft` section to your config (example for single-node and multi-node):
 Each node must have a unique `id`, its own `host`/`port`, and list all other nodes in `peers`:
 ```json
 "raft": {
-  "id": "node1",
+  "nodeId": "node1",
   "host": "10.0.0.1",
   "port": 4001,
   "peers": [

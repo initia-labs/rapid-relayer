@@ -384,7 +384,7 @@ export class WalletWorker {
 
       if (msgs.length === 0) return
 
-      // Block tx execution if not leader/active (Raft-aware)
+      // Block tx execution if not leader/active (RAFT-aware)
       const ctrl = this.workerController
       if (typeof ctrl.isActiveNode === 'function' && !ctrl.isActiveNode()) {
         this.logger.info('Node is not leader/active, skipping transaction execution.')

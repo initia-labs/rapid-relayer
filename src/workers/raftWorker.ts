@@ -7,6 +7,7 @@ import { PacketSendTable, PacketWriteAckTable, PacketTimeoutTable, ChannelOpenCl
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { MsgUpdateClient, MsgRecvPacket, MsgAcknowledgement, MsgTimeout, MsgTimeoutOnClose, MsgChannelOpenTry, MsgChannelOpenAck, MsgChannelOpenConfirm, MsgChannelCloseConfirm } from '@initia/initia.js'
 import { PacketFee } from '../lib/config'
+import * as crypto from 'node:crypto';
 
 export class RaftWorkerController extends EventEmitter {
   private workerController: WorkerController
@@ -24,19 +25,19 @@ export class RaftWorkerController extends EventEmitter {
     // Initialize the underlying worker controller
     await this.workerController.init(this.config)
 
-    // Initialize Raft if enabled
+    // Initialize RAFT if enabled
     if (this.config.raft?.enabled) {
       await this.initRaft()
     } else {
-      // If Raft is not enabled, run as standalone
+      // If RAFT is not enabled, run as standalone
       this.isActive = true
-      info('Running in standalone mode (Raft disabled)')
+      info('Running in standalone mode (RAFT disabled)')
     }
   }
 
   private async initRaft(): Promise<void> {
     if (!this.config.raft) {
-      throw new Error('Raft configuration is required when Raft is enabled')
+      throw new Error('RAFT configuration is required when RAFT is enabled')
     }
 
     const raftConfig: RaftNodeConfig = {
@@ -50,7 +51,7 @@ export class RaftWorkerController extends EventEmitter {
 
     this.raftService = new RaftService(raftConfig)
 
-    // Set up Raft event handlers
+    // Set up RAFT event handlers
     this.raftService.on('leaderElected', (nodeId: string) => {
       if (nodeId === this.config.raft!.nodeId) {
         this.becomeLeader()
@@ -76,13 +77,13 @@ export class RaftWorkerController extends EventEmitter {
     })
 
     this.raftService.on('error', (err: unknown) => {
-      error(`Raft error: ${String(err)}`)
+      error(`RAFT error: ${String(err)}`)
       this.emit('raftError', err)
     })
 
-    // Start the Raft service
+    // Start the RAFT service
     await this.raftService.start()
-    info(`Raft node ${this.config.raft.nodeId} initialized`)
+    info(`RAFT node ${this.config.raft.nodeId} initialized`)
   }
 
   private becomeLeader(): void {
@@ -143,6 +144,11 @@ export class RaftWorkerController extends EventEmitter {
   private handleCommand(data: RaftMessage): void {
     info(`Received command: ${JSON.stringify(data)}`)
 
+    if (!data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
+      warn('Invalid command data structure')
+      return
+    }
+
     // Handle different command types
     const commandData = data.data as { command?: string };
     switch (commandData.command) {
@@ -183,7 +189,7 @@ export class RaftWorkerController extends EventEmitter {
   public getStatus(): Record<string, unknown> {
     const status = this.workerController.getStatus()
 
-    // Add Raft information to status
+    // Add RAFT information to status
     if (this.raftService) {
       return {
         ...status,
@@ -239,28 +245,60 @@ export class RaftWorkerController extends EventEmitter {
     return this.workerController.generateChannelCloseConfirmMsg(event, height, executorAddress)
   }
 
-  // Raft-specific methods
+  // RAFT-specific methods
   public async sendCommandToLeader(command: string, data: Record<string, unknown>): Promise<void> {
     if (!this.raftService) {
-      throw new Error('Raft service not initialized')
+      throw new Error('RAFT service not initialized')
     }
 
-    // Find the leader node
-    const clusterStatus = this.raftService.getClusterStatus()
-    const leaderPeer = clusterStatus.peers.find(peer => peer.id !== this.config.raft!.nodeId)
+    // If current node is the leader, handle command locally
+    if (this.isLeader()) {
+      this.handleCommand({
+        type: 'command',
+        data: { command, ...data },
+        timestamp: Date.now(),
+        from: this.config.raft!.nodeId,
+        term: 0,
+        messageId: crypto.randomUUID()
+      })
+      return
+    }
 
+    // Find the leader node using leaderId
+    const clusterStatus = this.raftService.getClusterStatus();
+    const leaderId = clusterStatus.leaderId;
+
+    if (!leaderId) {
+      throw new Error('Leader is unknown, cannot send command');
+    }
+    if (leaderId === this.config.raft!.nodeId) {
+      // Should not happen, but fallback to local
+      this.handleCommand({
+        type: 'command',
+        data: { command, ...data },
+        timestamp: Date.now(),
+        from: this.config.raft!.nodeId,
+        term: 0,
+        messageId: crypto.randomUUID()
+      })
+      return;
+    }
+
+    const leaderPeer = clusterStatus.peers.find(peer => peer.id === leaderId);
     if (leaderPeer) {
       await this.raftService.sendMessageToPeer(leaderPeer.id, 'command', {
         command,
         data,
         from: this.config.raft!.nodeId
-      })
+      });
+    } else {
+      throw new Error('Leader peer not found in peer list');
     }
   }
 
   public async requestSyncFromLeader(): Promise<void> {
     if (!this.raftService) {
-      throw new Error('Raft service not initialized')
+      throw new Error('RAFT service not initialized')
     }
 
     const clusterStatus = this.raftService.getClusterStatus()

@@ -1,4 +1,4 @@
-// implementation of the Raft consensus algorithm for leader election.
+// implementation of the RAFT consensus algorithm for leader election.
 // Other features of RAFT, such as log replication and membership changes, are not implemented.
 import { info, warn, error } from './logger'
 import { EventEmitter } from 'events'
@@ -44,6 +44,9 @@ export class RaftService extends EventEmitter {
   // State tracking
   private state: 'follower' | 'candidate' | 'leader' = 'follower'
 
+  // Add leaderId field
+  private leaderId: string | null = null;
+
   // Track retry counts for peers
   private peerRetryCounts = new Map<string, number>();
   private peerRetryTimeouts = new Map<string, NodeJS.Timeout>();
@@ -55,7 +58,7 @@ export class RaftService extends EventEmitter {
 
   public async start(): Promise<void> {
     if (this.isInitialized) {
-      throw new Error('Raft service already initialized')
+      throw new Error('RAFT service already initialized')
     }
 
     this.isInitialized = true
@@ -73,7 +76,7 @@ export class RaftService extends EventEmitter {
     // Start election timer
     this.startElectionTimer()
 
-    info(`Network Raft node ${this.config.id} started on ${this.config.host}:${this.config.port}`)
+    info(`Network RAFT node ${this.config.id} started on ${this.config.host}:${this.config.port}`)
   }
 
   private async startServer(): Promise<void> {
@@ -83,7 +86,7 @@ export class RaftService extends EventEmitter {
       })
 
       this.server.listen(this.config.port, this.config.host, () => {
-        info(`Raft server listening on ${this.config.host}:${this.config.port}`)
+        info(`RAFT server listening on ${this.config.host}:${this.config.port}`)
         resolve()
       })
 
@@ -373,6 +376,7 @@ export class RaftService extends EventEmitter {
       info(`[SPLIT-BRAIN] Node ${this.config.id} (was leader) received heartbeat from another leader ${message.from} in same term ${message.term}. Stepping down to follower.`)
       this.state = 'follower'
       this.isLeader = false
+      this.leaderId = message.from; // Track new leader
       if (this.heartbeatTimer) {
         clearInterval(this.heartbeatTimer)
       }
@@ -385,7 +389,8 @@ export class RaftService extends EventEmitter {
     this.startElectionTimer() // Reset election timer
 
     // Only send ACK if the sender is the leader (i.e., message has leaderId)
-    if (message.data && message.data.leaderId) {
+    if (message.data && typeof message.data.leaderId === 'string') {
+      this.leaderId = message.data.leaderId; // Track leader from heartbeat
       info(`[HEARTBEAT ACK] Follower ${this.config.id} sending heartbeat ACK to ${message.from}`)
       this.sendMessageToPeer(message.from, 'heartbeat_ack', {
         term: this.currentTerm,
@@ -401,9 +406,9 @@ export class RaftService extends EventEmitter {
       return
     }
 
-    info(`[HEARTBEAT ACK RECEIVED] Leader ${this.config.id} received heartbeat ACK from ${message.from} (term ${message.term})`)
-    // In a full Raft implementation, you might track which followers have acknowledged
+    // In a full RAFT implementation, we might track which followers have acknowledged
     // For now, we just log the ACK
+    info(`[HEARTBEAT ACK RECEIVED] Leader ${this.config.id} received heartbeat ACK from ${message.from} (term ${message.term})`)
   }
 
   private handleSyncRequest(message: RaftMessage): void {
@@ -518,7 +523,7 @@ export class RaftService extends EventEmitter {
     }
 
     this.isInitialized = false
-    info(`Raft node ${this.config.id} stopped`)
+    info(`RAFT node ${this.config.id} stopped`)
   }
 
   public isLeaderNode(): boolean {
@@ -537,6 +542,7 @@ export class RaftService extends EventEmitter {
     currentTerm: number
     state: string
     connections: number
+    leaderId?: string
   } {
     return {
       nodeId: this.config.id,
@@ -545,14 +551,20 @@ export class RaftService extends EventEmitter {
       peers: this.config.peers,
       currentTerm: this.currentTerm,
       state: this.state,
-      connections: this.connections.size
+      connections: this.connections.size,
+      leaderId: this.leaderId ?? undefined
     }
   }
 
   private becomeLeader(): void {
+    if (this.state === 'leader') {
+      return
+    }
+
     this.state = 'leader'
     this.isLeader = true
     this.votedFor = null
+    this.leaderId = this.config.id; // Track self as leader
     info(`[LEADER ELECTED] Node ${this.config.id} became LEADER for term ${this.currentTerm} (voteCount: ${this.voteCount})`)
     info(`[STATE TRANSITION] Node ${this.config.id} is now leader (term: ${this.currentTerm})`)
     this.emit('leaderElected', this.config.id)

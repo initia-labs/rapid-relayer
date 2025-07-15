@@ -61,7 +61,7 @@
               }
             }
           },
-          "minContains": 1
+          "minItems": 0
         },
         "electionTimeout": {
           "type": "number",
