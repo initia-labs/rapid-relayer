@@ -288,7 +288,7 @@ export class RaftService extends EventEmitter {
     // const majority = Math.floor(connectedNodes / 2) + 1
 
     // Calculate majority based on total cluster size for proper quorum
-    const totalNodes = this.config.peers.length + 1 // +1 for self
+    const totalNodes = this.config.peers.length
     const majority = Math.floor(totalNodes / 2) + 1
 
     info(`[ELECTION RESULT] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
@@ -389,10 +389,14 @@ export class RaftService extends EventEmitter {
       info(`[VOTE RECEIVED] Node ${this.config.id} received vote from ${message.from}, total votes: ${this.voteCount} (term ${this.currentTerm})`)
     
       // Calculate majority based on actual connected nodes + self
-      const connectedNodes = this.connections.size + 1 // +1 for self
-      const majority = Math.floor(connectedNodes / 2) + 1
+      // const connectedNodes = this.connections.size + 1 // +1 for self
+      // const majority = Math.floor(connectedNodes / 2) + 1
+
+      // Calculate majority based on total cluster size for proper quorum
+      const totalNodes = this.config.peers.length
+      const majority = Math.floor(totalNodes / 2) + 1
       
-      info(`[MAJORITY CHECK] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${connectedNodes} total connected nodes)`)
+      info(`[MAJORITY CHECK] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
     
       if (this.voteCount >= majority) {
         this.becomeLeader()
@@ -524,7 +528,13 @@ export class RaftService extends EventEmitter {
         })
         .catch((err: unknown) => {
           error(`Failed to process queued message: ${String(err)}`)
-          this.messageQueue.push(message)
+          const retryCount = (message.data.retryCount as number) || 0
+          if (retryCount < 3) {
+            message.data.retryCount = retryCount + 1
+            this.messageQueue.push(message)
+          } else {
+            error(`Message ${message.type} exceeded retry limit, discarding`)
+          }
         })
     })
   }
@@ -546,6 +556,12 @@ export class RaftService extends EventEmitter {
       socket.destroy()
     })
     this.connections.clear()
+
+    // Clean up message buffers and retry timeouts
+    this.messageBuffer.clear()
+    this.peerRetryTimeouts.forEach(timeout => clearTimeout(timeout))
+    this.peerRetryTimeouts.clear()
+    this.peerRetryCounts.clear()
 
     // Close server
     if (this.server) {
