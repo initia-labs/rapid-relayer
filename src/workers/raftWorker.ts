@@ -7,7 +7,7 @@ import { PacketSendTable, PacketWriteAckTable, PacketTimeoutTable, ChannelOpenCl
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { MsgUpdateClient, MsgRecvPacket, MsgAcknowledgement, MsgTimeout, MsgTimeoutOnClose, MsgChannelOpenTry, MsgChannelOpenAck, MsgChannelOpenConfirm, MsgChannelCloseConfirm } from '@initia/initia.js'
 import { PacketFee } from '../lib/config'
-import * as crypto from 'node:crypto';
+import * as crypto from 'node:crypto'
 
 export class RaftWorkerController extends EventEmitter {
   private workerController: WorkerController
@@ -46,7 +46,8 @@ export class RaftWorkerController extends EventEmitter {
       port: this.config.raft.port,
       peers: this.config.raft.peers,
       electionTimeout: this.config.raft.electionTimeout,
-      heartbeatInterval: this.config.raft.heartbeatInterval
+      heartbeatInterval: this.config.raft.heartbeatInterval,
+      psk: this.config.raft.psk
     }
 
     this.raftService = new RaftService(raftConfig)
@@ -150,7 +151,7 @@ export class RaftWorkerController extends EventEmitter {
     }
 
     // Handle different command types
-    const commandData = data.data as { command?: string };
+    const commandData = data.data as { command?: string }
     switch (commandData.command) {
       case 'sync_request':
         this.handleSyncRequest(data)
@@ -265,11 +266,11 @@ export class RaftWorkerController extends EventEmitter {
     }
 
     // Find the leader node using leaderId
-    const clusterStatus = this.raftService.getClusterStatus();
-    const leaderId = clusterStatus.leaderId;
+    const clusterStatus = this.raftService.getClusterStatus()
+    const leaderId = clusterStatus.leaderId
 
     if (!leaderId) {
-      throw new Error('Leader is unknown, cannot send command');
+      throw new Error('Leader is unknown, cannot send command')
     }
     if (leaderId === this.config.raft!.nodeId) {
       // Should not happen, but fallback to local
@@ -281,18 +282,18 @@ export class RaftWorkerController extends EventEmitter {
         term: 0,
         messageId: crypto.randomUUID()
       })
-      return;
+      return
     }
 
-    const leaderPeer = clusterStatus.peers.find(peer => peer.id === leaderId);
+    const leaderPeer = clusterStatus.peers.find(peer => peer.id === leaderId)
     if (leaderPeer) {
       await this.raftService.sendMessageToPeer(leaderPeer.id, 'command', {
         command,
         data,
         from: this.config.raft!.nodeId
-      });
+      })
     } else {
-      throw new Error('Leader peer not found in peer list');
+      throw new Error('Leader peer not found in peer list')
     }
   }
 

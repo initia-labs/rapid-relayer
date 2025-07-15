@@ -72,6 +72,10 @@
           "type": "number",
           "description": "Heartbeat interval in milliseconds",
           "default": 1000
+        },
+        "psk": {
+          "type": "string",
+          "description": "Pre-shared key (hex string) for RAFT node authentication"
         }
       }
     },

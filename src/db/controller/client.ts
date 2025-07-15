@@ -10,17 +10,17 @@ import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class ClientController {
   static tableName = 'client'
-  private static logger = createLoggerWithPrefix('[ClientController] ');
+  private static logger = createLoggerWithPrefix('[ClientController] ')
 
   public static async addClient(
     rest: RESTClient,
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    this.logger.info(`addClient: chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`addClient: chainId=${chainId}, clientId=${clientId}`)
     const client = await ClientController.fetchClient(rest, chainId, clientId)
 
-    this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
     insert(DB, ClientController.tableName, client)
 
     return client
@@ -31,14 +31,14 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    this.logger.info(`replaceClient: chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`replaceClient: chainId=${chainId}, clientId=${clientId}`)
     const client = await ClientController.fetchClient(rest, chainId, clientId)
 
-    this.logger.info(`delete: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`delete: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
     del(DB, ClientController.tableName, [
       { chain_id: chainId, client_id: clientId },
     ])
-    this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`insert: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
     insert(DB, ClientController.tableName, client)
 
     // to recheck packets
@@ -56,7 +56,7 @@ export class ClientController {
   ) {
     // create key
     const clientId = event.clientId
-    this.logger.info(`feedUpdateClientEvent: chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`feedUpdateClientEvent: chainId=${chainId}, clientId=${clientId}`)
 
     // decode header
     const msg = Any.decode(
@@ -89,7 +89,7 @@ export class ClientController {
       }
     }
 
-    this.logger.info(`update: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`update: table=${this.tableName}, chainId=${chainId}, clientId=${clientId}`)
     update<ClientTable>(
       DB,
       ClientController.tableName,
@@ -111,7 +111,7 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
-    this.logger.info(`getClient: chainId=${chainId}, clientId=${clientId}`);
+    this.logger.info(`getClient: chainId=${chainId}, clientId=${clientId}`)
     // get client
     const client = selectOne<ClientTable>(DB, ClientController.tableName, [
       {
@@ -127,7 +127,7 @@ export class ClientController {
     chainId: string,
     counterpartyChainIds: string[]
   ): ClientTable[] {
-    this.logger.info(`getClientsToUpdate: chainId=${chainId}, counterpartyChainIds=${counterpartyChainIds.join(',')}`);
+    this.logger.info(`getClientsToUpdate: chainId=${chainId}, counterpartyChainIds=${counterpartyChainIds.join(',')}`)
     const clients = select<ClientTable>(
       DB,
       ClientController.tableName,

@@ -31,7 +31,7 @@ export class ChainWorker {
   public latestTimestamp: number
   public syncWorkers: Record<number, SyncWorker>
   public logger: Logger
-  public stopped = false;
+  public stopped = false
 
   public constructor(
     public chainId: string,
@@ -43,7 +43,7 @@ export class ChainWorker {
     startHeights: number[]
   ) {
     this.logger = createLoggerWithPrefix(`<ChainWorker(${this.chainId})>`)
-    this.logger.info('ChainWorker started for chain: ' + this.chainId);
+    this.logger.info('ChainWorker started for chain: ' + this.chainId)
     const syncInfos = SyncInfoController.init(
       chainId,
       startHeights,
@@ -62,11 +62,11 @@ export class ChainWorker {
   }
 
   public stop() {
-    this.stopped = true;
+    this.stopped = true
     for (const worker of Object.values(this.syncWorkers)) {
-      worker.stop();
+      worker.stop()
     }
-    this.logger.info('ChainWorker stopped.');
+    this.logger.info('ChainWorker stopped.')
   }
 
   public terminateSyncWorker(startHeight: number) {
@@ -89,7 +89,7 @@ export class ChainWorker {
     const MAX_RETRY = 10
     let retried = 0
     for (;;) {
-      if (this.stopped) break;
+      if (this.stopped) break
       try {
         await this.updateLatestHeight()
         this.logger.debug(
@@ -124,7 +124,7 @@ export class ChainWorker {
 
 class SyncWorker {
   private logger: Logger
-  public stopped = false;
+  public stopped = false
   public constructor(
     public chain: ChainWorker,
     public startHeight: number,
@@ -134,13 +134,13 @@ class SyncWorker {
     this.logger = createLoggerWithPrefix(
       `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})>`
     )
-    this.logger.info('SyncWorker started for chain: ' + this.chain.chainId + ', startHeight: ' + this.startHeight);
+    this.logger.info('SyncWorker started for chain: ' + this.chain.chainId + ', startHeight: ' + this.startHeight)
     void this.feedEvents()
   }
 
   public stop() {
-    this.stopped = true;
-    this.logger.info('SyncWorker stopped.');
+    this.stopped = true
+    this.logger.info('SyncWorker stopped.')
   }
 
   private async feedEvents() {
@@ -148,7 +148,7 @@ class SyncWorker {
     const MAX_RETRY = 10
     let retried = 0
     for (;;) {
-      if (this.stopped || this.chain.stopped) break;
+      if (this.stopped || this.chain.stopped) break
       try {
         // height to fetch
         const endHeight =

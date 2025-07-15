@@ -5,6 +5,11 @@ import { EventEmitter } from 'events'
 import * as net from 'net'
 import * as crypto from 'crypto'
 
+// Pre-shared key for HMAC authentication
+function signMessageHMAC(message: string, key: string): string {
+  return crypto.createHmac('sha256', key).update(message).digest('hex')
+}
+
 export interface RaftNodeConfig {
   id: string
   host: string
@@ -12,16 +17,22 @@ export interface RaftNodeConfig {
   peers: { id: string; host: string; port: number }[]
   electionTimeout?: number
   heartbeatInterval?: number
+  psk?: string
 }
 
 export interface RaftMessage {
-  type: 'vote_request' | 'vote_response' | 'heartbeat' | 'heartbeat_ack' | 'status_update' | 'command' | 'sync_request' | 'sync_response'
+  type: 'vote_request' | 'vote_response' | 'heartbeat' | 'heartbeat_ack' | 'status_update' | 'command' | 'sync_request' | 'sync_response' | 'handshake'
   data: Record<string, unknown>
   timestamp: number
   from: string
   to?: string
   term: number
   messageId: string
+}
+
+// Extended interface for messages with HMAC authentication
+export interface AuthenticatedRaftMessage extends RaftMessage {
+  hmac: string
 }
 
 export class RaftService extends EventEmitter {
@@ -45,14 +56,17 @@ export class RaftService extends EventEmitter {
   private state: 'follower' | 'candidate' | 'leader' = 'follower'
 
   // Add leaderId field
-  private leaderId: string | null = null;
+  private leaderId: string | null = null
 
   // Track retry counts for peers
-  private peerRetryCounts = new Map<string, number>();
-  private peerRetryTimeouts = new Map<string, NodeJS.Timeout>();
+  private peerRetryCounts = new Map<string, number>()
+  private peerRetryTimeouts = new Map<string, NodeJS.Timeout>()
 
   // Buffer for partial TCP messages per peer
-  private messageBuffer = new Map<string, Uint8Array>();
+  private messageBuffer = new Map<string, Uint8Array>()
+
+  // Map sockets to peer IDs for incoming connections
+  private incomingSocketPeerIds = new Map<net.Socket, string>()
 
   constructor(raftConfig: RaftNodeConfig) {
     super()
@@ -116,10 +130,30 @@ export class RaftService extends EventEmitter {
       this.connections.set(peer.id, socket)
       this.peerRetryCounts.set(peer.id, 0) // Reset retry count on success
       if (this.peerRetryTimeouts.has(peer.id)) {
-        clearTimeout(this.peerRetryTimeouts.get(peer.id));
-        this.peerRetryTimeouts.delete(peer.id);
+        clearTimeout(this.peerRetryTimeouts.get(peer.id))
+        this.peerRetryTimeouts.delete(peer.id)
       }
       info(`[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`)
+      // Send handshake as the first message
+      const handshake: RaftMessage = {
+        type: 'handshake',
+        data: { id: this.config.id },
+        timestamp: Date.now(),
+        from: this.config.id,
+        term: this.currentTerm,
+        messageId: crypto.randomUUID()
+      }
+      const handshakeStr = JSON.stringify(handshake)
+      if (!this.config.psk) {
+        error('RAFT PSK (pre-shared key) is not set in config. Refusing to connect.')
+        socket.destroy()
+        return
+      }
+      const authenticatedHandshake: AuthenticatedRaftMessage = {
+        ...handshake,
+        hmac: signMessageHMAC(handshakeStr, this.config.psk)
+      }
+      this.sendMessage(socket, authenticatedHandshake)
     })
 
     socket.on('data', (data) => {
@@ -165,9 +199,54 @@ export class RaftService extends EventEmitter {
   }
 
   private handleIncomingConnection(socket: net.Socket): void {
-    const peerId = `${socket.remoteAddress}:${socket.remotePort}`;
+    let peerId: string | null = null
     socket.on('data', (data) => {
       try {
+        // If we don't know the peerId, expect the first message to be a handshake
+        if (!peerId) {
+          // Try to parse handshake message
+          const messages = this.parseMessages(socket, data, 'pending-handshake')
+          if (messages.length === 0 || messages[0].type !== 'handshake' || !messages[0].data || typeof messages[0].data.id !== 'string') {
+            warn('Expected handshake as first message from incoming connection')
+            return
+          }
+         // HMAC authentication
+         const handshake = messages[0] as AuthenticatedRaftMessage
+         const receivedHmac = handshake.hmac
+         const handshakeCopy: RaftMessage = { ...handshake }
+         delete (handshakeCopy as Partial<AuthenticatedRaftMessage>).hmac
+         const handshakeStr = JSON.stringify(handshakeCopy)
+         if (!this.config.psk) {
+           error('RAFT PSK (pre-shared key) is not set in config. Refusing connection.')
+           socket.destroy()
+           return
+         }
+         const valid = receivedHmac === signMessageHMAC(handshakeStr, this.config.psk)
+         if (!valid) {
+           warn('Invalid handshake HMAC, closing connection')
+           socket.destroy()
+           return
+         }
+          peerId = messages[0].data.id
+          this.incomingSocketPeerIds.set(socket, peerId)
+          info(`Handshake received from peer ${peerId}`)
+          // Send handshake ACK (length-prefixed JSON)
+          const ack = { type: 'handshake_ack', data: { status: 'ok' } }
+          const ackStr = JSON.stringify(ack)
+          const ackBuffer = new TextEncoder().encode(ackStr)
+          const ackLen = new Uint8Array(4)
+          new DataView(ackLen.buffer).setUint32(0, ackBuffer.length)
+          const fullAck = new Uint8Array(ackLen.length + ackBuffer.length)
+          fullAck.set(ackLen, 0)
+          fullAck.set(ackBuffer, ackLen.length)
+          socket.write(fullAck)
+          // Remove handshake message from buffer and process any remaining data
+          // Re-encode remaining messages if any as buffer
+          const remainingMessages = messages.slice(1)
+          remainingMessages.forEach(msg => this.handleMessage(msg))
+          return
+        }
+        // After handshake, use peerId for buffer management
         const messages = this.parseMessages(socket, data, peerId)
         messages.forEach(msg => this.handleMessage(msg))
       } catch (err) {
@@ -182,50 +261,50 @@ export class RaftService extends EventEmitter {
 
   // Length-prefixed message framing
   private parseMessages(socket: net.Socket, data: Buffer, peerId: string): RaftMessage[] {
-    let buffer = this.messageBuffer.get(peerId) || new Uint8Array();
+    let buffer = this.messageBuffer.get(peerId) || new Uint8Array()
     // Concatenate Uint8Arrays
-    const combined = new Uint8Array(buffer.length + data.length);
-    combined.set(buffer, 0);
-    combined.set(data, buffer.length);
-    buffer = combined;
+    const combined = new Uint8Array(buffer.length + data.length)
+    combined.set(buffer, 0)
+    combined.set(data, buffer.length)
+    buffer = combined
 
-    const messages: RaftMessage[] = [];
-    let offset = 0;
+    const messages: RaftMessage[] = []
+    let offset = 0
 
     while (offset + 4 <= buffer.length) {
       // Read 4-byte big-endian length
-      const view = new DataView(buffer.buffer, buffer.byteOffset + offset, 4);
-      const messageLength = view.getUint32(0);
-      if (offset + 4 + messageLength > buffer.length) break;
+      const view = new DataView(buffer.buffer, buffer.byteOffset + offset, 4)
+      const messageLength = view.getUint32(0)
+      if (offset + 4 + messageLength > buffer.length) break
 
-      const messageData = buffer.slice(offset + 4, offset + 4 + messageLength);
+      const messageData = buffer.slice(offset + 4, offset + 4 + messageLength)
       try {
-        const message = JSON.parse(new TextDecoder().decode(messageData)) as RaftMessage;
-        info(`[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`);
-        messages.push(message);
+        const message = JSON.parse(new TextDecoder().decode(messageData)) as RaftMessage
+        info(`[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`)
+        messages.push(message)
       } catch (err) {
-        error(`Failed to parse message: ${err}`);
+        error(`Failed to parse message: ${err}`)
       }
-      offset += 4 + messageLength;
+      offset += 4 + messageLength
     }
 
-    this.messageBuffer.set(peerId, buffer.slice(offset));
-    return messages;
+    this.messageBuffer.set(peerId, buffer.slice(offset))
+    return messages
   }
 
-  private sendMessage(socket: net.Socket, message: RaftMessage): void {
+  private sendMessage(socket: net.Socket, message: RaftMessage | AuthenticatedRaftMessage): void {
     try {
-      const messageStr = JSON.stringify(message);
-      const messageBuffer = new TextEncoder().encode(messageStr);
-      const lengthBuffer = new Uint8Array(4);
-      new DataView(lengthBuffer.buffer).setUint32(0, messageBuffer.length);
-      const fullBuffer = new Uint8Array(lengthBuffer.length + messageBuffer.length);
-      fullBuffer.set(lengthBuffer, 0);
-      fullBuffer.set(messageBuffer, lengthBuffer.length);
-      info(`[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`);
-      socket.write(fullBuffer);
+      const messageStr = JSON.stringify(message)
+      const messageBuffer = new TextEncoder().encode(messageStr)
+      const lengthBuffer = new Uint8Array(4)
+      new DataView(lengthBuffer.buffer).setUint32(0, messageBuffer.length)
+      const fullBuffer = new Uint8Array(lengthBuffer.length + messageBuffer.length)
+      fullBuffer.set(lengthBuffer, 0)
+      fullBuffer.set(messageBuffer, lengthBuffer.length)
+      info(`[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`)
+      socket.write(fullBuffer)
     } catch (err) {
-      error(`Failed to send message: ${err}`);
+      error(`Failed to send message: ${err}`)
     }
   }
 
@@ -279,8 +358,8 @@ export class RaftService extends EventEmitter {
 
   private checkElectionResult(): void {
     if (this.state !== 'candidate') {
-      info(`[ELECTION RESULT] Node ${this.config.id} is no longer candidate (state: ${this.state}), skipping leader transition.`);
-      return;
+      info(`[ELECTION RESULT] Node ${this.config.id} is no longer candidate (state: ${this.state}), skipping leader transition.`)
+      return
     }
 
     // Calculate majority based on actual connected nodes + self
@@ -387,7 +466,7 @@ export class RaftService extends EventEmitter {
     if (message.data.voteGranted) {
       this.voteCount++
       info(`[VOTE RECEIVED] Node ${this.config.id} received vote from ${message.from}, total votes: ${this.voteCount} (term ${this.currentTerm})`)
-    
+
       // Calculate majority based on actual connected nodes + self
       // const connectedNodes = this.connections.size + 1 // +1 for self
       // const majority = Math.floor(connectedNodes / 2) + 1
@@ -395,9 +474,9 @@ export class RaftService extends EventEmitter {
       // Calculate majority based on total cluster size for proper quorum
       const totalNodes = this.config.peers.length
       const majority = Math.floor(totalNodes / 2) + 1
-      
+
       info(`[MAJORITY CHECK] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
-    
+
       if (this.voteCount >= majority) {
         this.becomeLeader()
       }
@@ -410,12 +489,12 @@ export class RaftService extends EventEmitter {
       info(`[SPLIT-BRAIN] Node ${this.config.id} (was leader) received heartbeat from another leader ${message.from} in same term ${message.term}. Stepping down to follower.`)
       this.state = 'follower'
       this.isLeader = false
-      this.leaderId = message.from; // Track new leader
+      this.leaderId = message.from // Track new leader
       if (this.heartbeatTimer) {
         clearInterval(this.heartbeatTimer)
       }
       info(`[STATE TRANSITION] Node ${this.config.id} is now follower (term: ${this.currentTerm})`)
-      this.startElectionTimer(); // Ensure election timer is started after stepping down
+      this.startElectionTimer() // Ensure election timer is started after stepping down
     }
 
     this.lastHeartbeat = Date.now()
@@ -424,7 +503,7 @@ export class RaftService extends EventEmitter {
 
     // Only send ACK if the sender is the leader (i.e., message has leaderId)
     if (message.data && typeof message.data.leaderId === 'string') {
-      this.leaderId = message.data.leaderId; // Track leader from heartbeat
+      this.leaderId = message.data.leaderId // Track leader from heartbeat
       info(`[HEARTBEAT ACK] Follower ${this.config.id} sending heartbeat ACK to ${message.from}`)
       this.sendMessageToPeer(message.from, 'heartbeat_ack', {
         term: this.currentTerm,
@@ -458,17 +537,17 @@ export class RaftService extends EventEmitter {
     from: this.config.id,
     term: this.currentTerm,
     messageId: crypto.randomUUID()
-  };
+  }
 
   try {
     this.connections.forEach((socket) => {
-      this.sendMessage(socket, message);
-    });
+      this.sendMessage(socket, message)
+    })
 
-    info(`Broadcasted message: ${type}`);
-    return Promise.resolve();
+    info(`Broadcasted message: ${type}`)
+    return Promise.resolve()
   } catch (err) {
-    return Promise.reject(err instanceof Error ? err : new Error(String(err)));
+    return Promise.reject(err instanceof Error ? err : new Error(String(err)))
   }
 }
 
@@ -563,6 +642,9 @@ export class RaftService extends EventEmitter {
     this.peerRetryTimeouts.clear()
     this.peerRetryCounts.clear()
 
+    // On stop, clear incomingSocketPeerIds
+    this.incomingSocketPeerIds.clear()
+
     // Close server
     if (this.server) {
       this.server.close()
@@ -610,7 +692,7 @@ export class RaftService extends EventEmitter {
     this.state = 'leader'
     this.isLeader = true
     this.votedFor = null
-    this.leaderId = this.config.id; // Track self as leader
+    this.leaderId = this.config.id // Track self as leader
     info(`[LEADER ELECTED] Node ${this.config.id} became LEADER for term ${this.currentTerm} (voteCount: ${this.voteCount})`)
     info(`[STATE TRANSITION] Node ${this.config.id} is now leader (term: ${this.currentTerm})`)
     this.emit('leaderElected', this.config.id)

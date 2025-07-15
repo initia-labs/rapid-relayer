@@ -29,7 +29,7 @@ export class WalletWorker {
   private logger: Logger
   private errorTracker = new Map<string, number>()
   public lastExecutionTimestamp: Date
-  public stopped = false;
+  public stopped = false
 
   constructor(
     public chain: ChainWorker,
@@ -47,17 +47,17 @@ export class WalletWorker {
   }
 
   public stop() {
-    this.stopped = true;
-    this.logger.info('WalletWorker stopped.');
+    this.stopped = true
+    this.logger.info('WalletWorker stopped.')
   }
 
   public async run() {
-    this.logger.info('WalletWorker started for chain: ' + this.chain.chainId + ', address: ' + this.address());
+    this.logger.info('WalletWorker started for chain: ' + this.chain.chainId + ', address: ' + this.address())
     let retried = 0
     const MAX_RETRY = 10
 
     for (;;) {
-      if (this.stopped) break;
+      if (this.stopped) break
       try {
         await this.handlePackets()
         retried = 0

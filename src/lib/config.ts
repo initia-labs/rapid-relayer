@@ -23,6 +23,7 @@ export interface RaftConfig {
   peers: { id: string; host: string; port: number }[]
   electionTimeout?: number
   heartbeatInterval?: number
+  psk?: string
 }
 
 interface ChainConfig {

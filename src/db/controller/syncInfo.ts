@@ -5,13 +5,13 @@ import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class SyncInfoController {
   private static tableName = 'sync_info'
-  private static logger = createLoggerWithPrefix('[SyncInfoController] ');
+  private static logger = createLoggerWithPrefix('[SyncInfoController] ')
   public static init(
     chainId: string,
     startHeights: number[],
     latestHeight: number
   ): SyncInfoTable[] {
-    SyncInfoController.logger.info(`init: chainId=${chainId}, startHeights=${JSON.stringify(startHeights)}, latestHeight=${latestHeight}`);
+    SyncInfoController.logger.info(`init: chainId=${chainId}, startHeights=${JSON.stringify(startHeights)}, latestHeight=${latestHeight}`)
     startHeights = startHeights.sort()
     const syncInfos = this.getSyncInfos(chainId)
 
@@ -28,7 +28,7 @@ export class SyncInfoController {
         synced_height: startHeight - 1,
       }
 
-      SyncInfoController.logger.info(`insert: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
+      SyncInfoController.logger.info(`insert: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`)
       insert(DB, SyncInfoController.tableName, syncInfo)
       syncInfos.unshift(syncInfo)
     }
@@ -44,7 +44,7 @@ export class SyncInfoController {
           synced_height: startHeight - 1,
         }
 
-        SyncInfoController.logger.info(`insert: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
+        SyncInfoController.logger.info(`insert: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`)
         syncInfos.unshift(newSyncInfo)
         insert(DB, SyncInfoController.tableName, newSyncInfo)
       }
@@ -74,10 +74,10 @@ export class SyncInfoController {
     endHeight: number,
     syncedHeight: number
   ): boolean {
-    SyncInfoController.logger.info(`update: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}, endHeight=${endHeight}, syncedHeight=${syncedHeight}`);
+    SyncInfoController.logger.info(`update: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}, endHeight=${endHeight}, syncedHeight=${syncedHeight}`)
     // check finish
     if (syncedHeight === endHeight) {
-      SyncInfoController.logger.info(`delete: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`);
+      SyncInfoController.logger.info(`delete: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}`)
       del(DB, SyncInfoController.tableName, [
         { chain_id: chainId, start_height: startHeight },
       ])
@@ -99,7 +99,7 @@ export class SyncInfoController {
       return true
     }
 
-    SyncInfoController.logger.info(`update: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}, syncedHeight=${syncedHeight}`);
+    SyncInfoController.logger.info(`update: table=${SyncInfoController.tableName}, chainId=${chainId}, startHeight=${startHeight}, syncedHeight=${syncedHeight}`)
     update<SyncInfoTable>(
       DB,
       SyncInfoController.tableName,

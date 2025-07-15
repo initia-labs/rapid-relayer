@@ -52,10 +52,10 @@ export class WorkerController {
 
   public stopAllWorkers() {
     for (const chain of Object.values(this.chains)) {
-      chain.stop();
+      chain.stop()
     }
     for (const wallet of Object.values(this.wallets)) {
-      wallet.stop();
+      wallet.stop()
     }
   }
 
