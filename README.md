@@ -50,7 +50,10 @@ npm install
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
       "restUri": "https://rest.chain-1.com",
-      "rpcUri": "https://rpc.chain-1.com",
+      "rpcUri": [
+        "https://rpc.chain-1.com",
+        "https://rpc.chain-1.com/fallback"
+      ],
       "wallets": [
         {
           "key": {
@@ -99,8 +102,10 @@ npm install
 
 ### 2. Run relayer
 
+Set the timeout for each RPC request in milliseconds. The default value is 5000 (5 seconds).
+
 ```bash
-npm start
+RPC_REQUEST_TIMEOUT=10000 npm start
 ```
 
 ## Install via docker

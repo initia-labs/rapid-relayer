@@ -9,7 +9,10 @@
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
       "restUri": "https://rest.chain-1.com",
-      "rpcUri": "https://rpc.chain-1.com",
+      "rpcUri": [
+        "https://rpc.chain-1.com",
+        "https://rpc.chain-1.com/fallback"
+      ],
       "wallets": [
         {
           "key": {

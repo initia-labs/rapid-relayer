@@ -19,7 +19,7 @@ interface ChainConfig {
   chainId: string
   gasPrice: string
   restUri: string
-  rpcUri: string
+  rpcUri: string | string[]
   wallets: WalletConfig[]
   feeFilter?: PacketFee
 }
@@ -59,4 +59,8 @@ export interface KeyConfig {
      */
     coinType?: number
   }
+}
+
+export function getRequestTimeout(): number {
+  return Number(env.RPC_REQUEST_TIMEOUT) || 5000
 }
