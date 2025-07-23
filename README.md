@@ -44,16 +44,14 @@ npm install
   "port": 7010,
   "metricPort": 70001,
   "logLevel": "info",
+  "rpcRequestTimeout": 5000,
   "chains": [
     {
       "bech32Prefix": "init",
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
       "restUri": "https://rest.chain-1.com",
-      "rpcUri": [
-        "https://rpc.chain-1.com",
-        "https://rpc.chain-1.com/fallback"
-      ],
+      "rpcUri": ["https://rpc.chain-1.com", "https://rpc.chain-1.com/fallback"],
       "wallets": [
         {
           "key": {
@@ -102,10 +100,8 @@ npm install
 
 ### 2. Run relayer
 
-Set the timeout for each RPC request in milliseconds. The default value is 5000 (5 seconds).
-
 ```bash
-RPC_REQUEST_TIMEOUT=10000 npm start
+npm start
 ```
 
 ## Install via docker

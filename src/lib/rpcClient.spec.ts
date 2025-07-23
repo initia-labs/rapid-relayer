@@ -1,6 +1,13 @@
 import { RPCClient } from './rpcClient'
 import { logger } from './logger'
 import nock from 'nock'
+import { config } from './config'
+
+jest.mock('./config', () => ({
+  config: {
+    rpcRequestTimeout: 5000,
+  },
+}))
 
 // We are already using MSW. However, we use Nock because it is easier to use and optimized for mocking HTTP requests in Node.js.
 // We may consider migrating to MSW in the future if necessary.
@@ -101,8 +108,9 @@ describe('RPCClient', () => {
       .get('/abci_info')
       .reply(200, { result: { response: { data: 'ok' } } })
 
-    // Set request timeout environment variable to 1 second
-    process.env.RPC_REQUEST_TIMEOUT = '1000'
+    // Set request timeout to 1 second for this test
+    const originalTimeout = config.rpcRequestTimeout
+    config.rpcRequestTimeout = 1000
 
     // Spy on logger.error to capture timeout error logging
     const loggerSpy = jest.spyOn(logger, 'error')
@@ -113,10 +121,12 @@ describe('RPCClient', () => {
     expect(result.data).toBe('ok')
     // Expect error log mentioning the first endpoint failure due to timeout
     expect(loggerSpy).toHaveBeenCalledWith(
-      expect.stringContaining(`[RPC] Failed to request to ${mockRpcUris[0]} - abci_info`)
+      expect.stringContaining(
+        `[RPC] Failed to request to ${mockRpcUris[0]} - abci_info`
+      )
     )
 
-    // Clean up environment variable
-    delete process.env.RPC_REQUEST_TIMEOUT
+    // Restore original timeout
+    config.rpcRequestTimeout = originalTimeout
   }, 10000)
 })

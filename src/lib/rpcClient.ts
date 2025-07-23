@@ -11,7 +11,7 @@ import {
   parseJsonRpcResponse,
 } from '@cosmjs/json-rpc'
 import { metrics } from './metric'
-import { getRequestTimeout } from './config'
+import { config } from './config'
 import { logger } from './logger'
 
 // Use custom rpc client instead of comet38Client to set keepAlive option
@@ -22,7 +22,7 @@ export class RPCClient {
 
   constructor(rpcUri: string | string[]) {
     this.rpcUris = Array.isArray(rpcUri) ? rpcUri : [rpcUri]
-    this.requestTimeout = getRequestTimeout()
+    this.requestTimeout = config.rpcRequestTimeout || 5000
   }
 
   private getRequester(uri: string): APIRequester {
@@ -36,34 +36,35 @@ export class RPCClient {
   private async request<T>(
     method: 'get' | 'post',
     path: string,
-    params?: APIParams,
-    retryCount = 0
+    params?: APIParams
   ): Promise<{ response: T; uri: string }> {
-    const uri = this.rpcUris[this.currentIndex]
-    const requester = this.getRequester(uri)
-    logger.debug(`[RPC] Making request to ${uri} - ${path}`)
+    let retryCount = 0
+    while (true) {
+      const uri = this.rpcUris[this.currentIndex]
+      const requester = this.getRequester(uri)
+      logger.debug(`[RPC] Making request to ${uri} - ${path}`)
 
-    try {
-      let response: T
-      if (method === 'post') {
-        response = await requester.post(path, params)
-      } else {
-        response = await requester.get(path, params)
+      try {
+        let response: T
+        if (method === 'post') {
+          response = await requester.post(path, params)
+        } else {
+          response = await requester.get(path, params)
+        }
+        return { response, uri }
+      } catch (error) {
+        logger.error(`[RPC] Failed to request to ${uri} - ${path}: ${error}`)
+        this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
+
+        if (this.currentIndex === 0) {
+          const backoff = Math.pow(2, retryCount) * 1000 // exponential backoff
+          logger.info(`[RPC] All endpoints failed. Retrying in ${backoff}ms`)
+          await new Promise((resolve) => setTimeout(resolve, backoff))
+          retryCount++
+        } else {
+          logger.info(`[RPC] Fallback to ${this.rpcUris[this.currentIndex]}`)
+        }
       }
-      return { response, uri }
-    } catch (error) {
-      logger.error(`[RPC] Failed to request to ${uri} - ${path}: ${error}`)
-      this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
-
-      if (this.currentIndex === 0) {
-        const backoff = Math.pow(2, retryCount) * 1000 // exponential backoff
-        logger.info(`[RPC] All endpoints failed. Retrying in ${backoff}ms`)
-        await new Promise((resolve) => setTimeout(resolve, backoff))
-        return this.request(method, path, params, retryCount + 1)
-      }
-
-      logger.info(`[RPC] Fallback to ${this.rpcUris[this.currentIndex]}`)
-      return this.request(method, path, params, retryCount)
     }
   }
 
@@ -96,7 +97,9 @@ export class RPCClient {
   }) {
     const query = Params.encodeAbciQuery({ method: Method.AbciQuery, params })
     // Convert JsonRpcRequest to APIParams by passing it as a JSON string
-    const { response, uri } = await this.request('post', '', { jsonRequest: JSON.stringify(query) })
+    const { response, uri } = await this.request('post', '', {
+      jsonRequest: JSON.stringify(query),
+    })
     metrics.rpcClient.labels({ uri, path: Method.AbciQuery }).inc()
     const parsedResponse = parseJsonRpcResponse(response)
     if (isJsonRpcErrorResponse(parsedResponse)) {

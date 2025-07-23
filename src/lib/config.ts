@@ -11,6 +11,7 @@ export interface Config {
   metricPort: number
   logLevel: string
   dbPath?: string
+  rpcRequestTimeout?: number
   chains: ChainConfig[]
 }
 
@@ -59,8 +60,4 @@ export interface KeyConfig {
      */
     coinType?: number
   }
-}
-
-export function getRequestTimeout(): number {
-  return Number(env.RPC_REQUEST_TIMEOUT) || 5000
 }

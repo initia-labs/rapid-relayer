@@ -20,6 +20,10 @@
     "logLevel": {
       "type": "string"
     },
+    "rpcRequestTimeout": {
+      "type": "number",
+      "description": "rpc request timeout in milliseconds"
+    },
     "chains": {
       "type": "array",
       "items": {
