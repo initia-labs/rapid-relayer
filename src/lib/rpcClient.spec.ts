@@ -1,3 +1,4 @@
+import { fromHex } from '@cosmjs/encoding'
 import { RPCClient } from './rpcClient'
 import { logger } from './logger'
 import nock from 'nock'
@@ -18,19 +19,6 @@ const mockRpcUris = [
   'http://moro-rpc-2.com',
   'http://rene-rpc-3.com',
 ]
-
-// Helper function to convert hex string to Uint8Array
-function hexToUint8Array(hexString: string): Uint8Array {
-  // Remove '0x' prefix if present
-  const cleanHex = hexString.startsWith('0x') ? hexString.slice(2) : hexString
-  const bytes = new Uint8Array(cleanHex.length / 2)
-
-  for (let i = 0; i < cleanHex.length; i += 2) {
-    bytes[i / 2] = parseInt(cleanHex.substring(i, i + 2), 16)
-  }
-
-  return bytes
-}
 
 describe('RPCClient', () => {
   // Clean up all nock interceptors after each test to avoid interference
@@ -179,25 +167,27 @@ describe('RPCClient', () => {
 
     // Mock the POST request for ABCI query
     nock(mockRpcUris[0])
-      .post('/', (body) => {
-        // Type assertion to avoid ESLint warnings
-        const typedBody = body as {
-          method: string
-          params: {
-            path: string
-            prove: boolean
-            data: string
-            height: string
+      .post(
+        '/',
+        (
+          body: nock.Body & {
+            method: string
+            params: {
+              path: string
+              prove: boolean
+              data: string
+              height: string
+            }
           }
+        ) => {
+          // Verify that the request body contains the expected method and params
+          return (
+            body.method === 'abci_query' &&
+            body.params.path === '/store/ibc/key' &&
+            body.params.prove === true
+          )
         }
-
-        // Verify that the request body contains the expected method and params
-        return (
-          typedBody.method === 'abci_query' &&
-          typedBody.params.path === '/store/ibc/key' &&
-          typedBody.params.prove === true
-        )
-      })
+      )
       .reply(200, mockResponse)
 
     // Create RPCClient instance
@@ -206,7 +196,7 @@ describe('RPCClient', () => {
     // Convert the hex data to Uint8Array
     const hexData =
       '6e65787453657175656e6365526563762f706f7274732f7472616e736665722f6368616e6e656c732f6368616e6e656c2d3731'
-    const data = hexToUint8Array(hexData)
+    const data = fromHex(hexData)
 
     // Make the ABCI query
     const result = await client.abciQuery({
