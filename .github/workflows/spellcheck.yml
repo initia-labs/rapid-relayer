@@ -18,9 +18,9 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "chore: fix typos"
-          title: "chore: fix typos"
-          branch: "chore/fix-typos"
+          commit-message: 'chore: fix typos'
+          title: 'chore: fix typos'
+          branch: 'chore/fix-typos'
           delete-branch: true
           body: |
             This PR fixes typos in the codebase.

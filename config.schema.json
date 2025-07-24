@@ -20,6 +20,10 @@
     "logLevel": {
       "type": "string"
     },
+    "rpcRequestTimeout": {
+      "type": "number",
+      "description": "rpc request timeout in milliseconds"
+    },
     "chains": {
       "type": "array",
       "items": {
@@ -58,8 +62,18 @@
           "description": "cosmos rest api uri"
         },
         "rpcUri": {
-          "type": "string",
-          "description": "cosmos rest rpc uri"
+          "description": "cosmos rest rpc uri",
+          "oneOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          ]
         },
         "wallets": {
           "type": "array",

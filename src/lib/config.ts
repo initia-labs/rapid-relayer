@@ -11,6 +11,7 @@ export interface Config {
   metricPort: number
   logLevel: string
   dbPath?: string
+  rpcRequestTimeout?: number
   chains: ChainConfig[]
 }
 
@@ -19,7 +20,7 @@ interface ChainConfig {
   chainId: string
   gasPrice: string
   restUri: string
-  rpcUri: string
+  rpcUri: string | string[]
   wallets: WalletConfig[]
   feeFilter?: PacketFee
 }
