@@ -55,32 +55,18 @@ export class RPCClient {
         let response: T
         const axiosInstance = this.getAxiosInstance(uri)
 
-        if (jsonRequest) {
-          // Handle direct JSON-RPC request
-          logger.debug(`[RPC] Making direct JSON-RPC request to ${uri}`)
-
-          // Parse JSON string to object if needed
-          const requestBody =
-            typeof jsonRequest === 'string'
-              ? (JSON.parse(jsonRequest) as Record<string, unknown>)
-              : jsonRequest
-
-          const axiosResponse = await axiosInstance.post('', requestBody)
+        if (method === 'post') {
+          const axiosResponse = await axiosInstance.post(
+            path,
+            jsonRequest ?? params
+          )
           response = axiosResponse.data as T
         } else {
-          // Handle regular request
-          logger.debug(`[RPC] Making request to ${uri} - ${path}`)
-
-          if (method === 'post') {
-            const axiosResponse = await axiosInstance.post(path, params)
-            response = axiosResponse.data as T
-          } else {
-            const axiosResponse = await axiosInstance.get(path, { params })
-            response = axiosResponse.data as T
-          }
+          const axiosResponse = await axiosInstance.get(path, { params })
+          response = axiosResponse.data as T
         }
 
-        // console.log(JSON.stringify(response, null, 2))
+        console.log(JSON.stringify(response, null, 2))
 
         return { response, uri }
       } catch (error) {
