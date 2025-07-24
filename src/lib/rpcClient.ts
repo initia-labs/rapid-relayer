@@ -1,10 +1,10 @@
-import { APIParams, APIRequester } from '@initia/initia.js'
 import { Responses } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/responses'
 import { Params } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/requests'
 import { Method } from '@cosmjs/tendermint-rpc/build/comet38/requests'
 
 import * as http from 'http'
 import * as https from 'https'
+import axios, { AxiosInstance } from 'axios'
 import {
   JsonRpcSuccessResponse,
   isJsonRpcErrorResponse,
@@ -14,46 +14,81 @@ import { metrics } from './metric'
 import { config } from './config'
 import { logger } from './logger'
 
+// Type definition for API parameters
+type APIParams = Record<string, unknown>
+
 // Use custom rpc client instead of comet38Client to set keepAlive option
 export class RPCClient {
   private rpcUris: string[]
-  private requestTimeout: number
   private currentIndex = 0
+  private requestTimeout: number
 
   constructor(rpcUri: string | string[]) {
     this.rpcUris = Array.isArray(rpcUri) ? rpcUri : [rpcUri]
     this.requestTimeout = config.rpcRequestTimeout || 5000
   }
 
-  private getRequester(uri: string): APIRequester {
-    return new APIRequester(uri, {
+  private getAxiosInstance(uri: string): AxiosInstance {
+    return axios.create({
+      baseURL: uri,
+      timeout: this.requestTimeout,
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
-      timeout: this.requestTimeout,
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
   }
 
   private async request<T>(
     method: 'get' | 'post',
     path: string,
-    params?: APIParams
+    params?: APIParams,
+    jsonRequest?: string | Record<string, unknown>
   ): Promise<{ response: T; uri: string }> {
     let retryCount = 0
+
     while (true) {
       const uri = this.rpcUris[this.currentIndex]
-      const requester = this.getRequester(uri)
-      logger.debug(`[RPC] Making request to ${uri} - ${path}`)
 
       try {
         let response: T
-        if (method === 'post') {
-          response = await requester.post(path, params)
+        const axiosInstance = this.getAxiosInstance(uri)
+
+        if (jsonRequest) {
+          // Handle direct JSON-RPC request
+          logger.debug(`[RPC] Making direct JSON-RPC request to ${uri}`)
+
+          // Parse JSON string to object if needed
+          const requestBody =
+            typeof jsonRequest === 'string'
+              ? (JSON.parse(jsonRequest) as Record<string, unknown>)
+              : jsonRequest
+
+          const axiosResponse = await axiosInstance.post('', requestBody)
+          response = axiosResponse.data as T
         } else {
-          response = await requester.get(path, params)
+          // Handle regular request
+          logger.debug(`[RPC] Making request to ${uri} - ${path}`)
+
+          if (method === 'post') {
+            const axiosResponse = await axiosInstance.post(path, params)
+            response = axiosResponse.data as T
+          } else {
+            const axiosResponse = await axiosInstance.get(path, { params })
+            response = axiosResponse.data as T
+          }
         }
+
+        // console.log(JSON.stringify(response, null, 2))
+
         return { response, uri }
       } catch (error) {
-        logger.error(`[RPC] Failed to request to ${uri} - ${path}: ${error}`)
+        const errorContext = jsonRequest
+          ? `[RPC] Failed direct JSON-RPC request to ${uri}`
+          : `[RPC] Failed to request to ${uri} - ${path}`
+
+        logger.error(`${errorContext}: ${String(error)}`)
         this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
 
         if (this.currentIndex === 0) {
@@ -95,12 +130,22 @@ export class RPCClient {
     prove: boolean
     height: number
   }) {
+    // Check if the data is a Uint8Array and convert it to a hex string if needed
     const query = Params.encodeAbciQuery({ method: Method.AbciQuery, params })
-    // Convert JsonRpcRequest to APIParams by passing it as a JSON string
-    const { response, uri } = await this.request('post', '', {
-      jsonRequest: JSON.stringify(query),
-    })
+
+    // Convert JsonRpcRequest to string
+    const queryString = JSON.stringify(query)
+
+    // Use the modified request method with jsonRequest parameter
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'post',
+      '',
+      undefined,
+      queryString
+    )
     metrics.rpcClient.labels({ uri, path: Method.AbciQuery }).inc()
+
+    // Parse and handle the response
     const parsedResponse = parseJsonRpcResponse(response)
     if (isJsonRpcErrorResponse(parsedResponse)) {
       throw new Error(JSON.stringify(parsedResponse.error))
