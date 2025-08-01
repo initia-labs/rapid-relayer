@@ -66,8 +66,6 @@ export class RPCClient {
           response = axiosResponse.data as T
         }
 
-        console.log(JSON.stringify(response, null, 2))
-
         return { response, uri }
       } catch (error) {
         const errorContext = jsonRequest
