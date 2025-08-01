@@ -1,6 +1,7 @@
 import { DB } from '..'
 import { SyncInfoTable } from 'src/types'
 import { del, insert, select, update } from '../utils'
+import { debug } from '../../lib/logger'
 
 export class SyncInfoController {
   private static tableName = 'sync_info'
@@ -91,7 +92,7 @@ export class SyncInfoController {
         ]
       )
 
-      console.log(select(DB, SyncInfoController.tableName))
+      debug(JSON.stringify(select(DB, SyncInfoController.tableName)))
 
       return true
     }
