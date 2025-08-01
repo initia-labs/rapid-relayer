@@ -1,10 +1,10 @@
-FROM node:20-alpine
+FROM node:24-alpine
 
 WORKDIR /usr/rapid-relayer
 COPY package.json .
 
 # Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++ libusb-dev pkgconfig
+RUN apk add --no-cache python3 make g++ libusb-dev pkgconfig linux-headers
 
 RUN npm install
 #    && npm install typescript -g
