@@ -4,7 +4,7 @@ WORKDIR /usr/rapid-relayer
 COPY package.json .
 
 # Install build dependencies for native modules
-RUN apk add --no-cache python3 make g++ libusb-dev
+RUN apk add --no-cache python3 make g++ libusb-dev linux-headers
 
 RUN npm install
 #    && npm install typescript -g
