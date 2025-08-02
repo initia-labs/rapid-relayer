@@ -92,7 +92,7 @@ export class SyncInfoController {
         ]
       )
 
-      debug(JSON.stringify(select(DB, SyncInfoController.tableName)))
+      debug(JSON.stringify(select(DB, SyncInfoController.tableName), null, 2))
 
       return true
     }
