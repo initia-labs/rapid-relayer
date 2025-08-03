@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/node'
 import '@sentry/tracing'
 import { nodeProfilingIntegration } from '@sentry/profiling-node'
 import { setupErrorHandlers } from './error-handlers'
+import { warn, info } from './logger'
 
 export async function captureException(
   error: Error,
@@ -24,7 +25,7 @@ export async function captureException(
 export function initSentry(serverName: string) {
   const dsn = process.env.SENTRY_DSN
   if (!dsn) {
-    console.warn('Sentry DSN not configured, skipping initialization')
+    info('Sentry DSN not configured, skipping initialization')
     return
   }
 
@@ -58,7 +59,7 @@ export function initSentry(serverName: string) {
   // Set up error handlers after Sentry is initialized
   setupErrorHandlers()
 
-  console.log(`Sentry initialized:
+  info(`Sentry initialized:
     server_name: ${serverName}
     dsn: ${dsn}
     env: ${env || 'development'}
