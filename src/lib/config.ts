@@ -1,5 +1,6 @@
 import * as fs from 'fs'
 import { env } from 'node:process'
+import { logger } from "./logger";
 import { PacketFilter } from 'src/db/controller/packet'
 
 // load configuration from the json file
@@ -18,7 +19,7 @@ const loadJsonConfig = (): Partial<Config> => {
 
     return JSON.parse(configContent) as Config
   } catch (error) {
-    console.error('Error loading JSON config:', error)
+    logger.error('Error loading JSON config:', error)
     return {}
   }
 }
@@ -52,7 +53,7 @@ const loadEnvConfig = (): Partial<Config> => {
         envConfig.chains = parsedChains
       }
     } catch (error) {
-      console.error('Error parsing CHAINS environment variable:', error)
+      logger.error('Error parsing CHAINS environment variable:', error)
     }
   } else {
     // try to load individual chain configurations
@@ -96,7 +97,7 @@ const loadEnvConfig = (): Partial<Config> => {
           const feeFilterStr = env[`CHAIN_${index}_FEE_FILTER`] || '{}'
           chain.feeFilter = safeJsonParse<PacketFee>(feeFilterStr, {})
         } catch (error) {
-          console.error(
+          logger.error(
             `Error parsing CHAIN_${index}_FEE_FILTER environment variable:`,
             error
           )
@@ -112,7 +113,7 @@ const loadEnvConfig = (): Partial<Config> => {
             chain.wallets = parsedWallets
           }
         } catch (error) {
-          console.error(
+          logger.error(
             `Error parsing CHAIN_${index}_WALLETS environment variable:`,
             error
           )
@@ -162,7 +163,7 @@ const loadEnvConfig = (): Partial<Config> => {
                 env[`CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS`] || '{}'
               key.options = safeJsonParse<KeyConfig['options']>(optionsStr, {})
             } catch (error) {
-              console.error(
+              logger.error(
                 `Error parsing CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS environment variable:`,
                 error
               )
@@ -218,7 +219,7 @@ const loadEnvConfig = (): Partial<Config> => {
                 '{}'
               wallet.packetFilter = safeJsonParse<PacketFilter>(filterStr, {})
             } catch (error) {
-              console.error(
+              logger.error(
                 `Error parsing CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER environment variable:`,
                 error
               )
