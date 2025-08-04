@@ -102,6 +102,7 @@ export class WalletWorker {
 
     const sendPackets = PacketController.getSendPackets(
       this.chain.chainId,
+      this.chain.latestHeight,
       Number((this.chain.latestTimestamp / 1000).toFixed()),
       counterpartyChainIdsWithFeeFilter,
       this.packetFilter,
@@ -474,6 +475,7 @@ export class WalletWorker {
     let count = 0
     count += PacketController.getSendPacketsCount(
       this.chain.chainId,
+      this.chain.latestHeight,
       Number((this.chain.latestTimestamp / 1000).toFixed()),
       counterpartyChainIdsWithFeeFilter,
       this.packetFilter

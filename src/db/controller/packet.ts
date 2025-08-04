@@ -59,6 +59,7 @@ export class PacketController {
 
   public static getSendPackets(
     chainId: string,
+    height: number,
     timestamp: number,
     chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {},
@@ -70,12 +71,11 @@ export class PacketController {
       for (const {
         chainId: counterpartyChainId,
         feeFilter,
-        latestHeight,
       } of chainIdsWithFeeFilters) {
         const wheres: WhereOptions<PacketSendTable>[] =
           PacketController.getSendPacketsWhere(
             chainId,
-            Number(latestHeight),
+            height,
             timestamp,
             counterpartyChainId,
             feeFilter,
@@ -111,6 +111,7 @@ export class PacketController {
 
   public static getSendPacketsCount(
     chainId: string,
+    height: number,
     timestamp: number,
     chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {}
@@ -120,12 +121,11 @@ export class PacketController {
     for (const {
       chainId: counterpartyChainId,
       feeFilter,
-      latestHeight,
     } of chainIdsWithFeeFilters) {
       const wheres: WhereOptions<PacketSendTable>[] =
         PacketController.getSendPacketsWhere(
           chainId,
-          latestHeight,
+          height,
           timestamp,
           counterpartyChainId,
           feeFilter,
@@ -200,8 +200,8 @@ export class PacketController {
     } of chainIdsWithFeeFilters) {
       const wheres = PacketController.getTimeoutPacketsWhere(
         chainId,
-        timestamp,
         latestHeight,
+        timestamp,
         counterpartyChainId,
         feeFilter,
         filter
