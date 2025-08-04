@@ -49,7 +49,7 @@ export class RaftWorkerController extends EventEmitter {
   }
 
   private async initRaft(): Promise<void> {
-    if (!this.config.raft) {
+    if (!this.config.raft || !this.config.raft.enabled) {
       throw new Error('RAFT configuration is required when RAFT is enabled')
     }
 
