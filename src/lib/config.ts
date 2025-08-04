@@ -8,17 +8,11 @@ const loadJsonConfig = (): Partial<Config> => {
     // check if a config file exists before trying to read it
     const configPath = env.CONFIGFILE || './config.json'
     if (!fs.existsSync(configPath)) {
-      console.log(
-        `Config file ${configPath} not found. Using environment variables or defaults.`
-      )
       return {}
     }
 
     const configContent = fs.readFileSync(configPath).toString()
     if (!configContent || configContent.trim() === '{}') {
-      console.log(
-        `Config file ${configPath} is empty. Using environment variables or defaults.`
-      )
       return {}
     }
 
