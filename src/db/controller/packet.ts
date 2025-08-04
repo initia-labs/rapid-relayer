@@ -236,8 +236,8 @@ export class PacketController {
     } of chainIdsWithFeeFilters) {
       const wheres = PacketController.getTimeoutPacketsWhere(
         chainId,
-        timestamp,
         latestHeight,
+        timestamp,
         counterpartyChainId,
         feeFilter,
         filter
