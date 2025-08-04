@@ -193,13 +193,13 @@ export CHAIN_1_WALLET_0_MAX_HANDLE_PACKET=10
 
 **Note:** Environment variables have higher priority than the JSON configuration. If both are provided, the environment variables will override the corresponding values in the JSON configuration.
 
-````
+```
 
 ### 2. Run relayer
 
 ```bash
 npm start
-````
+```
 
 ## Install via docker
 
