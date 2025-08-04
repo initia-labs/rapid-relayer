@@ -27,7 +27,6 @@ import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
 
 export class ChainWorker {
-  public latestHeight: number
   public latestTimestamp: number
   public syncWorkers: Record<number, SyncWorker>
   public logger: Logger
@@ -39,7 +38,7 @@ export class ChainWorker {
     public rpc: RPCClient,
     public bech32Prefix: string,
     public feeFilter: PacketFee,
-    latestHeight: number,
+    public latestHeight: number,
     startHeights: number[]
   ) {
     this.logger = createLoggerWithPrefix(`<ChainWorker(${this.chainId})>`)
@@ -50,6 +49,7 @@ export class ChainWorker {
       latestHeight
     )
     this.syncWorkers = {}
+    this.latestTimestamp = Date.now()
     for (const syncInfo of syncInfos) {
       this.syncWorkers[syncInfo.start_height] = new SyncWorker(
         this,

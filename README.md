@@ -44,13 +44,14 @@ npm install
   "port": 7010,
   "metricPort": 70001,
   "logLevel": "info",
+  "rpcRequestTimeout": 5000,
   "chains": [
     {
       "bech32Prefix": "init",
       "chainId": "chain-1",
       "gasPrice": "0.15gas",
       "restUri": "https://rest.chain-1.com",
-      "rpcUri": "https://rpc.chain-1.com",
+      "rpcUri": ["https://rpc.chain-1.com", "https://rpc.chain-1.com/fallback"],
       "wallets": [
         {
           "key": {
@@ -82,7 +83,7 @@ npm install
       "chainId": "chain-2",
       "gasPrice": "0umin",
       "restUri": "https://rest.chain-2.com",
-      "rpcUri": "https://rpc.chain-2.com",
+      "rpcUri": ["https://rpc.chain-2.com", "https://rpc.chain-2.com/fallback"],
       "wallets": [
         {
           "key": {

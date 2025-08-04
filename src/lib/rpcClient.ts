@@ -1,47 +1,106 @@
-import { APIRequester } from '@initia/initia.js'
 import { Responses } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/responses'
 import { Params } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/requests'
 import { Method } from '@cosmjs/tendermint-rpc/build/comet38/requests'
 
 import * as http from 'http'
 import * as https from 'https'
+import axios, { AxiosInstance } from 'axios'
 import {
   JsonRpcSuccessResponse,
+  JsonRpcRequest,
   isJsonRpcErrorResponse,
   parseJsonRpcResponse,
 } from '@cosmjs/json-rpc'
 import { metrics } from './metric'
+import { config } from './config'
+import { logger } from './logger'
+
+// Type definition for API parameters
+type APIParams = Record<string, unknown>
 
 // Use custom rpc client instead of comet38Client to set keepAlive option
 export class RPCClient {
-  public requester: APIRequester
-  public baseUri: string
-  constructor(rpcUri: string) {
-    this.requester = new APIRequester(rpcUri, {
+  private rpcUris: string[]
+  private currentIndex = 0
+  private requestTimeout: number
+
+  constructor(rpcUri: string | string[]) {
+    this.rpcUris = Array.isArray(rpcUri) ? rpcUri : [rpcUri]
+    this.requestTimeout = config.rpcRequestTimeout || 5000
+  }
+
+  private getAxiosInstance(uri: string): AxiosInstance {
+    return axios.create({
+      baseURL: uri,
+      timeout: this.requestTimeout,
       httpAgent: new http.Agent({ keepAlive: true }),
       httpsAgent: new https.Agent({ keepAlive: true }),
-      timeout: 60000,
+      headers: {
+        'Content-Type': 'application/json',
+      },
     })
-    this.baseUri = rpcUri
+  }
+
+  private async request<T>(
+    method: 'get' | 'post',
+    path: string,
+    query?: APIParams | string | JsonRpcRequest
+  ): Promise<{ response: T; uri: string }> {
+    let retryCount = 0
+
+    while (true) {
+      const uri = this.rpcUris[this.currentIndex]
+
+      try {
+        let response: T
+        const axiosInstance = this.getAxiosInstance(uri)
+
+        if (method === 'post') {
+          const axiosResponse = await axiosInstance.post(path, query)
+          response = axiosResponse.data as T
+        } else {
+          const axiosResponse = await axiosInstance.get(path, { params: query })
+          response = axiosResponse.data as T
+        }
+
+        return { response, uri }
+      } catch (error) {
+        const errorContext = `[RPC] Failed to request to ${uri} - ${path}`
+
+        logger.error(`${errorContext}: ${String(error)}`)
+        this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
+
+        if (this.currentIndex === 0) {
+          const backoff = Math.pow(2, retryCount) * 1000 // exponential backoff
+          logger.info(`[RPC] All endpoints failed. Retrying in ${backoff}ms`)
+          await new Promise((resolve) => setTimeout(resolve, backoff))
+          retryCount++
+        } else {
+          logger.info(`[RPC] Fallback to ${this.rpcUris[this.currentIndex]}`)
+        }
+      }
+    }
   }
 
   public async abciInfo() {
-    const rawResponse: JsonRpcSuccessResponse =
-      await this.requester.get('abci_info')
-    metrics.rpcClient.labels({ uri: this.baseUri, path: 'abci_info' }).inc()
-    return Responses.decodeAbciInfo(rawResponse)
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'get',
+      'abci_info'
+    )
+    metrics.rpcClient.labels({ uri, path: 'abci_info' }).inc()
+    return Responses.decodeAbciInfo(response)
   }
 
   public async blockResults(height: number) {
-    const rawResponse: JsonRpcSuccessResponse = await this.requester.get(
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'get',
       'block_results',
       {
         height,
       }
     )
-    metrics.rpcClient.labels({ uri: this.baseUri, path: 'block_results' }).inc()
-
-    return decodeBlockResults(rawResponse)
+    metrics.rpcClient.labels({ uri, path: 'block_results' }).inc()
+    return decodeBlockResults(response)
   }
 
   public async abciQuery(params: {
@@ -50,16 +109,23 @@ export class RPCClient {
     prove: boolean
     height: number
   }) {
+    // Check if the data is a Uint8Array and convert it to a hex string if needed
     const query = Params.encodeAbciQuery({ method: Method.AbciQuery, params })
-    const response = parseJsonRpcResponse(await this.requester.post('', query))
-    metrics.rpcClient
-      .labels({ uri: this.baseUri, path: Method.AbciQuery })
-      .inc()
-    if (isJsonRpcErrorResponse(response)) {
-      throw new Error(JSON.stringify(response.error))
+
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'post',
+      '',
+      query
+    )
+    metrics.rpcClient.labels({ uri, path: Method.AbciQuery }).inc()
+
+    // Parse and handle the response
+    const parsedResponse = parseJsonRpcResponse(response)
+    if (isJsonRpcErrorResponse(parsedResponse)) {
+      throw new Error(JSON.stringify(parsedResponse.error))
     }
 
-    return Responses.decodeAbciQuery(response)
+    return Responses.decodeAbciQuery(parsedResponse)
   }
 
   public async validators(params: {
@@ -68,7 +134,8 @@ export class RPCClient {
     per_page?: number
   }) {
     const { height, page, per_page } = params
-    const rawResponse: JsonRpcSuccessResponse = await this.requester.get(
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'get',
       'validators',
       {
         height,
@@ -76,9 +143,8 @@ export class RPCClient {
         per_page,
       }
     )
-    metrics.rpcClient.labels({ uri: this.baseUri, path: 'validators' }).inc()
-
-    return Responses.decodeValidators(rawResponse)
+    metrics.rpcClient.labels({ uri, path: 'validators' }).inc()
+    return Responses.decodeValidators(response)
   }
 
   public async validatorsAll(height: number) {
@@ -112,24 +178,27 @@ export class RPCClient {
   }
 
   public async commit(height?: number) {
-    const rawResponse: JsonRpcSuccessResponse = await this.requester.get(
+    const { response, uri } = await this.request<JsonRpcSuccessResponse>(
+      'get',
       'commit',
       {
         height,
       }
     )
-    metrics.rpcClient.labels({ uri: this.baseUri, path: 'commit' }).inc()
-
-    return Responses.decodeCommit(rawResponse)
+    metrics.rpcClient.labels({ uri, path: 'commit' }).inc()
+    return Responses.decodeCommit(response)
   }
 
   public async header(height: number): Promise<Header> {
-    const rawResponse: { result: Header } = await this.requester.get('header', {
-      height,
-    })
-    metrics.rpcClient.labels({ uri: this.baseUri, path: 'header' }).inc()
-
-    return rawResponse.result
+    const { response, uri } = await this.request<{ result: Header }>(
+      'get',
+      'header',
+      {
+        height,
+      }
+    )
+    metrics.rpcClient.labels({ uri, path: 'header' }).inc()
+    return response.result
   }
 }
 
