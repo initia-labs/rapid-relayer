@@ -67,7 +67,7 @@ Create a `config.json` file with the following structure:
             "privateKey": "123..."
           },
           "maxHandlePacket": 10,
-          "startHeight": 0
+          "startHeight": 0 // if empty start from the latest height
         },
         {
           "key": {
