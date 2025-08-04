@@ -52,7 +52,12 @@ export class WalletWorker {
   }
 
   public async run() {
-    this.logger.info('WalletWorker started for chain: ' + this.chain.chainId + ', address: ' + this.address())
+    this.logger.info(
+      'WalletWorker started for chain: ' +
+        this.chain.chainId +
+        ', address: ' +
+        this.address()
+    )
     let retried = 0
     const MAX_RETRY = 10
 
@@ -384,12 +389,8 @@ export class WalletWorker {
 
       if (msgs.length === 0) return
 
-      // Block tx execution if not leader/active (RAFT-aware)
+      // Block tx execution if not leader (RAFT-aware)
       const ctrl = this.workerController
-      if (typeof ctrl.isActiveNode === 'function' && !ctrl.isActiveNode()) {
-        this.logger.info('Node is not leader/active, skipping transaction execution.')
-        return
-      }
       if (typeof ctrl.isLeader === 'function' && !ctrl.isLeader()) {
         this.logger.info('Node is not leader, skipping transaction execution.')
         return

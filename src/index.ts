@@ -25,18 +25,22 @@ async function main() {
     res.json({
       isLeader: workerController.isLeader(),
       isActive: workerController.isActiveNode(),
-      clusterStatus: workerController.getStatus().raft
+      clusterStatus: workerController.getStatus().raft,
     })
   })
 
   app.post('/raft/command', (req, res) => {
     void (async () => {
       try {
-        const { command, data } = req.body as { command: string; data: Record<string, unknown> }
+        const { command, data } = req.body as {
+          command: string
+          data: Record<string, unknown>
+        }
         await workerController.sendCommandToLeader(command, data)
         res.json({ success: true, message: 'Command sent to leader' })
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         res.status(500).json({ success: false, error: errorMessage })
       }
     })()
@@ -48,7 +52,8 @@ async function main() {
         await workerController.requestSyncFromLeader()
         res.json({ success: true, message: 'Sync request sent to leader' })
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage =
+          error instanceof Error ? error.message : String(error)
         res.status(500).json({ success: false, error: errorMessage })
       }
     })()

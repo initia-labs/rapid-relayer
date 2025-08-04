@@ -1,5 +1,5 @@
-import {ChainWorker, queryLatestHeight} from './chain'
-import {WalletWorker} from './wallet'
+import { ChainWorker, queryLatestHeight } from './chain'
+import { WalletWorker } from './wallet'
 import {
   generateMsgAck,
   generateMsgChannelOpenAck,
@@ -10,9 +10,14 @@ import {
   generateMsgTimeoutOnClose,
   generateMsgUpdateClient,
 } from 'src/msgs'
-import {Height} from 'cosmjs-types/ibc/core/client/v1/client'
-import {ClientController} from 'src/db/controller/client'
-import {ChannelOpenCloseTable, PacketSendTable, PacketTimeoutTable, PacketWriteAckTable,} from 'src/types'
+import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
+import { ClientController } from 'src/db/controller/client'
+import {
+  ChannelOpenCloseTable,
+  PacketSendTable,
+  PacketTimeoutTable,
+  PacketWriteAckTable,
+} from 'src/types'
 import {
   APIRequester,
   Coins,
@@ -27,17 +32,17 @@ import {
   RawKey,
   Wallet,
 } from '@initia/initia.js'
-import {Config, KeyConfig, PacketFee} from 'src/lib/config'
-import {env} from 'node:process'
-import {RPCClient} from 'src/lib/rpcClient'
+import { Config, KeyConfig, PacketFee } from 'src/lib/config'
+import { env } from 'node:process'
+import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
 import * as https from 'https'
-import {PacketFilter} from 'src/db/controller/packet'
-import {RESTClient} from 'src/lib/restClient'
+import { PacketFilter } from 'src/db/controller/packet'
+import { RESTClient } from 'src/lib/restClient'
 
-import {State} from '@initia/initia.proto/ibc/core/channel/v1/channel'
-import {generateMsgChannelCloseConfirm} from 'src/msgs/channelCloseConfirm'
-import {bech32} from 'bech32'
+import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import { generateMsgChannelCloseConfirm } from 'src/msgs/channelCloseConfirm'
+import { bech32 } from 'bech32'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker

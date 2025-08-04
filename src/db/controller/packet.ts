@@ -32,7 +32,9 @@ export class PacketController {
     chainId: string,
     events: PacketEvent[]
   ): Promise<() => void> {
-    PacketController.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`)
+    PacketController.logger.info(
+      `feedEvents: chainId=${chainId}, events.length=${events.length}`
+    )
     const feedFns: (() => void)[] = []
     for (const event of events) {
       switch (event.type) {

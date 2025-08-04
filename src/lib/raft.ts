@@ -21,7 +21,16 @@ export interface RaftNodeConfig {
 }
 
 export interface RaftMessage {
-  type: 'vote_request' | 'vote_response' | 'heartbeat' | 'heartbeat_ack' | 'status_update' | 'command' | 'sync_request' | 'sync_response' | 'handshake'
+  type:
+    | 'vote_request'
+    | 'vote_response'
+    | 'heartbeat'
+    | 'heartbeat_ack'
+    | 'status_update'
+    | 'command'
+    | 'sync_request'
+    | 'sync_response'
+    | 'handshake'
   data: Record<string, unknown>
   timestamp: number
   from: string
@@ -93,7 +102,9 @@ export class RaftService extends EventEmitter {
     // Start election timer
     this.startElectionTimer()
 
-    info(`Network RAFT node ${this.config.id} started on ${this.config.host}:${this.config.port}`)
+    info(
+      `Network RAFT node ${this.config.id} started on ${this.config.host}:${this.config.port}`
+    )
   }
 
   private async startServer(): Promise<void> {
@@ -122,18 +133,26 @@ export class RaftService extends EventEmitter {
     }
   }
 
-  private connectToPeer(peer: { id: string; host: string; port: number }): void {
+  private connectToPeer(peer: {
+    id: string
+    host: string
+    port: number
+  }): void {
     const socket = new net.Socket()
 
     socket.connect(peer.port, peer.host, () => {
-      info(`[CONNECTION] Node ${this.config.id} connected to peer ${peer.id} at ${peer.host}:${peer.port}`)
+      info(
+        `[CONNECTION] Node ${this.config.id} connected to peer ${peer.id} at ${peer.host}:${peer.port}`
+      )
       this.connections.set(peer.id, socket)
       this.peerRetryCounts.set(peer.id, 0) // Reset retry count on success
       if (this.peerRetryTimeouts.has(peer.id)) {
         clearTimeout(this.peerRetryTimeouts.get(peer.id))
         this.peerRetryTimeouts.delete(peer.id)
       }
-      info(`[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`)
+      info(
+        `[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`
+      )
       // Send handshake as the first message
       const handshake: RaftMessage = {
         type: 'handshake',
@@ -141,17 +160,19 @@ export class RaftService extends EventEmitter {
         timestamp: Date.now(),
         from: this.config.id,
         term: this.currentTerm,
-        messageId: crypto.randomUUID()
+        messageId: crypto.randomUUID(),
       }
       const handshakeStr = JSON.stringify(handshake)
       if (!this.config.psk) {
-        error('RAFT PSK (pre-shared key) is not set in config. Refusing to connect.')
+        error(
+          'RAFT PSK (pre-shared key) is not set in config. Refusing to connect.'
+        )
         socket.destroy()
         return
       }
       const authenticatedHandshake: AuthenticatedRaftMessage = {
         ...handshake,
-        hmac: signMessageHMAC(handshakeStr, this.config.psk)
+        hmac: signMessageHMAC(handshakeStr, this.config.psk),
       }
       this.sendMessage(socket, authenticatedHandshake)
     })
@@ -159,7 +180,7 @@ export class RaftService extends EventEmitter {
     socket.on('data', (data) => {
       try {
         const messages = this.parseMessages(socket, data, peer.id)
-        messages.forEach(msg => this.handleMessage(msg))
+        messages.forEach((msg) => this.handleMessage(msg))
       } catch (err) {
         error(`Error parsing message from ${peer.id}: ${err}`)
       }
@@ -169,16 +190,23 @@ export class RaftService extends EventEmitter {
       const retryCount = (this.peerRetryCounts.get(peer.id) || 0) + 1
       this.peerRetryCounts.set(peer.id, retryCount)
       if (retryCount > 5) {
-        warn(`[RECONNECT] Node ${this.config.id} has failed to connect to peer ${peer.id} more than 5 times. Will pause reconnection attempts for 5 minutes.`)
-        const timeout = setTimeout(() => {
-          this.peerRetryCounts.set(peer.id, 0)
-          this.connectToPeer(peer)
-        }, 5 * 60 * 1000) // 5 minutes
+        warn(
+          `[RECONNECT] Node ${this.config.id} has failed to connect to peer ${peer.id} more than 5 times. Will pause reconnection attempts for 5 minutes.`
+        )
+        const timeout = setTimeout(
+          () => {
+            this.peerRetryCounts.set(peer.id, 0)
+            this.connectToPeer(peer)
+          },
+          5 * 60 * 1000
+        ) // 5 minutes
         this.peerRetryTimeouts.set(peer.id, timeout)
         return
       }
       const backoff = Math.min(60000, 5000 * Math.pow(2, retryCount - 1)) // up to 1 minute
-      info(`[RECONNECT] Node ${this.config.id} will retry connection to peer ${peer.id} in ${backoff / 1000}s (attempt ${retryCount})`)
+      info(
+        `[RECONNECT] Node ${this.config.id} will retry connection to peer ${peer.id} in ${backoff / 1000}s (attempt ${retryCount})`
+      )
       const timeout = setTimeout(() => this.connectToPeer(peer), backoff)
       this.peerRetryTimeouts.set(peer.id, timeout)
     }
@@ -186,14 +214,20 @@ export class RaftService extends EventEmitter {
     socket.on('error', (err) => {
       warn(`Connection error to ${peer.id}: ${err}`)
       this.connections.delete(peer.id)
-      info(`[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`)
+      info(
+        `[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`
+      )
       scheduleReconnect()
     })
 
     socket.on('close', () => {
-      info(`[CONNECTION CLOSED] Node ${this.config.id} lost connection to ${peer.id}`)
+      info(
+        `[CONNECTION CLOSED] Node ${this.config.id} lost connection to ${peer.id}`
+      )
       this.connections.delete(peer.id)
-      info(`[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`)
+      info(
+        `[CONNECTION STATUS] Node ${this.config.id} now has connections to: ${Array.from(this.connections.keys()).join(', ')}`
+      )
       scheduleReconnect()
     })
   }
@@ -206,27 +240,35 @@ export class RaftService extends EventEmitter {
         if (!peerId) {
           // Try to parse handshake message
           const messages = this.parseMessages(socket, data, 'pending-handshake')
-          if (messages.length === 0 || messages[0].type !== 'handshake' || !messages[0].data || typeof messages[0].data.id !== 'string') {
+          if (
+            messages.length === 0 ||
+            messages[0].type !== 'handshake' ||
+            !messages[0].data ||
+            typeof messages[0].data.id !== 'string'
+          ) {
             warn('Expected handshake as first message from incoming connection')
             return
           }
-         // HMAC authentication
-         const handshake = messages[0] as AuthenticatedRaftMessage
-         const receivedHmac = handshake.hmac
-         const handshakeCopy: RaftMessage = { ...handshake }
-         delete (handshakeCopy as Partial<AuthenticatedRaftMessage>).hmac
-         const handshakeStr = JSON.stringify(handshakeCopy)
-         if (!this.config.psk) {
-           error('RAFT PSK (pre-shared key) is not set in config. Refusing connection.')
-           socket.destroy()
-           return
-         }
-         const valid = receivedHmac === signMessageHMAC(handshakeStr, this.config.psk)
-         if (!valid) {
-           warn('Invalid handshake HMAC, closing connection')
-           socket.destroy()
-           return
-         }
+          // HMAC authentication
+          const handshake = messages[0] as AuthenticatedRaftMessage
+          const receivedHmac = handshake.hmac
+          const handshakeCopy: RaftMessage = { ...handshake }
+          delete (handshakeCopy as Partial<AuthenticatedRaftMessage>).hmac
+          const handshakeStr = JSON.stringify(handshakeCopy)
+          if (!this.config.psk) {
+            error(
+              'RAFT PSK (pre-shared key) is not set in config. Refusing connection.'
+            )
+            socket.destroy()
+            return
+          }
+          const valid =
+            receivedHmac === signMessageHMAC(handshakeStr, this.config.psk)
+          if (!valid) {
+            warn('Invalid handshake HMAC, closing connection')
+            socket.destroy()
+            return
+          }
           peerId = messages[0].data.id
           this.incomingSocketPeerIds.set(socket, peerId)
           info(`Handshake received from peer ${peerId}`)
@@ -243,12 +285,12 @@ export class RaftService extends EventEmitter {
           // Remove handshake message from buffer and process any remaining data
           // Re-encode remaining messages if any as buffer
           const remainingMessages = messages.slice(1)
-          remainingMessages.forEach(msg => this.handleMessage(msg))
+          remainingMessages.forEach((msg) => this.handleMessage(msg))
           return
         }
         // After handshake, use peerId for buffer management
         const messages = this.parseMessages(socket, data, peerId)
-        messages.forEach(msg => this.handleMessage(msg))
+        messages.forEach((msg) => this.handleMessage(msg))
       } catch (err) {
         error(`Error parsing incoming message: ${err}`)
       }
@@ -260,7 +302,11 @@ export class RaftService extends EventEmitter {
   }
 
   // Length-prefixed message framing
-  private parseMessages(socket: net.Socket, data: Buffer, peerId: string): RaftMessage[] {
+  private parseMessages(
+    socket: net.Socket,
+    data: Buffer,
+    peerId: string
+  ): RaftMessage[] {
     let buffer = this.messageBuffer.get(peerId) || new Uint8Array()
     // Concatenate Uint8Arrays
     const combined = new Uint8Array(buffer.length + data.length)
@@ -279,8 +325,12 @@ export class RaftService extends EventEmitter {
 
       const messageData = buffer.slice(offset + 4, offset + 4 + messageLength)
       try {
-        const message = JSON.parse(new TextDecoder().decode(messageData)) as RaftMessage
-        info(`[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`)
+        const message = JSON.parse(
+          new TextDecoder().decode(messageData)
+        ) as RaftMessage
+        info(
+          `[PARSE MESSAGE] Node ${this.config.id} parsed message: ${JSON.stringify(message)}`
+        )
         messages.push(message)
       } catch (err) {
         error(`Failed to parse message: ${err}`)
@@ -292,16 +342,23 @@ export class RaftService extends EventEmitter {
     return messages
   }
 
-  private sendMessage(socket: net.Socket, message: RaftMessage | AuthenticatedRaftMessage): void {
+  private sendMessage(
+    socket: net.Socket,
+    message: RaftMessage | AuthenticatedRaftMessage
+  ): void {
     try {
       const messageStr = JSON.stringify(message)
       const messageBuffer = new TextEncoder().encode(messageStr)
       const lengthBuffer = new Uint8Array(4)
       new DataView(lengthBuffer.buffer).setUint32(0, messageBuffer.length)
-      const fullBuffer = new Uint8Array(lengthBuffer.length + messageBuffer.length)
+      const fullBuffer = new Uint8Array(
+        lengthBuffer.length + messageBuffer.length
+      )
       fullBuffer.set(lengthBuffer, 0)
       fullBuffer.set(messageBuffer, lengthBuffer.length)
-      info(`[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`)
+      info(
+        `[SEND MESSAGE] Node ${this.config.id} sending ${message.type} to ${socket.remoteAddress}:${socket.remotePort}`
+      )
       socket.write(fullBuffer)
     } catch (err) {
       error(`Failed to send message: ${err}`)
@@ -321,7 +378,9 @@ export class RaftService extends EventEmitter {
       if (Date.now() - this.lastHeartbeat >= timeout) {
         this.startElection()
       } else {
-        info(`[ELECTION TIMER] Node ${this.config.id} received recent heartbeat, skipping election and resetting timer`)
+        info(
+          `[ELECTION TIMER] Node ${this.config.id} received recent heartbeat, skipping election and resetting timer`
+        )
         this.startElectionTimer()
       }
     }, randomTimeout)
@@ -337,7 +396,9 @@ export class RaftService extends EventEmitter {
     this.votedFor = this.config.id
     this.voteCount = 1 // Vote for self
 
-    info(`[ELECTION START] Node ${this.config.id} starting election for term ${this.currentTerm} (connected peers: ${Array.from(this.connections.keys()).join(', ')})`)
+    info(
+      `[ELECTION START] Node ${this.config.id} starting election for term ${this.currentTerm} (connected peers: ${Array.from(this.connections.keys()).join(', ')})`
+    )
 
     // Clear pending votes
     this.pendingVotes.clear()
@@ -347,8 +408,8 @@ export class RaftService extends EventEmitter {
       term: this.currentTerm,
       candidateId: this.config.id,
       lastLogIndex: 0,
-      lastLogTerm: 0
-    }).catch(err => error(`Failed to broadcast vote request: ${String(err)}`))
+      lastLogTerm: 0,
+    }).catch((err) => error(`Failed to broadcast vote request: ${String(err)}`))
 
     // Set timeout for election
     setTimeout(() => {
@@ -358,7 +419,9 @@ export class RaftService extends EventEmitter {
 
   private checkElectionResult(): void {
     if (this.state !== 'candidate') {
-      info(`[ELECTION RESULT] Node ${this.config.id} is no longer candidate (state: ${this.state}), skipping leader transition.`)
+      info(
+        `[ELECTION RESULT] Node ${this.config.id} is no longer candidate (state: ${this.state}), skipping leader transition.`
+      )
       return
     }
 
@@ -370,13 +433,17 @@ export class RaftService extends EventEmitter {
     const totalNodes = this.config.peers.length
     const majority = Math.floor(totalNodes / 2) + 1
 
-    info(`[ELECTION RESULT] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
+    info(
+      `[ELECTION RESULT] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`
+    )
 
     if (this.voteCount >= majority) {
       this.becomeLeader()
     } else {
       // Election failed, become follower and restart timer
-      info(`[ELECTION FAILED] Node ${this.config.id} failed to reach majority, becoming follower`)
+      info(
+        `[ELECTION FAILED] Node ${this.config.id} failed to reach majority, becoming follower`
+      )
       this.state = 'follower'
       this.startElectionTimer()
     }
@@ -385,13 +452,18 @@ export class RaftService extends EventEmitter {
   private handleMessage(message: RaftMessage): void {
     // Ignore messages from older terms
     if (message.term < this.currentTerm) {
-      info(`[TERM IGNORED] Node ${this.config.id} (term: ${this.currentTerm}) ignoring message from ${message.from} (term: ${message.term})`)
+      info(
+        `[TERM IGNORED] Node ${this.config.id} (term: ${this.currentTerm}) ignoring message from ${message.from} (term: ${message.term})`
+      )
       return
     }
 
     // If we receive a message with higher term, become follower
     if (message.term > this.currentTerm) {
-      info(`[TERM UPDATE] Node ${this.config.id} updating term from ${this.currentTerm} to ${message.term} and becoming follower`)
+      info(
+        `[TERM UPDATE] Node ${this.config.id} updating term from ${this.currentTerm} to ${message.term} and becoming follower`
+      )
+      const wasLeader = this.isLeader
       this.currentTerm = message.term
       this.votedFor = null
       this.isLeader = false
@@ -399,10 +471,16 @@ export class RaftService extends EventEmitter {
       if (this.heartbeatTimer) {
         clearInterval(this.heartbeatTimer)
       }
+      // Emit leaderLost event if this node was previously a leader
+      if (wasLeader) {
+        this.emit('leaderLost', this.config.id)
+      }
       this.startElectionTimer()
     }
 
-    info(`[RECEIVED MESSAGE] Node ${this.config.id} (state: ${this.state}, term: ${this.currentTerm}) received ${message.type} from ${message.from} (term ${message.term})`)
+    info(
+      `[RECEIVED MESSAGE] Node ${this.config.id} (state: ${this.state}, term: ${this.currentTerm}) received ${message.type} from ${message.from} (term ${message.term})`
+    )
 
     switch (message.type) {
       case 'vote_request':
@@ -437,35 +515,45 @@ export class RaftService extends EventEmitter {
   private handleVoteRequest(message: RaftMessage): void {
     const { candidateId } = message.data
 
-    info(`[VOTE REQUEST] Node ${this.config.id} (term ${this.currentTerm}, votedFor: ${String(this.votedFor)}) received vote request from ${String(candidateId)} (msg.term: ${message.term})`)
+    info(
+      `[VOTE REQUEST] Node ${this.config.id} (term ${this.currentTerm}, votedFor: ${String(this.votedFor)}) received vote request from ${String(candidateId)} (msg.term: ${message.term})`
+    )
 
     // Grant vote if we haven't voted for anyone else in this term
     if (this.votedFor === null || this.votedFor === candidateId) {
       this.votedFor = candidateId as string
-      info(`[VOTE GRANTED] Node ${this.config.id} grants vote to ${String(candidateId)} for term ${this.currentTerm}`)
+      info(
+        `[VOTE GRANTED] Node ${this.config.id} grants vote to ${String(candidateId)} for term ${this.currentTerm}`
+      )
       this.sendMessageToPeer(message.from, 'vote_response', {
         term: this.currentTerm,
-        voteGranted: true
-      }).catch(err => error(`Failed to send vote response: ${String(err)}`))
+        voteGranted: true,
+      }).catch((err) => error(`Failed to send vote response: ${String(err)}`))
       this.startElectionTimer()
     } else {
-      info(`[VOTE DENIED] Node ${this.config.id} denies vote to ${String(candidateId)} (already voted for ${String(this.votedFor)}) for term ${this.currentTerm}`)
+      info(
+        `[VOTE DENIED] Node ${this.config.id} denies vote to ${String(candidateId)} (already voted for ${String(this.votedFor)}) for term ${this.currentTerm}`
+      )
       this.sendMessageToPeer(message.from, 'vote_response', {
         term: this.currentTerm,
-        voteGranted: false
-      }).catch(err => error(`Failed to send vote response: ${String(err)}`))
+        voteGranted: false,
+      }).catch((err) => error(`Failed to send vote response: ${String(err)}`))
     }
   }
 
   private handleVoteResponse(message: RaftMessage): void {
     if (this.state !== 'candidate' || message.data.term !== this.currentTerm) {
-      info(`[VOTE RESPONSE IGNORED] Node ${this.config.id} (state: ${this.state}, term: ${this.currentTerm}) got vote response from ${message.from} for term ${String(message.data.term)}`)
+      info(
+        `[VOTE RESPONSE IGNORED] Node ${this.config.id} (state: ${this.state}, term: ${this.currentTerm}) got vote response from ${message.from} for term ${String(message.data.term)}`
+      )
       return
     }
 
     if (message.data.voteGranted) {
       this.voteCount++
-      info(`[VOTE RECEIVED] Node ${this.config.id} received vote from ${message.from}, total votes: ${this.voteCount} (term ${this.currentTerm})`)
+      info(
+        `[VOTE RECEIVED] Node ${this.config.id} received vote from ${message.from}, total votes: ${this.voteCount} (term ${this.currentTerm})`
+      )
 
       // Calculate majority based on actual connected nodes + self
       // const connectedNodes = this.connections.size + 1 // +1 for self
@@ -475,7 +563,9 @@ export class RaftService extends EventEmitter {
       const totalNodes = this.config.peers.length
       const majority = Math.floor(totalNodes / 2) + 1
 
-      info(`[MAJORITY CHECK] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`)
+      info(
+        `[MAJORITY CHECK] Node ${this.config.id} has ${this.voteCount} votes, needs ${majority} for majority (${totalNodes} total connected nodes)`
+      )
 
       if (this.voteCount >= majority) {
         this.becomeLeader()
@@ -485,73 +575,98 @@ export class RaftService extends EventEmitter {
 
   private handleHeartbeat(message: RaftMessage): void {
     // If the message's term is equal and I'm leader, demote to follower
-    if (message.term === this.currentTerm && this.state === 'leader' && message.from !== this.config.id) {
-      info(`[SPLIT-BRAIN] Node ${this.config.id} (was leader) received heartbeat from another leader ${message.from} in same term ${message.term}. Stepping down to follower.`)
+    if (
+      message.term === this.currentTerm &&
+      this.state === 'leader' &&
+      message.from !== this.config.id
+    ) {
+      info(
+        `[SPLIT-BRAIN] Node ${this.config.id} (was leader) received heartbeat from another leader ${message.from} in same term ${message.term}. Stepping down to follower.`
+      )
       this.state = 'follower'
       this.isLeader = false
       this.leaderId = message.from // Track new leader
       if (this.heartbeatTimer) {
         clearInterval(this.heartbeatTimer)
       }
-      info(`[STATE TRANSITION] Node ${this.config.id} is now follower (term: ${this.currentTerm})`)
+      // Emit leaderLost event since this node was a leader
+      this.emit('leaderLost', this.config.id)
+      info(
+        `[STATE TRANSITION] Node ${this.config.id} is now follower (term: ${this.currentTerm})`
+      )
       this.startElectionTimer() // Ensure election timer is started after stepping down
     }
 
     this.lastHeartbeat = Date.now()
-    info(`[HEARTBEAT RECEIVED] Follower ${this.config.id} received heartbeat from ${message.from} (term ${message.term}) at ${new Date().toISOString()}, resetting election timer`)
+    info(
+      `[HEARTBEAT RECEIVED] Follower ${this.config.id} received heartbeat from ${message.from} (term ${message.term}) at ${new Date().toISOString()}, resetting election timer`
+    )
     this.startElectionTimer() // Reset election timer
 
     // Only send ACK if the sender is the leader (i.e., message has leaderId)
     if (message.data && typeof message.data.leaderId === 'string') {
       this.leaderId = message.data.leaderId // Track leader from heartbeat
-      info(`[HEARTBEAT ACK] Follower ${this.config.id} sending heartbeat ACK to ${message.from}`)
+      info(
+        `[HEARTBEAT ACK] Follower ${this.config.id} sending heartbeat ACK to ${message.from}`
+      )
       this.sendMessageToPeer(message.from, 'heartbeat_ack', {
         term: this.currentTerm,
-        success: true
-      }).catch(err => error(`Failed to send heartbeat ACK: ${String(err)}`))
+        success: true,
+      }).catch((err) => error(`Failed to send heartbeat ACK: ${String(err)}`))
     }
   }
 
   private handleHeartbeatAck(message: RaftMessage): void {
     // Only leaders should receive heartbeat ACKs
     if (this.state !== 'leader') {
-      info(`[HEARTBEAT ACK IGNORED] Node ${this.config.id} (state: ${this.state}) received heartbeat ACK from ${message.from}, ignoring`)
+      info(
+        `[HEARTBEAT ACK IGNORED] Node ${this.config.id} (state: ${this.state}) received heartbeat ACK from ${message.from}, ignoring`
+      )
       return
     }
 
     // In a full RAFT implementation, we might track which followers have acknowledged
     // For now, we just log the ACK
-    info(`[HEARTBEAT ACK RECEIVED] Leader ${this.config.id} received heartbeat ACK from ${message.from} (term ${message.term})`)
+    info(
+      `[HEARTBEAT ACK RECEIVED] Leader ${this.config.id} received heartbeat ACK from ${message.from} (term ${message.term})`
+    )
   }
 
   private handleSyncRequest(message: RaftMessage): void {
     this.emit('syncRequest', message.data)
   }
 
-  public broadcastMessage(type: RaftMessage['type'], data: Record<string, unknown>): Promise<void> {
-  // Allow all roles to broadcast messages (especially vote_request)
-  const message: RaftMessage = {
-    type,
-    data,
-    timestamp: Date.now(),
-    from: this.config.id,
-    term: this.currentTerm,
-    messageId: crypto.randomUUID()
+  public broadcastMessage(
+    type: RaftMessage['type'],
+    data: Record<string, unknown>
+  ): Promise<void> {
+    // Allow all roles to broadcast messages (especially vote_request)
+    const message: RaftMessage = {
+      type,
+      data,
+      timestamp: Date.now(),
+      from: this.config.id,
+      term: this.currentTerm,
+      messageId: crypto.randomUUID(),
+    }
+
+    try {
+      this.connections.forEach((socket) => {
+        this.sendMessage(socket, message)
+      })
+
+      info(`Broadcasted message: ${type}`)
+      return Promise.resolve()
+    } catch (err) {
+      return Promise.reject(err instanceof Error ? err : new Error(String(err)))
+    }
   }
 
-  try {
-    this.connections.forEach((socket) => {
-      this.sendMessage(socket, message)
-    })
-
-    info(`Broadcasted message: ${type}`)
-    return Promise.resolve()
-  } catch (err) {
-    return Promise.reject(err instanceof Error ? err : new Error(String(err)))
-  }
-}
-
-  public sendMessageToPeer(peerId: string, type: RaftMessage['type'], data: Record<string, unknown>): Promise<void> {
+  public sendMessageToPeer(
+    peerId: string,
+    type: RaftMessage['type'],
+    data: Record<string, unknown>
+  ): Promise<void> {
     const message: RaftMessage = {
       type,
       data,
@@ -559,7 +674,7 @@ export class RaftService extends EventEmitter {
       from: this.config.id,
       to: peerId,
       term: this.currentTerm,
-      messageId: crypto.randomUUID()
+      messageId: crypto.randomUUID(),
     }
 
     try {
@@ -576,14 +691,17 @@ export class RaftService extends EventEmitter {
     }
   }
 
-  public queueMessage(type: RaftMessage['type'], data: Record<string, unknown>): void {
+  public queueMessage(
+    type: RaftMessage['type'],
+    data: Record<string, unknown>
+  ): void {
     const message: RaftMessage = {
       type,
       data,
       timestamp: Date.now(),
       from: this.config.id,
       term: this.currentTerm,
-      messageId: crypto.randomUUID()
+      messageId: crypto.randomUUID(),
     }
 
     this.messageQueue.push(message)
@@ -638,7 +756,7 @@ export class RaftService extends EventEmitter {
 
     // Clean up message buffers and retry timeouts
     this.messageBuffer.clear()
-    this.peerRetryTimeouts.forEach(timeout => clearTimeout(timeout))
+    this.peerRetryTimeouts.forEach((timeout) => clearTimeout(timeout))
     this.peerRetryTimeouts.clear()
     this.peerRetryCounts.clear()
 
@@ -680,7 +798,7 @@ export class RaftService extends EventEmitter {
       currentTerm: this.currentTerm,
       state: this.state,
       connections: this.connections.size,
-      leaderId: this.leaderId ?? undefined
+      leaderId: this.leaderId ?? undefined,
     }
   }
 
@@ -693,21 +811,27 @@ export class RaftService extends EventEmitter {
     this.isLeader = true
     this.votedFor = null
     this.leaderId = this.config.id // Track self as leader
-    info(`[LEADER ELECTED] Node ${this.config.id} became LEADER for term ${this.currentTerm} (voteCount: ${this.voteCount})`)
-    info(`[STATE TRANSITION] Node ${this.config.id} is now leader (term: ${this.currentTerm})`)
+    info(
+      `[LEADER ELECTED] Node ${this.config.id} became LEADER for term ${this.currentTerm} (voteCount: ${this.voteCount})`
+    )
+    info(
+      `[STATE TRANSITION] Node ${this.config.id} is now leader (term: ${this.currentTerm})`
+    )
     this.emit('leaderElected', this.config.id)
     this.processMessageQueue()
     info(`[LEADER] Node ${this.config.id} about to start heartbeat timer`)
     // Send a heartbeat immediately
-    info(`[HEARTBEAT SENT] Leader ${this.config.id} (term ${this.currentTerm}) sending immediate heartbeat at ${new Date().toISOString()}`)
+    info(
+      `[HEARTBEAT SENT] Leader ${this.config.id} (term ${this.currentTerm}) sending immediate heartbeat at ${new Date().toISOString()}`
+    )
     this.broadcastMessage('heartbeat', {
       term: this.currentTerm,
       leaderId: this.config.id,
       prevLogIndex: 0,
       prevLogTerm: 0,
       entries: [],
-      leaderCommit: 0
-    }).catch(err => error(`Failed to broadcast heartbeat: ${String(err)}`))
+      leaderCommit: 0,
+    }).catch((err) => error(`Failed to broadcast heartbeat: ${String(err)}`))
     this.startHeartbeat()
     info(`[LEADER] Node ${this.config.id} started heartbeat timer`)
   }
@@ -718,23 +842,29 @@ export class RaftService extends EventEmitter {
     }
 
     const interval = this.config.heartbeatInterval || 1000
-    info(`[HEARTBEAT TIMER] Node ${this.config.id} setting heartbeat interval to ${interval}ms`)
+    info(
+      `[HEARTBEAT TIMER] Node ${this.config.id} setting heartbeat interval to ${interval}ms`
+    )
     this.heartbeatTimer = setInterval(() => {
       if (this.state !== 'leader') {
         // Only leaders send heartbeats
         return
       }
-      info(`[HEARTBEAT DEBUG] Node ${this.config.id} connections: ${Array.from(this.connections.keys()).join(', ')}`)
-      info(`[HEARTBEAT SENT] Leader ${this.config.id} (term ${this.currentTerm}) sending heartbeat at ${new Date().toISOString()}`)
+      info(
+        `[HEARTBEAT DEBUG] Node ${this.config.id} connections: ${Array.from(this.connections.keys()).join(', ')}`
+      )
+      info(
+        `[HEARTBEAT SENT] Leader ${this.config.id} (term ${this.currentTerm}) sending heartbeat at ${new Date().toISOString()}`
+      )
       this.broadcastMessage('heartbeat', {
         term: this.currentTerm,
         leaderId: this.config.id,
         prevLogIndex: 0,
         prevLogTerm: 0,
         entries: [],
-        leaderCommit: 0
-      }).catch(err => error(`Failed to broadcast heartbeat: ${String(err)}`))
+        leaderCommit: 0,
+      }).catch((err) => error(`Failed to broadcast heartbeat: ${String(err)}`))
     }, interval)
     info(`[HEARTBEAT TIMER] Node ${this.config.id} heartbeat interval set`)
   }
-} 
+}

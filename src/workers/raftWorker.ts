@@ -3,9 +3,24 @@ import { RaftService, RaftNodeConfig, RaftMessage } from '../lib/raft'
 import { Config } from '../lib/config'
 import { info, warn, error } from '../lib/logger'
 import { EventEmitter } from 'events'
-import { PacketSendTable, PacketWriteAckTable, PacketTimeoutTable, ChannelOpenCloseTable } from '../types'
+import {
+  PacketSendTable,
+  PacketWriteAckTable,
+  PacketTimeoutTable,
+  ChannelOpenCloseTable,
+} from '../types'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { MsgUpdateClient, MsgRecvPacket, MsgAcknowledgement, MsgTimeout, MsgTimeoutOnClose, MsgChannelOpenTry, MsgChannelOpenAck, MsgChannelOpenConfirm, MsgChannelCloseConfirm } from '@initia/initia.js'
+import {
+  MsgUpdateClient,
+  MsgRecvPacket,
+  MsgAcknowledgement,
+  MsgTimeout,
+  MsgTimeoutOnClose,
+  MsgChannelOpenTry,
+  MsgChannelOpenAck,
+  MsgChannelOpenConfirm,
+  MsgChannelCloseConfirm,
+} from '@initia/initia.js'
 import { PacketFee } from '../lib/config'
 import * as crypto from 'node:crypto'
 
@@ -13,7 +28,6 @@ export class RaftWorkerController extends EventEmitter {
   private workerController: WorkerController
   private raftService: RaftService | null = null
   private config: Config
-  private isActive = false
 
   constructor(config: Config) {
     super()
@@ -30,7 +44,6 @@ export class RaftWorkerController extends EventEmitter {
       await this.initRaft()
     } else {
       // If RAFT is not enabled, run as standalone
-      this.isActive = true
       info('Running in standalone mode (RAFT disabled)')
     }
   }
@@ -47,7 +60,7 @@ export class RaftWorkerController extends EventEmitter {
       peers: this.config.raft.peers,
       electionTimeout: this.config.raft.electionTimeout,
       heartbeatInterval: this.config.raft.heartbeatInterval,
-      psk: this.config.raft.psk
+      psk: this.config.raft.psk,
     }
 
     this.raftService = new RaftService(raftConfig)
@@ -77,6 +90,10 @@ export class RaftWorkerController extends EventEmitter {
       this.handleSyncRequest(data)
     })
 
+    this.raftService.on('syncResponse', (data: Record<string, unknown>) => {
+      this.handleSyncResponse(data)
+    })
+
     this.raftService.on('error', (err: unknown) => {
       error(`RAFT error: ${String(err)}`)
       this.emit('raftError', err)
@@ -88,11 +105,10 @@ export class RaftWorkerController extends EventEmitter {
   }
 
   private becomeLeader(): void {
-    if (this.isActive) {
+    if (this.isLeader()) {
       return
     }
 
-    this.isActive = true
     info(`Node ${this.config.raft!.nodeId} became leader - activating workers`)
 
     // Activate all workers
@@ -105,11 +121,10 @@ export class RaftWorkerController extends EventEmitter {
   }
 
   private becomeFollower(): void {
-    if (!this.isActive) {
+    if (!this.isLeader()) {
       return
     }
 
-    this.isActive = false
     warn(`Node ${this.config.raft!.nodeId} became follower`)
 
     // Do NOT deactivate workers here. Workers should always run unless the node is unhealthy.
@@ -138,14 +153,19 @@ export class RaftWorkerController extends EventEmitter {
     }
 
     const status = this.workerController.getStatus()
-    this.raftService.broadcastMessage('status_update', status)
-      .catch(err => error(`Failed to broadcast status: ${err}`))
+    this.raftService
+      .broadcastMessage('status_update', status)
+      .catch((err) => error(`Failed to broadcast status: ${err}`))
   }
 
   private handleCommand(data: RaftMessage): void {
     info(`Received command: ${JSON.stringify(data)}`)
 
-    if (!data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
+    if (
+      !data.data ||
+      typeof data.data !== 'object' ||
+      Array.isArray(data.data)
+    ) {
       warn('Invalid command data structure')
       return
     }
@@ -170,12 +190,19 @@ export class RaftWorkerController extends EventEmitter {
     }
 
     const status = this.workerController.getStatus()
-    this.raftService.sendMessageToPeer(data.from, 'sync_response', status)
-      .catch(err => error(`Failed to send sync response: ${err}`))
+    this.raftService
+      .sendMessageToPeer(data.from, 'sync_response', status)
+      .catch((err) => error(`Failed to send sync response: ${err}`))
+  }
+
+  private handleSyncResponse(data: Record<string, unknown>): void {
+    info(`[SYNC RESPONSE] Received sync response from leader: ${JSON.stringify(data, null, 2)}`)
+    
+    // TODO: implementing state synchronization logic here
   }
 
   private restartWorkers(): void {
-    if (!this.isActive) {
+    if (!this.isLeader()) {
       return
     }
 
@@ -196,8 +223,8 @@ export class RaftWorkerController extends EventEmitter {
         ...status,
         raft: {
           ...this.raftService.getClusterStatus(),
-          isActive: this.isActive
-        }
+          isActive: this.isLeader(),
+        },
       }
     }
 
@@ -205,8 +232,8 @@ export class RaftWorkerController extends EventEmitter {
       ...status,
       raft: {
         enabled: false,
-        isActive: this.isActive
-      }
+        isActive: this.isLeader(),
+      },
     }
   }
 
@@ -214,40 +241,103 @@ export class RaftWorkerController extends EventEmitter {
     return this.workerController.getFeeFilters()
   }
 
-  public async generateMsgUpdateClient(chainId: string, clientId: string, executorAddress: string): Promise<{ msg: MsgUpdateClient; height: Height }> {
-    return this.workerController.generateMsgUpdateClient(chainId, clientId, executorAddress)
+  public async generateMsgUpdateClient(
+    chainId: string,
+    clientId: string,
+    executorAddress: string
+  ): Promise<{ msg: MsgUpdateClient; height: Height }> {
+    return this.workerController.generateMsgUpdateClient(
+      chainId,
+      clientId,
+      executorAddress
+    )
   }
 
-  public async generateRecvPacketMsg(packet: PacketSendTable, height: Height, executorAddress: string): Promise<MsgRecvPacket> {
-    return this.workerController.generateRecvPacketMsg(packet, height, executorAddress)
+  public async generateRecvPacketMsg(
+    packet: PacketSendTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgRecvPacket> {
+    return this.workerController.generateRecvPacketMsg(
+      packet,
+      height,
+      executorAddress
+    )
   }
 
-  public async generateAckMsg(packet: PacketWriteAckTable, height: Height, executorAddress: string): Promise<MsgAcknowledgement> {
+  public async generateAckMsg(
+    packet: PacketWriteAckTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgAcknowledgement> {
     return this.workerController.generateAckMsg(packet, height, executorAddress)
   }
 
-  public async generateTimeoutMsg(packet: PacketTimeoutTable, height: Height, executorAddress: string): Promise<MsgTimeout | MsgTimeoutOnClose> {
-    return this.workerController.generateTimeoutMsg(packet, height, executorAddress)
+  public async generateTimeoutMsg(
+    packet: PacketTimeoutTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgTimeout | MsgTimeoutOnClose> {
+    return this.workerController.generateTimeoutMsg(
+      packet,
+      height,
+      executorAddress
+    )
   }
 
-  public async generateChannelOpenTryMsg(event: ChannelOpenCloseTable, height: Height, executorAddress: string): Promise<MsgChannelOpenTry> {
-    return this.workerController.generateChannelOpenTryMsg(event, height, executorAddress)
+  public async generateChannelOpenTryMsg(
+    event: ChannelOpenCloseTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenTry> {
+    return this.workerController.generateChannelOpenTryMsg(
+      event,
+      height,
+      executorAddress
+    )
   }
 
-  public async generateChannelOpenAckMsg(event: ChannelOpenCloseTable, height: Height, executorAddress: string): Promise<MsgChannelOpenAck> {
-    return this.workerController.generateChannelOpenAckMsg(event, height, executorAddress)
+  public async generateChannelOpenAckMsg(
+    event: ChannelOpenCloseTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenAck> {
+    return this.workerController.generateChannelOpenAckMsg(
+      event,
+      height,
+      executorAddress
+    )
   }
 
-  public async generateChannelOpenConfirmMsg(event: ChannelOpenCloseTable, height: Height, executorAddress: string): Promise<MsgChannelOpenConfirm> {
-    return this.workerController.generateChannelOpenConfirmMsg(event, height, executorAddress)
+  public async generateChannelOpenConfirmMsg(
+    event: ChannelOpenCloseTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelOpenConfirm> {
+    return this.workerController.generateChannelOpenConfirmMsg(
+      event,
+      height,
+      executorAddress
+    )
   }
 
-  public async generateChannelCloseConfirmMsg(event: ChannelOpenCloseTable, height: Height, executorAddress: string): Promise<MsgChannelCloseConfirm> {
-    return this.workerController.generateChannelCloseConfirmMsg(event, height, executorAddress)
+  public async generateChannelCloseConfirmMsg(
+    event: ChannelOpenCloseTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelCloseConfirm> {
+    return this.workerController.generateChannelCloseConfirmMsg(
+      event,
+      height,
+      executorAddress
+    )
   }
 
   // RAFT-specific methods
-  public async sendCommandToLeader(command: string, data: Record<string, unknown>): Promise<void> {
+  public async sendCommandToLeader(
+    command: string,
+    data: Record<string, unknown>
+  ): Promise<void> {
     if (!this.raftService) {
       throw new Error('RAFT service not initialized')
     }
@@ -260,7 +350,7 @@ export class RaftWorkerController extends EventEmitter {
         timestamp: Date.now(),
         from: this.config.raft!.nodeId,
         term: 0,
-        messageId: crypto.randomUUID()
+        messageId: crypto.randomUUID(),
       })
       return
     }
@@ -280,17 +370,17 @@ export class RaftWorkerController extends EventEmitter {
         timestamp: Date.now(),
         from: this.config.raft!.nodeId,
         term: 0,
-        messageId: crypto.randomUUID()
+        messageId: crypto.randomUUID(),
       })
       return
     }
 
-    const leaderPeer = clusterStatus.peers.find(peer => peer.id === leaderId)
+    const leaderPeer = clusterStatus.peers.find((peer) => peer.id === leaderId)
     if (leaderPeer) {
       await this.raftService.sendMessageToPeer(leaderPeer.id, 'command', {
         command,
         data,
-        from: this.config.raft!.nodeId
+        from: this.config.raft!.nodeId,
       })
     } else {
       throw new Error('Leader peer not found in peer list')
@@ -303,12 +393,22 @@ export class RaftWorkerController extends EventEmitter {
     }
 
     const clusterStatus = this.raftService.getClusterStatus()
-    const leaderPeer = clusterStatus.peers.find(peer => peer.id !== this.config.raft!.nodeId)
+    const leaderId = clusterStatus.leaderId
 
+    if (!leaderId) {
+      throw new Error('Leader is unknown, cannot request sync')
+    }
+    if (leaderId === this.config.raft!.nodeId) {
+      return
+    }
+
+    const leaderPeer = clusterStatus.peers.find((peer) => peer.id === leaderId)
     if (leaderPeer) {
       await this.raftService.sendMessageToPeer(leaderPeer.id, 'sync_request', {
-        from: this.config.raft!.nodeId
+        from: this.config.raft!.nodeId,
       })
+    } else {
+      throw new Error('Leader peer not found in peer list')
     }
   }
 
@@ -317,7 +417,7 @@ export class RaftWorkerController extends EventEmitter {
   }
 
   public isActiveNode(): boolean {
-    return this.isActive
+    return this.isLeader()
   }
 
   public stop(): void {
@@ -327,4 +427,4 @@ export class RaftWorkerController extends EventEmitter {
 
     this.deactivateWorkers()
   }
-} 
+}

@@ -30,7 +30,9 @@ export class ChannelController {
     chainId: string,
     events: ChannelOpenCloseEvent[]
   ): Promise<() => void> {
-    ChannelController.logger.info(`feedEvents: chainId=${chainId}, events.length=${events.length}`)
+    ChannelController.logger.info(
+      `feedEvents: chainId=${chainId}, events.length=${events.length}`
+    )
     const feedFns: (() => void)[] = []
     for (const event of events) {
       switch (event.type) {

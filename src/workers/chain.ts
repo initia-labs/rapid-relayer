@@ -134,7 +134,12 @@ class SyncWorker {
     this.logger = createLoggerWithPrefix(
       `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})>`
     )
-    this.logger.info('SyncWorker started for chain: ' + this.chain.chainId + ', startHeight: ' + this.startHeight)
+    this.logger.info(
+      'SyncWorker started for chain: ' +
+        this.chain.chainId +
+        ', startHeight: ' +
+        this.startHeight
+    )
     void this.feedEvents()
   }
 
