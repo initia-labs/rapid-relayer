@@ -44,7 +44,7 @@ export class RPCClient {
   private async request<T>(
     method: 'get' | 'post',
     path: string,
-    query?: APIParams | string | Record<string, unknown> | JsonRpcRequest
+    query?: APIParams | string | JsonRpcRequest
   ): Promise<{ response: T; uri: string }> {
     let retryCount = 0
 
