@@ -83,7 +83,7 @@ npm install
       "chainId": "chain-2",
       "gasPrice": "0umin",
       "restUri": "https://rest.chain-2.com",
-      "rpcUri": "https://rpc.chain-2.com",
+      "rpcUri": ["https://rpc.chain-2.com", "https://rpc.chain-2.com/fallback"],
       "wallets": [
         {
           "key": {

@@ -7,6 +7,7 @@ import * as https from 'https'
 import axios, { AxiosInstance } from 'axios'
 import {
   JsonRpcSuccessResponse,
+  JsonRpcRequest,
   isJsonRpcErrorResponse,
   parseJsonRpcResponse,
 } from '@cosmjs/json-rpc'
@@ -43,8 +44,7 @@ export class RPCClient {
   private async request<T>(
     method: 'get' | 'post',
     path: string,
-    params?: APIParams,
-    jsonRequest?: string | Record<string, unknown>
+    query?: APIParams | string | Record<string, unknown> | JsonRpcRequest
   ): Promise<{ response: T; uri: string }> {
     let retryCount = 0
 
@@ -56,21 +56,18 @@ export class RPCClient {
         const axiosInstance = this.getAxiosInstance(uri)
 
         if (method === 'post') {
-          const axiosResponse = await axiosInstance.post(
-            path,
-            jsonRequest ?? params
-          )
+          const axiosResponse = await axiosInstance.post(path, query)
           response = axiosResponse.data as T
         } else {
-          const axiosResponse = await axiosInstance.get(path, { params })
+          const axiosResponse = await axiosInstance.get(path, { params: query })
           response = axiosResponse.data as T
         }
 
+        // console.log(JSON.stringify(response, null, 2))
+
         return { response, uri }
       } catch (error) {
-        const errorContext = jsonRequest
-          ? `[RPC] Failed direct JSON-RPC request to ${uri}`
-          : `[RPC] Failed to request to ${uri} - ${path}`
+        const errorContext = `[RPC] Failed to request to ${uri} - ${path}`
 
         logger.error(`${errorContext}: ${String(error)}`)
         this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
@@ -117,15 +114,10 @@ export class RPCClient {
     // Check if the data is a Uint8Array and convert it to a hex string if needed
     const query = Params.encodeAbciQuery({ method: Method.AbciQuery, params })
 
-    // Convert JsonRpcRequest to string
-    const queryString = JSON.stringify(query)
-
-    // Use the modified request method with jsonRequest parameter
     const { response, uri } = await this.request<JsonRpcSuccessResponse>(
       'post',
       '',
-      undefined,
-      queryString
+      query
     )
     metrics.rpcClient.labels({ uri, path: Method.AbciQuery }).inc()
 

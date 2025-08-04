@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/node'
 import '@sentry/tracing'
 import { nodeProfilingIntegration } from '@sentry/profiling-node'
 import { setupErrorHandlers } from './error-handlers'
-import { warn, info } from './logger'
+import { info } from './logger'
 
 export async function captureException(
   error: Error,
