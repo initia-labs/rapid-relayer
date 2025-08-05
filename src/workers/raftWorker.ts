@@ -196,8 +196,10 @@ export class RaftWorkerController extends EventEmitter {
   }
 
   private handleSyncResponse(data: Record<string, unknown>): void {
-    info(`[SYNC RESPONSE] Received sync response from leader: ${JSON.stringify(data, null, 2)}`)
-    
+    info(
+      `[SYNC RESPONSE] Received sync response from leader: ${JSON.stringify(data, null, 2)}`
+    )
+
     // TODO: implementing state synchronization logic here
   }
 

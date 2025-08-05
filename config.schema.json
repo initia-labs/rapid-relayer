@@ -77,139 +77,140 @@
           "type": "string",
           "description": "Pre-shared key (hex string) for RAFT node authentication"
         }
-      }
-    "rpcRequestTimeout": {
-      "type": "number",
-      "description": "rpc request timeout in milliseconds"
-    },
-    "chains": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/chain"
       },
-      "minContains": 2
-    }
-  },
-  "additionalProperties": false,
-  "$defs": {
-    "chain": {
-      "type": "object",
-      "required": [
-        "bech32Prefix",
-        "chainId",
-        "gasPrice",
-        "restUri",
-        "rpcUri",
-        "wallets"
-      ],
-      "properties": {
-        "bech32Prefix": {
-          "type": "string",
-          "description": "bech32 prefix of chain"
+      "rpcRequestTimeout": {
+        "type": "number",
+        "description": "rpc request timeout in milliseconds"
+      },
+      "chains": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/chain"
         },
-        "chainId": {
-          "type": "string",
-          "description": "chain id"
-        },
-        "gasPrice": {
-          "type": "string",
-          "description": "gas price in format 0.1denom"
-        },
-        "restUri": {
-          "type": "string",
-          "description": "cosmos rest api uri"
-        },
-        "rpcUri": {
-          "description": "cosmos rest rpc uri",
-          "oneOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            }
-          ]
-        },
-        "wallets": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/wallet"
+        "minContains": 2
+      }
+    },
+    "additionalProperties": false,
+    "$defs": {
+      "chain": {
+        "type": "object",
+        "required": [
+          "bech32Prefix",
+          "chainId",
+          "gasPrice",
+          "restUri",
+          "rpcUri",
+          "wallets"
+        ],
+        "properties": {
+          "bech32Prefix": {
+            "type": "string",
+            "description": "bech32 prefix of chain"
           },
-          "minContains": "1"
-        },
-        "feeFilter": {
-          "type": "object",
-          "properties": {
-            "recvFee": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/coin"
+          "chainId": {
+            "type": "string",
+            "description": "chain id"
+          },
+          "gasPrice": {
+            "type": "string",
+            "description": "gas price in format 0.1denom"
+          },
+          "restUri": {
+            "type": "string",
+            "description": "cosmos rest api uri"
+          },
+          "rpcUri": {
+            "description": "cosmos rest rpc uri",
+            "oneOf": [
+              {
+                "type": "string"
               },
-              "minContains": "1"
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "wallets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/wallet"
             },
-            "ackFee": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/coin"
+            "minContains": "1"
+          },
+          "feeFilter": {
+            "type": "object",
+            "properties": {
+              "recvFee": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/coin"
+                },
+                "minContains": "1"
               },
-              "minContains": "1"
-            },
-            "timeoutFee": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/coin"
+              "ackFee": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/coin"
+                },
+                "minContains": "1"
               },
-              "minContains": "1"
+              "timeoutFee": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/coin"
+                },
+                "minContains": "1"
+              }
             }
           }
         }
-      }
-    },
-    "wallet": {
-      "type": "object",
-      "required": ["key"],
-      "properties": {
-        "key": {
-          "type": "object",
-          "required": ["type", "privateKey"],
-          "properties": {
-            "type": {
-              "type": "string",
-              "enum": ["raw", "mnemonic", "env_raw", "env_mnemonic"]
-            },
-            "privateKey": {
-              "type": "string"
-            },
-            "options": {
-              "type": "object",
-              "properties": {
-                "account": {
-                  "type": "number"
-                },
-                "index": {
-                  "type": "number"
-                },
-                "coinType": {
-                  "type": "number"
+      },
+      "wallet": {
+        "type": "object",
+        "required": ["key"],
+        "properties": {
+          "key": {
+            "type": "object",
+            "required": ["type", "privateKey"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["raw", "mnemonic", "env_raw", "env_mnemonic"]
+              },
+              "privateKey": {
+                "type": "string"
+              },
+              "options": {
+                "type": "object",
+                "properties": {
+                  "account": {
+                    "type": "number"
+                  },
+                  "index": {
+                    "type": "number"
+                  },
+                  "coinType": {
+                    "type": "number"
+                  }
                 }
               }
             }
           }
         }
-      }
-    },
-    "coin": {
-      "type": "object",
-      "required": ["denom", "amount"],
-      "properties": {
-        "denom": {
-          "type": "string"
-        },
-        "amount": {
-          "type": "number"
+      },
+      "coin": {
+        "type": "object",
+        "required": ["denom", "amount"],
+        "properties": {
+          "denom": {
+            "type": "string"
+          },
+          "amount": {
+            "type": "number"
+          }
         }
       }
     }
