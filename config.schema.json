@@ -77,18 +77,18 @@
           "type": "string",
           "description": "Pre-shared key (hex string) for RAFT node authentication"
         }
-      },
-      "rpcRequestTimeout": {
-        "type": "number",
-        "description": "rpc request timeout in milliseconds"
-      },
-      "chains": {
-        "type": "array",
-        "items": {
-          "$ref": "#/$defs/chain"
-        },
-        "minContains": 2
       }
+    },
+    "rpcRequestTimeout": {
+      "type": "number",
+      "description": "rpc request timeout in milliseconds"
+    },
+    "chains": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/chain"
+      },
+      "minContains": 2
     },
     "additionalProperties": false,
     "$defs": {
