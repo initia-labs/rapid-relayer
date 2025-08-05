@@ -66,7 +66,7 @@ export class PacketController {
     chainId: string,
     height: number,
     timestamp: number,
-    chainIdsWithFeeFilters: { chainId: string; feeFilter: PacketFee }[],
+    chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {},
     limit = 100
   ): PacketSendTable[] {
@@ -118,7 +118,7 @@ export class PacketController {
     chainId: string,
     height: number,
     timestamp: number,
-    chainIdsWithFeeFilters: { chainId: string; feeFilter: PacketFee }[],
+    chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {}
   ): number {
     let packetCount = 0
@@ -156,7 +156,7 @@ export class PacketController {
     filter: PacketFilter = {}
   ): WhereOptions<PacketSendTable>[] {
     const wheres: WhereOptions<PacketSendTable>[] = []
-    let custom = `(timeout_height > ${height} OR timeout_timestamp > ${timestamp})` // filter timeout packet
+    let custom = `((timeout_height = 0 OR timeout_height > ${height}) AND (timeout_timestamp = 0 OR timeout_timestamp > ${timestamp}))` // filter timeout packet
     if (feeFilter.recvFee && feeFilter.recvFee.length !== 0) {
       const conditions = feeFilter.recvFee.map(
         (v) =>
@@ -191,64 +191,82 @@ export class PacketController {
 
   public static getTimeoutPackets(
     chainId: string,
-    height: number,
     timestamp: number,
-    counterpartyChainIds: string[],
-    feeFilter: PacketFee,
+    chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {},
     limit = 100
   ): PacketTimeoutTable[] {
-    const wheres = PacketController.getTimeoutPacketsWhere(
-      chainId,
-      height,
-      timestamp,
-      counterpartyChainIds,
-      feeFilter,
-      filter
-    )
+    const res: PacketTimeoutTable[] = []
 
-    return select<PacketTimeoutTable>(
-      DB,
-      PacketController.tableNamePacketTimeout,
-      wheres,
-      { sequence: 'ASC' },
-      limit
-    )
+    for (const {
+      chainId: counterpartyChainId,
+      feeFilter,
+      latestHeight,
+    } of chainIdsWithFeeFilters) {
+      const wheres = PacketController.getTimeoutPacketsWhere(
+        chainId,
+        latestHeight,
+        timestamp,
+        counterpartyChainId,
+        feeFilter,
+        filter
+      )
+
+      res.push(
+        ...select<PacketTimeoutTable>(
+          DB,
+          PacketController.tableNamePacketTimeout,
+          wheres,
+          { sequence: 'ASC' },
+          limit
+        )
+      )
+    }
+
+    return res
   }
 
   public static getTimeoutPacketsCount(
     chainId: string,
-    height: number,
     timestamp: number,
-    counterpartyChainIds: string[],
-    feeFilter: PacketFee,
+    chainIdsWithFeeFilters: ChainFilterInfo[],
     filter: PacketFilter = {}
   ): number {
-    const wheres = PacketController.getTimeoutPacketsWhere(
-      chainId,
-      height,
-      timestamp,
-      counterpartyChainIds,
-      feeFilter,
-      filter
-    )
+    let timeoutCount = 0
 
-    return count<PacketTimeoutTable>(
-      DB,
-      PacketController.tableNamePacketTimeout,
-      wheres
-    )
+    for (const {
+      chainId: counterpartyChainId,
+      feeFilter,
+      latestHeight,
+    } of chainIdsWithFeeFilters) {
+      const wheres = PacketController.getTimeoutPacketsWhere(
+        chainId,
+        latestHeight,
+        timestamp,
+        counterpartyChainId,
+        feeFilter,
+        filter
+      )
+
+      timeoutCount += count<PacketTimeoutTable>(
+        DB,
+        PacketController.tableNamePacketTimeout,
+        wheres
+      )
+    }
+
+    return timeoutCount
   }
 
   private static getTimeoutPacketsWhere(
     chainId: string,
     height: number,
     timestamp: number,
-    counterpartyChainIds: string[],
+    counterpartyChainId: string,
     feeFilter: PacketFee,
     filter: PacketFilter = {}
   ): WhereOptions<PacketSendTable>[] {
-    let custom = `((timeout_height < ${height} AND timeout_height != 0) OR timeout_timestamp < ${timestamp} AND timeout_timestamp != 0)` // filter timeout packet
+    let custom = `((timeout_height < ${height} AND timeout_height != 0) OR (timeout_timestamp < ${timestamp} AND timeout_timestamp != 0))` // filter timeout packet
 
     if (feeFilter.timeoutFee && feeFilter.timeoutFee.length !== 0) {
       const conditions = feeFilter.timeoutFee.map(
@@ -268,7 +286,7 @@ export class PacketController {
           src_chain_id: chainId,
           src_connection_id: conn.connectionId,
           src_channel_id: conn.channels ? In(conn.channels) : undefined,
-          dst_chain_id: In(counterpartyChainIds),
+          dst_chain_id: counterpartyChainId,
           custom,
         }))
       )
@@ -276,7 +294,7 @@ export class PacketController {
       wheres.push({
         in_progress: Bool.FALSE,
         src_chain_id: chainId,
-        dst_chain_id: In(counterpartyChainIds),
+        dst_chain_id: counterpartyChainId,
         custom,
       })
     }
@@ -784,4 +802,10 @@ export interface PacketFilter {
     connectionId: string
     channels?: string[] // if empty search all
   }[] // if empty search all
+}
+
+export interface ChainFilterInfo {
+  chainId: string
+  feeFilter: PacketFee
+  latestHeight: number
 }

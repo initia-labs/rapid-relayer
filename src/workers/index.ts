@@ -143,11 +143,16 @@ export class WorkerController {
     }
   }
 
-  public getFeeFilters(): { chainId: string; feeFilter: PacketFee }[] {
+  public getFeeFilters(): {
+    chainId: string
+    feeFilter: PacketFee
+    latestHeight: number
+  }[] {
     return Object.entries(this.chains).map(([chainId, chain]) => {
       return {
         chainId,
         feeFilter: chain.feeFilter,
+        latestHeight: chain.latestHeight,
       }
     })
   }
