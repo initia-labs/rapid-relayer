@@ -137,10 +137,8 @@ export class WalletWorker {
         ? []
         : PacketController.getTimeoutPackets(
             this.chain.chainId,
-            this.chain.latestHeight,
             Number((this.chain.latestTimestamp / 1000).toFixed()),
-            counterpartyChainIds,
-            feeFilter,
+            counterpartyChainIdsWithFeeFilter,
             this.packetFilter,
             remain
           )
@@ -492,10 +490,8 @@ export class WalletWorker {
 
     count += PacketController.getTimeoutPacketsCount(
       this.chain.chainId,
-      this.chain.latestHeight,
       Number((this.chain.latestTimestamp / 1000).toFixed()),
-      counterpartyChainIds,
-      feeFilter,
+      counterpartyChainIdsWithFeeFilter,
       this.packetFilter
     )
 
