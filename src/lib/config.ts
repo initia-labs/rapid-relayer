@@ -1,10 +1,9 @@
 import * as fs from 'fs'
 import { env } from 'node:process'
-import { logger } from "./logger";
 import { PacketFilter } from 'src/db/controller/packet'
 
 // load configuration from the json file
-const loadJsonConfig = (): Partial<Config> => {
+export const loadJsonConfig = (): Partial<Config> => {
   try {
     // check if a config file exists before trying to read it
     const configPath = env.CONFIGFILE || './config.json'
@@ -18,14 +17,13 @@ const loadJsonConfig = (): Partial<Config> => {
     }
 
     return JSON.parse(configContent) as Config
-  } catch (error) {
-    logger.error('Error loading JSON config:', error)
-    return {}
+  } catch (err) {
+    throw new Error(`Error loading JSON config: ${err}`)
   }
 }
 
 // json parsing helper
-const safeJsonParse = <T>(json: string, defaultValue: T): T => {
+export const safeJsonParse = <T>(json: string, defaultValue: T): T => {
   try {
     return JSON.parse(json) as T
   } catch {
@@ -34,7 +32,7 @@ const safeJsonParse = <T>(json: string, defaultValue: T): T => {
 }
 
 // load configuration from environment variables
-const loadEnvConfig = (): Partial<Config> => {
+export const loadEnvConfig = (): Partial<Config> => {
   const envConfig: Partial<Config> = {}
 
   // top-level properties
@@ -52,8 +50,8 @@ const loadEnvConfig = (): Partial<Config> => {
       if (Array.isArray(parsedChains) && parsedChains.length > 0) {
         envConfig.chains = parsedChains
       }
-    } catch (error) {
-      logger.error('Error parsing CHAINS environment variable:', error)
+    } catch (err) {
+      throw new Error(`Error parsing CHAINS environment variable: ${err}`)
     }
   } else {
     // try to load individual chain configurations
@@ -96,11 +94,8 @@ const loadEnvConfig = (): Partial<Config> => {
         try {
           const feeFilterStr = env[`CHAIN_${index}_FEE_FILTER`] || '{}'
           chain.feeFilter = safeJsonParse<PacketFee>(feeFilterStr, {})
-        } catch (error) {
-          logger.error(
-            `Error parsing CHAIN_${index}_FEE_FILTER environment variable:`,
-            error
-          )
+        } catch (err) {
+          throw new Error(`Error parsing CHAIN_${index}_FEE_FILTER environment variable: ${err}`)
         }
       }
 
@@ -112,11 +107,8 @@ const loadEnvConfig = (): Partial<Config> => {
           if (Array.isArray(parsedWallets) && parsedWallets.length > 0) {
             chain.wallets = parsedWallets
           }
-        } catch (error) {
-          logger.error(
-            `Error parsing CHAIN_${index}_WALLETS environment variable:`,
-            error
-          )
+        } catch (err) {
+          throw new Error(`Error parsing CHAIN_${index}_WALLETS environment variable: ${err}`)
         }
       } else {
         // try to load individual wallet configurations
@@ -162,11 +154,8 @@ const loadEnvConfig = (): Partial<Config> => {
               const optionsStr =
                 env[`CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS`] || '{}'
               key.options = safeJsonParse<KeyConfig['options']>(optionsStr, {})
-            } catch (error) {
-              logger.error(
-                `Error parsing CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS environment variable:`,
-                error
-              )
+            } catch (err) {
+              throw new Error(`Error parsing CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS environment variable: ${err}`)
             }
           } else {
             const options: KeyConfig['options'] = {}
@@ -218,11 +207,8 @@ const loadEnvConfig = (): Partial<Config> => {
                 env[`CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER`] ||
                 '{}'
               wallet.packetFilter = safeJsonParse<PacketFilter>(filterStr, {})
-            } catch (error) {
-              logger.error(
-                `Error parsing CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER environment variable:`,
-                error
-              )
+            } catch (err) {
+              throw new Error(`Error parsing CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER environment variable: ${err}`)
             }
           }
 
@@ -259,7 +245,7 @@ const loadEnvConfig = (): Partial<Config> => {
 }
 
 // merge json and env configs, with envs having higher priority
-const mergeConfigs = (
+export const mergeConfigs = (
   jsonConfig: Partial<Config>,
   envConfig: Partial<Config>
 ): Config => {
