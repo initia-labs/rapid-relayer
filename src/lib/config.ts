@@ -141,6 +141,8 @@ export const loadEnvConfig = (): Partial<Config> => {
               keyType === 'env_mnemonic'
             ) {
               key.type = keyType
+            } else {
+              throw new Error(`Error invalid key type for chain index ${index}: wallet ${walletIndex}`)
             }
           }
           if (env[`CHAIN_${index}_WALLET_${walletIndex}_KEY_PRIVATE_KEY`]) {
