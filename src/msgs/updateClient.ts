@@ -41,8 +41,11 @@ export async function generateMsgUpdateClient(
     lastRevisionHeight + 1
   )
 
-  // Query until has enough voting power
-  while (!verifyVotingPower(signedHeader, validatorSet, trustedValidators)) {
+  // Keep querying until there is enough voting power
+  // Retry up to MAX_RETRY times in case the current height doesn't have sufficient voting power
+  const MAX_RETRY = 30
+  for (let i = 0; i < MAX_RETRY; i++) {
+    if (verifyVotingPower(signedHeader, validatorSet, trustedValidators)) break
     signedHeader = await getSignedHeader(srcChain, currentHeight)
     await delay(500)
   }
@@ -146,7 +149,11 @@ function verifyVotingPower(
 ): boolean {
   function bigIntMulDivCeil(a: bigint, b: bigint, c: bigint): bigint {
     const mul = a * b
-    return mul / c + (mul % c) === 0n ? 0n : 1n
+    return mul / c + (mul % c === 0n ? 0n : 1n)
+  }
+
+  function hexAddr(addr: Uint8Array): string {
+    return Buffer.from(addr).toString('hex')
   }
 
   // calculate target voting power
@@ -159,10 +166,10 @@ function verifyVotingPower(
   // calculate voting power
   const signatures = signedHeader.commit?.signatures ?? []
   const votingPower = validatorSet.validators.reduce((p, c) => {
-    const validatorAddr = c.address
+    const validatorAddr = hexAddr(c.address)
 
     const isTrusted = trustedValidators.validators.find(
-      (validator) => validator.address === validatorAddr
+      (validator) => hexAddr(validator.address) === validatorAddr
     )
 
     // if validator is not in trusted validator
@@ -171,7 +178,7 @@ function verifyVotingPower(
     }
 
     const signature = signatures.find(
-      (sig) => sig.validatorAddress === validatorAddr
+      (sig) => hexAddr(sig.validatorAddress) === validatorAddr
     )
 
     // if signature not found
