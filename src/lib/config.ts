@@ -41,6 +41,8 @@ export const loadEnvConfig = (): Partial<Config> => {
   if (env.LOG_LEVEL) envConfig.logLevel = env.LOG_LEVEL
   if (env.RPC_REQUEST_TIMEOUT)
     envConfig.rpcRequestTimeout = Number(env.RPC_REQUEST_TIMEOUT)
+  if (env.MAX_PARALLEL_BLOCKS)
+    envConfig.maxParallelBlocks = Number(env.MAX_PARALLEL_BLOCKS)
   if (env.DB_PATH) envConfig.dbPath = env.DB_PATH
 
   // chains configuration
@@ -95,7 +97,9 @@ export const loadEnvConfig = (): Partial<Config> => {
           const feeFilterStr = env[`CHAIN_${index}_FEE_FILTER`] || '{}'
           chain.feeFilter = safeJsonParse<PacketFee>(feeFilterStr, {})
         } catch (err) {
-          throw new Error(`Error parsing CHAIN_${index}_FEE_FILTER environment variable: ${err}`)
+          throw new Error(
+            `Error parsing CHAIN_${index}_FEE_FILTER environment variable: ${err}`
+          )
         }
       }
 
@@ -108,7 +112,9 @@ export const loadEnvConfig = (): Partial<Config> => {
             chain.wallets = parsedWallets
           }
         } catch (err) {
-          throw new Error(`Error parsing CHAIN_${index}_WALLETS environment variable: ${err}`)
+          throw new Error(
+            `Error parsing CHAIN_${index}_WALLETS environment variable: ${err}`
+          )
         }
       } else {
         // try to load individual wallet configurations
@@ -142,7 +148,9 @@ export const loadEnvConfig = (): Partial<Config> => {
             ) {
               key.type = keyType
             } else {
-              throw new Error(`Error invalid key type for chain index ${index}: wallet ${walletIndex}`)
+              throw new Error(
+                `Error invalid key type for chain index ${index}: wallet ${walletIndex}`
+              )
             }
           }
           if (env[`CHAIN_${index}_WALLET_${walletIndex}_KEY_PRIVATE_KEY`]) {
@@ -157,7 +165,9 @@ export const loadEnvConfig = (): Partial<Config> => {
                 env[`CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS`] || '{}'
               key.options = safeJsonParse<KeyConfig['options']>(optionsStr, {})
             } catch (err) {
-              throw new Error(`Error parsing CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS environment variable: ${err}`)
+              throw new Error(
+                `Error parsing CHAIN_${index}_WALLET_${walletIndex}_KEY_OPTIONS environment variable: ${err}`
+              )
             }
           } else {
             const options: KeyConfig['options'] = {}
@@ -210,7 +220,9 @@ export const loadEnvConfig = (): Partial<Config> => {
                 '{}'
               wallet.packetFilter = safeJsonParse<PacketFilter>(filterStr, {})
             } catch (err) {
-              throw new Error(`Error parsing CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER environment variable: ${err}`)
+              throw new Error(
+                `Error parsing CHAIN_${index}_WALLET_${walletIndex}_PACKET_FILTER environment variable: ${err}`
+              )
             }
           }
 
@@ -263,6 +275,8 @@ export const mergeConfigs = (
   if (envConfig.dbPath !== undefined) merged.dbPath = envConfig.dbPath
   if (envConfig.rpcRequestTimeout !== undefined)
     merged.rpcRequestTimeout = envConfig.rpcRequestTimeout
+  if (envConfig.maxParallelBlocks !== undefined)
+    merged.maxParallelBlocks = envConfig.maxParallelBlocks
 
   // merge chains if provided in environment variables
   if (envConfig.chains && envConfig.chains.length > 0) {
@@ -297,6 +311,7 @@ export interface Config {
   logLevel: string
   dbPath?: string
   rpcRequestTimeout?: number
+  maxParallelBlocks?: number
   chains: ChainConfig[]
 }
 

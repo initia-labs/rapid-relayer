@@ -4,6 +4,7 @@
   "metricPort": 70001,
   "logLevel": "info",
   "rpcRequestTimeout": 5000,
+  "maxParallelBlocks": 20,
   "chains": [
     {
       "bech32Prefix": "init",
