@@ -8,6 +8,7 @@ import {
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { setTimeout as delay } from 'timers/promises'
 import { ChainWorker } from 'src/workers/chain'
+import { BlockIDFlag, SignedHeader } from 'cosmjs-types/tendermint/types/types'
 
 // generateMsgUpdateClient generates a MsgUpdateClient message
 // which is used to update the client state on the destination chain
@@ -26,11 +27,7 @@ export async function generateMsgUpdateClient(
       .client_state.latest_height.revision_height
   )
 
-  // Use latest height - 1 to prevent use precommit result (only include 2/3 of voting power)
-  const signedHeader = await getSignedHeader(
-    srcChain,
-    srcChain.latestHeight - 1
-  )
+  let signedHeader = await getSignedHeader(srcChain)
 
   const header = signedHeader.header
   if (header === undefined) {
@@ -43,6 +40,12 @@ export async function generateMsgUpdateClient(
     srcChain,
     lastRevisionHeight + 1
   )
+
+  // Query until has enough voting power
+  while (!verifyVotingPower(signedHeader, validatorSet, trustedValidators)) {
+    signedHeader = await getSignedHeader(srcChain, currentHeight)
+    await delay(500)
+  }
 
   const tmHeader = {
     typeUrl: '/ibc.lightclients.tendermint.v1.Header',
@@ -134,6 +137,57 @@ async function getValidatorSet(
     totalVotingPower,
     proposer,
   })
+}
+
+function verifyVotingPower(
+  signedHeader: SignedHeader,
+  validatorSet: ValidatorSet,
+  trustedValidators: ValidatorSet
+): boolean {
+  function bigIntMulDivCeil(a: bigint, b: bigint, c: bigint): bigint {
+    const mul = a * b
+    return mul / c + (mul % c) === 0n ? 0n : 1n
+  }
+
+  // calculate target voting power
+  const targetVotingPower = bigIntMulDivCeil(
+    trustedValidators.totalVotingPower,
+    2n,
+    3n
+  )
+
+  // calculate voting power
+  const signatures = signedHeader.commit?.signatures ?? []
+  const votingPower = validatorSet.validators.reduce((p, c) => {
+    const validatorAddr = c.address
+
+    const isTrusted = trustedValidators.validators.find(
+      (validator) => validator.address === validatorAddr
+    )
+
+    // if validator is not in trusted validator
+    if (!isTrusted) {
+      return p
+    }
+
+    const signature = signatures.find(
+      (sig) => sig.validatorAddress === validatorAddr
+    )
+
+    // if signature not found
+    if (!signature) {
+      return p
+    }
+
+    // if not commit
+    if (signature.blockIdFlag !== BlockIDFlag.BLOCK_ID_FLAG_COMMIT) {
+      return p
+    }
+
+    return p + c.votingPower
+  }, 0n)
+
+  return votingPower >= targetVotingPower
 }
 
 interface ClientState {
