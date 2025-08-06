@@ -26,6 +26,7 @@
     },
     "maxParallelBlocks": {
       "type": "number",
+      "minimum": 1,
       "description": "maximum number of blocks for SyncWorker to process at the same time"
     },
     "chains": {
