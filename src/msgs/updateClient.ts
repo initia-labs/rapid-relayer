@@ -21,19 +21,28 @@ export async function generateMsgUpdateClient(
   msg: MsgUpdateClient
   height: Height
 }> {
-  const latestHeight = Number(
+  const lastRevisionHeight = Number(
     ((await dstChain.rest.ibc.clientState(dstClientId)) as ClientState)
       .client_state.latest_height.revision_height
   )
-  const signedHeader = await getSignedHeader(srcChain)
+
+  // Use latest height - 1 to prevent use precommit result (only include 2/3 of voting power)
+  const signedHeader = await getSignedHeader(
+    srcChain,
+    srcChain.latestHeight - 1
+  )
+
   const header = signedHeader.header
   if (header === undefined) {
     throw Error('Header not found')
   }
   const currentHeight = Number(header.height)
   const validatorSet = await getValidatorSet(srcChain, currentHeight)
-  const trustedHeight = getRevisionHeight(latestHeight, header.chainId)
-  const trustedValidators = await getValidatorSet(srcChain, latestHeight + 1)
+  const trustedHeight = getRevisionHeight(lastRevisionHeight, header.chainId)
+  const trustedValidators = await getValidatorSet(
+    srcChain,
+    lastRevisionHeight + 1
+  )
 
   const tmHeader = {
     typeUrl: '/ibc.lightclients.tendermint.v1.Header',
