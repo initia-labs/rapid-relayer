@@ -51,6 +51,8 @@ describe('Configuration Loading', () => {
         port: 3000,
         metricPort: 9090,
         logLevel: 'info',
+        rpcRequestTimeout: 5000,
+        maxParallelBlocks: 20,
         chains: [],
       }
 
@@ -75,6 +77,7 @@ describe('Configuration Loading', () => {
       process.env.METRIC_PORT = '9090'
       process.env.LOG_LEVEL = 'debug'
       process.env.RPC_REQUEST_TIMEOUT = '5000'
+      process.env.MAX_PARALLEL_BLOCKS = '20'
       process.env.DB_PATH = './data/db'
 
       const config = loadEnvConfig()
@@ -84,6 +87,7 @@ describe('Configuration Loading', () => {
         metricPort: 9090,
         logLevel: 'debug',
         rpcRequestTimeout: 5000,
+        maxParallelBlocks: 20,
         dbPath: './data/db',
       })
     })

@@ -83,6 +83,11 @@
       "type": "number",
       "description": "rpc request timeout in milliseconds"
     },
+    "maxParallelBlocks": {
+      "type": "number",
+      "minimum": 1,
+      "description": "maximum number of blocks for SyncWorker to process at the same time"
+    },
     "chains": {
       "type": "array",
       "items": {

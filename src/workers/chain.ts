@@ -22,7 +22,7 @@ import { Logger } from 'winston'
 import { RESTClient } from 'src/lib/restClient'
 import { ChannelController } from 'src/db/controller/channel'
 import { PacketFeeController } from 'src/db/controller/packetFee'
-import { PacketFee } from 'src/lib/config'
+import { config, PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
 
@@ -159,7 +159,7 @@ class SyncWorker {
         const endHeight =
           this.endHeight === -1 ? this.chain.latestHeight : this.endHeight
         const heights = Array.from(
-          { length: 20 },
+          { length: config.maxParallelBlocks ?? 20 },
           (_, i) => i + this.syncedHeight + 1
         ).filter(
           (height) => height <= endHeight && height <= this.chain.latestHeight

@@ -41,6 +41,8 @@ export const loadEnvConfig = (): Partial<Config> => {
   if (env.LOG_LEVEL) envConfig.logLevel = env.LOG_LEVEL
   if (env.RPC_REQUEST_TIMEOUT)
     envConfig.rpcRequestTimeout = Number(env.RPC_REQUEST_TIMEOUT)
+  if (env.MAX_PARALLEL_BLOCKS)
+    envConfig.maxParallelBlocks = Number(env.MAX_PARALLEL_BLOCKS)
   if (env.DB_PATH) envConfig.dbPath = env.DB_PATH
 
   // chains configuration
@@ -273,6 +275,8 @@ export const mergeConfigs = (
   if (envConfig.dbPath !== undefined) merged.dbPath = envConfig.dbPath
   if (envConfig.rpcRequestTimeout !== undefined)
     merged.rpcRequestTimeout = envConfig.rpcRequestTimeout
+  if (envConfig.maxParallelBlocks !== undefined)
+    merged.maxParallelBlocks = envConfig.maxParallelBlocks
 
   // merge chains if provided in environment variables
   if (envConfig.chains && envConfig.chains.length > 0) {
@@ -307,6 +311,7 @@ export interface Config {
   logLevel: string
   dbPath?: string
   rpcRequestTimeout?: number
+  maxParallelBlocks?: number
   chains: ChainConfig[]
   raft?: RaftConfig
 }

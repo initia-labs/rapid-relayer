@@ -12,6 +12,7 @@
     "psk": "70696E6B646F69646F69"
   },
   "rpcRequestTimeout": 5000,
+  "maxParallelBlocks": 20,
   "chains": [
     {
       "bech32Prefix": "init",
