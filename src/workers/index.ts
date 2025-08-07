@@ -2,13 +2,13 @@ import { ChainWorker, queryLatestHeight } from './chain'
 import { WalletWorker } from './wallet'
 import {
   generateMsgAck,
-  generateMsgRecvPacket,
-  generateMsgTimeout,
-  generateMsgUpdateClient,
-  generateMsgChannelOpenTry,
   generateMsgChannelOpenAck,
   generateMsgChannelOpenConfirm,
+  generateMsgChannelOpenTry,
+  generateMsgRecvPacket,
+  generateMsgTimeout,
   generateMsgTimeoutOnClose,
+  generateMsgUpdateClient,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { ClientController } from 'src/db/controller/client'
@@ -19,20 +19,20 @@ import {
   PacketWriteAckTable,
 } from 'src/types'
 import {
-  MsgRecvPacket,
-  MsgUpdateClient,
+  APIRequester,
+  Coins,
   Key,
   MnemonicKey,
-  RawKey,
-  APIRequester,
-  Wallet,
   MsgChannelCloseConfirm,
   MsgChannelOpenAck,
   MsgChannelOpenConfirm,
   MsgChannelOpenTry,
-  Coins,
+  MsgRecvPacket,
+  MsgUpdateClient,
+  RawKey,
+  Wallet,
 } from '@initia/initia.js'
-import { Config, PacketFee, KeyConfig } from 'src/lib/config'
+import { Config, KeyConfig, PacketFee } from 'src/lib/config'
 import { env } from 'node:process'
 import { RPCClient } from 'src/lib/rpcClient'
 import * as http from 'http'
@@ -53,6 +53,33 @@ export class WorkerController {
     this.chains = {}
     this.wallets = {}
     this.initiated = false
+  }
+
+  public stopAllWorkers() {
+    for (const chain of Object.values(this.chains)) {
+      chain.stop()
+    }
+    for (const wallet of Object.values(this.wallets)) {
+      wallet.stop()
+    }
+  }
+
+  /**
+   * Check if this node is active
+   * Default implementation always returns true
+   * This method is overridden in RaftWorkerController
+   */
+  public isActiveNode(): boolean {
+    return true
+  }
+
+  /**
+   * Check if this node is the leader
+   * Default implementation always returns true
+   * This method is overridden in RaftWorkerController
+   */
+  public isLeader(): boolean {
+    return true
   }
 
   public async init(config: Config) {
@@ -104,7 +131,7 @@ export class WorkerController {
             )
             .then((coin) => coin.amount)
         )
-        const wallet = new WalletWorker(
+        this.wallets[`${chainConfig.chainId}::${address}`] = new WalletWorker(
           chain,
           this,
           walletConfig.maxHandlePacket ?? 100,
@@ -112,8 +139,6 @@ export class WorkerController {
           balance,
           walletConfig.packetFilter
         )
-
-        this.wallets[`${chainConfig.chainId}::${address}`] = wallet
       }
     }
   }

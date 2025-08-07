@@ -181,8 +181,11 @@ describe('RPCClient', () => {
           }
         ) => {
           // Verify that the request body contains the expected method and params
-          return (body.method === 'abci_query' &&
-            body.params.path === '/store/ibc/key' && body.params.prove)
+          return (
+            body.method === 'abci_query' &&
+            body.params.path === '/store/ibc/key' &&
+            body.params.prove
+          )
         }
       )
       .reply(200, mockResponse)

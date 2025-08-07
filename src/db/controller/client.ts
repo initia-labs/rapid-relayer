@@ -6,17 +6,25 @@ import { Header } from 'cosmjs-types/ibc/lightclients/tendermint/v1/tendermint'
 import { RESTClient } from 'src/lib/restClient'
 import { PacketController } from './packet'
 import { ChannelController } from './channel'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class ClientController {
   static tableName = 'client'
+  private static logger = createLoggerWithPrefix('[ClientController] ')
 
   public static async addClient(
     rest: RESTClient,
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
+    ClientController.logger.info(
+      `addClient: chainId=${chainId}, clientId=${clientId}`
+    )
     const client = await ClientController.fetchClient(rest, chainId, clientId)
 
+    ClientController.logger.info(
+      `insert: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`
+    )
     insert(DB, ClientController.tableName, client)
 
     return client
@@ -27,11 +35,20 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
+    ClientController.logger.info(
+      `replaceClient: chainId=${chainId}, clientId=${clientId}`
+    )
     const client = await ClientController.fetchClient(rest, chainId, clientId)
 
+    ClientController.logger.info(
+      `delete: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`
+    )
     del(DB, ClientController.tableName, [
       { chain_id: chainId, client_id: clientId },
     ])
+    ClientController.logger.info(
+      `insert: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`
+    )
     insert(DB, ClientController.tableName, client)
 
     // to recheck packets
@@ -49,6 +66,9 @@ export class ClientController {
   ) {
     // create key
     const clientId = event.clientId
+    ClientController.logger.info(
+      `feedUpdateClientEvent: chainId=${chainId}, clientId=${clientId}`
+    )
 
     // decode header
     const msg = Any.decode(
@@ -81,6 +101,9 @@ export class ClientController {
       }
     }
 
+    ClientController.logger.info(
+      `update: table=${ClientController.tableName}, chainId=${chainId}, clientId=${clientId}`
+    )
     update<ClientTable>(
       DB,
       ClientController.tableName,
@@ -102,6 +125,9 @@ export class ClientController {
     chainId: string,
     clientId: string
   ): Promise<ClientTable> {
+    ClientController.logger.info(
+      `getClient: chainId=${chainId}, clientId=${clientId}`
+    )
     // get client
     const client = selectOne<ClientTable>(DB, ClientController.tableName, [
       {
@@ -117,6 +143,9 @@ export class ClientController {
     chainId: string,
     counterpartyChainIds: string[]
   ): ClientTable[] {
+    ClientController.logger.info(
+      `getClientsToUpdate: chainId=${chainId}, counterpartyChainIds=${counterpartyChainIds.join(',')}`
+    )
     const clients = select<ClientTable>(
       DB,
       ClientController.tableName,

@@ -29,6 +29,7 @@ export class WalletWorker {
   private logger: Logger
   private errorTracker = new Map<string, number>()
   public lastExecutionTimestamp: Date
+  public stopped = false
 
   constructor(
     public chain: ChainWorker,
@@ -45,11 +46,23 @@ export class WalletWorker {
     void this.run()
   }
 
+  public stop() {
+    this.stopped = true
+    this.logger.info('WalletWorker stopped.')
+  }
+
   public async run() {
+    this.logger.info(
+      'WalletWorker started for chain: ' +
+        this.chain.chainId +
+        ', address: ' +
+        this.address()
+    )
     let retried = 0
     const MAX_RETRY = 10
 
     for (;;) {
+      if (this.stopped) break
       try {
         await this.handlePackets()
         retried = 0
@@ -373,6 +386,13 @@ export class WalletWorker {
       ]
 
       if (msgs.length === 0) return
+
+      // Block tx execution if not leader (RAFT-aware)
+      const ctrl = this.workerController
+      if (typeof ctrl.isLeader === 'function' && !ctrl.isLeader()) {
+        this.logger.info('Node is not leader, skipping transaction execution.')
+        return
+      }
 
       // init sequence
       if (!this.sequence) {

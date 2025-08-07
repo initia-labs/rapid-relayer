@@ -3,14 +3,20 @@ import { ConnectionTable } from 'src/types'
 import { ClientController } from './client'
 import { insert, selectOne } from '../utils'
 import { RESTClient } from 'src/lib/restClient'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class ConnectionController {
   static tableName = 'connection'
+  private static logger = createLoggerWithPrefix('[ConnectionController] ')
+
   public static async addConnection(
     rest: RESTClient,
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
+    ConnectionController.logger.info(
+      `addConnection: chainId=${chainId}, connectionId=${connectionId}`
+    )
     const connectionInfo = await rest.ibc.getConnection(connectionId)
     const clientId = connectionInfo.connection.client_id
     const client = await ClientController.getClient(rest, chainId, clientId)
@@ -25,6 +31,9 @@ export class ConnectionController {
       counterparty_client_id: connectionInfo.connection.counterparty.client_id,
     }
 
+    ConnectionController.logger.info(
+      `insert: table=${ConnectionController.tableName}, chainId=${chainId}, connectionId=${connectionId}`
+    )
     insert(DB, ConnectionController.tableName, connection)
 
     return connection
@@ -37,6 +46,9 @@ export class ConnectionController {
     chainId: string,
     connectionId: string
   ): Promise<ConnectionTable> {
+    ConnectionController.logger.info(
+      `getConnection: chainId=${chainId}, connectionId=${connectionId}`
+    )
     const connection = selectOne<ConnectionTable>(
       DB,
       ConnectionController.tableName,

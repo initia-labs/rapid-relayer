@@ -3,6 +3,14 @@
   "port": 7010,
   "metricPort": 70001,
   "logLevel": "info",
+  "raft": {
+    "enabled": true,
+    "nodeId": "node-1",
+    "host": "127.0.0.1",
+    "port": 9184,
+    "peers": [],
+    "psk": "70696E6B646F69646F69"
+  },
   "rpcRequestTimeout": 5000,
   "maxParallelBlocks": 20,
   "chains": [
@@ -19,7 +27,7 @@
             "privateKey": "123..."
           },
           "maxHandlePacket": 10,
-          "startHeight": 0 // if empty start from the latest height
+          "startHeight": 0
         },
         {
           "key": {
