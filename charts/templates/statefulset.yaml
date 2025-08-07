@@ -2,76 +2,95 @@
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ .Release.Name }}-relayer
-  namespace: {{ .Release.Namespace }}
+  name: {{ quote .Release.Name }}
+  namespace: {{ quote .Release.Namespace }}
   labels:
-    app: {{ .Release.Name }}-relayer
-    app.kubernetes.io/name: "{{ .Release.Name }}-relayer"
+    app: {{ quote .Release.Name }}
+    app.kubernetes.io/name: {{ quote .Release.Name }}
     app.kubernetes.io/instance: {{ quote .Release.Name }}
-    app.kubernetes.io/version: {{ quote (default "latest" .Chart.AppVersion) }}
+    app.kubernetes.io/version: {{ default "latest" .Chart.AppVersion }}
     app.kubernetes.io/managed-by: {{ quote .Release.Service }}
   {{- with .Values.annotations }}
-    annotations:
-      {{- toYaml . | nindent 6 }}
+  annotations:
+    {{- toYaml . | nindent 6 }}
   {{- end }}
-
 spec:
-  serviceName: svc-{{ .Release.Name }}-relayer
-  replicas: 1
+  serviceName: {{ quote .Release.Name }}
+  replicas: {{ .Values.replicas }}
+  {{- if .Values.strategy }}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
+  {{- end }}
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-relayer
+      app: {{ quote .Release.Name }}
   template:
     metadata:
-      name: {{ .Release.Name }}-relayer
       labels:
-        app: {{ .Release.Name }}-relayer
+        app: {{ quote .Release.Name }}
     spec:
+      {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ quote .Release.Name }}
+                topologyKey: "kubernetes.io/hostname"      
+      initContainers:
+        - name: chown
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo"]
+          volumeMounts:
+            - mountPath: /syncInfo
+              name: sync
       containers:
-        - name: main
-          image: {{ .Values.image }}
+        - name: rapid-relayer
+          image: {{ quote .Values.image }}
           {{- with .Values.imagePullPolicy }}
           imagePullPolicy: {{ quote . }}
           {{- end }}
-          volumeMounts:
-            - name: pvc-main
-              mountPath: /relayer
-          resources:
-            requests:
-              cpu: {{ .Values.resources.cpu }}
-              memory: {{ .Values.resources.memory }}
-            limits:
-              cpu: {{ .Values.resources.cpu }}
-              memory: {{ .Values.resources.memory }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
           ports:
             - containerPort: 7010
-              protocol: TCP
-            - containerPort: 7001
-              protocol: TCP
-          {{- if .Values.env }}
+              name: http
+            - containerPort: 7011
+              name: metrics
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /syncInfo
+              name: sync
           env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             {{- range $key, $value := .Values.env }}
             - name: {{ quote $key }}
               value: {{ quote $value }}
             {{- end }}
-          {{- end }}
           {{- if .Values.envFrom }}
           envFrom:
             {{- toYaml .Values.envFrom | nindent 12 }}
           {{- end }}
-      securityContext:
-        fsGroup: 1000
-      imagePullSecrets:
-        - name: regcred
-      volumes:
-        - name: workspace
-          emptyDir: {}
   volumeClaimTemplates:
     - metadata:
-        name: pvc-main
+        name: sync
       spec:
-        accessModes: [ "ReadWriteOnce" ]
-        volumeMode: Filesystem
+        accessModes: ["ReadWriteOnce"]
         resources:
           requests:
             storage: {{ .Values.storage.requests }}
