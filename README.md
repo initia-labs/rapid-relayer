@@ -76,7 +76,7 @@ Create a `config.json` file with the following structure:
           },
           "maxHandlePacket": 10,
           "packetFilter": {
-            "connections": [{ "connectionId": "conneciton-1" }]
+            "connections": [{ "connectionId": "connection-1" }]
           }
         }
       ],
