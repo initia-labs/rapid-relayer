@@ -12,14 +12,14 @@ metadata:
     app.kubernetes.io/managed-by: {{ quote .Release.Service }}
   {{- with .Values.annotations }}
   annotations:
-    {{- toYaml . | nindent 6 }}
+    {{- toYaml . | nindent 4 }}
   {{- end }}
 spec:
   serviceName: {{ quote .Release.Name }}
   replicas: {{ .Values.replicas }}
-  {{- if .Values.strategy }}
-  strategy:
-    {{- toYaml .Values.strategy | nindent 4 }}
+  {{- if .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
   {{- end }}
   selector:
     matchLabels:

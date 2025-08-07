@@ -3,7 +3,7 @@ imagePullPolicy: null
 imagePullSecret: null
 replicas: 1
 
-strategy:
+updateStrategy:
   type: RollingUpdate
   rollingUpdate:
     maxUnavailable: 1
