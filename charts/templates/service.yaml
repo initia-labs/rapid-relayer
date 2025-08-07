@@ -1,0 +1,20 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-{{ .Release.Name }}-relayer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-relayer
+spec:
+  ports:
+    - port: 7010
+      protocol: TCP
+      appProtocol: http
+      name: relayer-api
+    - port: 7001
+      protocol: TCP
+      appProtocol: http
+      name: relayer-metric
+  selector:
+    app: {{ .Release.Name }}-relayer

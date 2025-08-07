@@ -1,0 +1,19 @@
+image: ghcr.io/initia-labs/rapid-relayer:latest
+imagePullPolicy: null
+replicas: 1
+
+env:
+  {}
+
+envFrom:
+  []
+
+resources:
+  cpu: 500m
+  memory: 1Gi
+
+storage:
+  requests: 10Gi
+
+annotations:
+  {}

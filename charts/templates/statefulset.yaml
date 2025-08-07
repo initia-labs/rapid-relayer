@@ -1,0 +1,77 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ .Release.Name }}-relayer
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}-relayer
+    app.kubernetes.io/name: "{{ .Release.Name }}-relayer"
+    app.kubernetes.io/instance: {{ quote .Release.Name }}
+    app.kubernetes.io/version: {{ quote (default "latest" .Chart.AppVersion) }}
+    app.kubernetes.io/managed-by: {{ quote .Release.Service }}
+  {{- with .Values.annotations }}
+    annotations:
+      {{- toYaml . | nindent 6 }}
+  {{- end }}
+
+spec:
+  serviceName: relayer
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-relayer
+  template:
+    metadata:
+      name: {{ .Release.Name }}-relayer
+      labels:
+        app: {{ .Release.Name }}-relayer
+    spec:
+      containers:
+        - name: main
+          image: {{ .Values.image }}
+          {{- with .Values.imagePullPolicy }}
+          imagePullPolicy: {{ quote . }}
+          {{- end }}
+          volumeMounts:
+            - name: pvc-main
+              mountPath: /relayer
+          resources:
+            requests:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+            limits:
+              cpu: {{ .Values.resources.cpu }}
+              memory: {{ .Values.resources.memory }}
+          ports:
+            - containerPort: 7010
+              protocol: TCP
+            - containerPort: 7001
+              protocol: TCP
+          {{- if .Values.env }}
+          env:
+            {{- range $key, $value := .Values.env }}
+            - name: {{ quote $key }}
+              value: {{ quote $value }}
+            {{- end }}
+          {{- end }}
+          {{- if .Values.envFrom }}
+          envFrom:
+            {{- toYaml .Values.envFrom | nindent 12 }}
+          {{- end }}
+      securityContext:
+        fsGroup: 1000
+      imagePullSecrets:
+        - name: regcred
+      volumes:
+        - name: workspace
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: pvc-main
+      spec:
+        accessModes: [ "ReadWriteOnce" ]
+        volumeMode: Filesystem
+        resources:
+          requests:
+            storage: {{ .Values.storage.requests }}
