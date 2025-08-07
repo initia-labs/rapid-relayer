@@ -48,10 +48,12 @@ spec:
       initContainers:
         - name: chown
           image: busybox
-          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo"]
+          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo /relayer"]
           volumeMounts:
             - mountPath: /syncInfo
               name: sync
+            - mountPath: /relayer
+              name: relayer
       containers:
         - name: rapid-relayer
           image: {{ quote .Values.image }}
@@ -73,6 +75,8 @@ spec:
           volumeMounts:
             - mountPath: /syncInfo
               name: sync
+            - mountPath: /relayer
+              name: relayer
           env:
             - name: NODE_ID
               valueFrom:
@@ -89,6 +93,13 @@ spec:
   volumeClaimTemplates:
     - metadata:
         name: sync
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.storage.requests }}
+    - metadata:
+        name: relayer
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:
