@@ -1,0 +1,25 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ quote .Release.Name }}
+  namespace: {{ quote .Release.Namespace }}
+  labels:
+    app: {{ quote .Release.Name }}
+    app.kubernetes.io/name: {{ quote .Release.Name }}
+    app.kubernetes.io/instance: {{ quote .Release.Name }}
+    app.kubernetes.io/version: {{ default "latest" .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ quote .Release.Service }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: 7011
+      targetPort: metrics
+      protocol: TCP
+      name: metrics
+  selector:
+    app: {{ quote .Release.Name }}

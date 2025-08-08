@@ -1,0 +1,26 @@
+image: ghcr.io/initia-labs/rapid-relayer:main
+imagePullPolicy: null
+imagePullSecret: null
+replicas: 1
+
+updateStrategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxUnavailable: 1
+
+env: {}
+
+envFrom: []
+
+resources:
+  requests:
+    cpu: 500m
+    memory: 1Gi
+  limits:
+    cpu: 500m
+    memory: 1Gi
+
+storage:
+  requests: 10Gi
+
+annotations: {}

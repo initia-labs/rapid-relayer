@@ -1,0 +1,8 @@
+deprecated: false
+
+apiVersion: v2
+name: rapid-relayer
+description: rapid relayer chart
+
+type: application
+version: 0.1.0

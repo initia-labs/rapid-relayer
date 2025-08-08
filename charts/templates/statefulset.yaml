@@ -1,0 +1,107 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ quote .Release.Name }}
+  namespace: {{ quote .Release.Namespace }}
+  labels:
+    app: {{ quote .Release.Name }}
+    app.kubernetes.io/name: {{ quote .Release.Name }}
+    app.kubernetes.io/instance: {{ quote .Release.Name }}
+    app.kubernetes.io/version: {{ default "latest" .Chart.AppVersion }}
+    app.kubernetes.io/managed-by: {{ quote .Release.Service }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  serviceName: {{ quote .Release.Name }}
+  replicas: {{ .Values.replicas }}
+  {{- if .Values.updateStrategy }}
+  updateStrategy:
+    {{- toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ quote .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ quote .Release.Name }}
+    spec:
+      {{- if .Values.imagePullSecret }}
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecret }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - {{ quote .Release.Name }}
+                topologyKey: "kubernetes.io/hostname"      
+      initContainers:
+        - name: chown
+          image: busybox
+          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo /relayer"]
+          volumeMounts:
+            - mountPath: /syncInfo
+              name: sync
+            - mountPath: /relayer
+              name: relayer
+      containers:
+        - name: rapid-relayer
+          image: {{ quote .Values.image }}
+          {{- with .Values.imagePullPolicy }}
+          imagePullPolicy: {{ quote . }}
+          {{- end }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+          ports:
+            - containerPort: 7010
+              name: http
+            - containerPort: 7011
+              name: metrics
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /syncInfo
+              name: sync
+            - mountPath: /relayer
+              name: relayer
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            {{- range $key, $value := .Values.env }}
+            - name: {{ quote $key }}
+              value: {{ quote $value }}
+            {{- end }}
+          {{- if .Values.envFrom }}
+          envFrom:
+            {{- toYaml .Values.envFrom | nindent 12 }}
+          {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: sync
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.storage.requests }}
+    - metadata:
+        name: relayer
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.storage.requests }}
