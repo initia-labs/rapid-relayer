@@ -44,16 +44,18 @@ spec:
                       operator: In
                       values:
                         - {{ quote .Release.Name }}
-                topologyKey: "kubernetes.io/hostname"      
+                topologyKey: "kubernetes.io/hostname"
       initContainers:
         - name: chown
           image: busybox
-          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo /relayer"]
+          command: ["sh", "-c", "chown -R 1000:1000 /syncInfo /relayer /db"]
           volumeMounts:
             - mountPath: /syncInfo
               name: sync
             - mountPath: /relayer
               name: relayer
+            - mountPath: /db
+              name: db
       containers:
         - name: rapid-relayer
           image: {{ quote .Values.image }}
@@ -77,11 +79,15 @@ spec:
               name: sync
             - mountPath: /relayer
               name: relayer
+            - mountPath: /db
+              name: db
           env:
             - name: NODE_ID
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+            - name: DB_PATH
+              value: /db
             {{- range $key, $value := .Values.env }}
             - name: {{ quote $key }}
               value: {{ quote $value }}
@@ -100,6 +106,13 @@ spec:
             storage: {{ .Values.storage.requests }}
     - metadata:
         name: relayer
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{ .Values.storage.requests }}
+    - metadata:
+        name: db
       spec:
         accessModes: ["ReadWriteOnce"]
         resources:
