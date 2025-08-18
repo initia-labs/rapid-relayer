@@ -17,10 +17,6 @@ metadata:
 spec:
   serviceName: {{ quote .Release.Name }}
   replicas: {{ .Values.replicas }}
-  {{- if .Values.updateStrategy }}
-  updateStrategy:
-    {{- toYaml .Values.updateStrategy | nindent 4 }}
-  {{- end }}
   selector:
     matchLabels:
       app: {{ quote .Release.Name }}
