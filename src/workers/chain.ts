@@ -2,6 +2,7 @@ import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
 import {
   ChannelOpenCloseEvent,
+  ChannelUpgradeEvent,
   PacketEvent,
   PacketFeeEvent,
   UpdateClientEvent,
@@ -9,6 +10,7 @@ import {
 import {
   parseChannelCloseEvent,
   parseChannelOpenEvent,
+  parseChannelUpgradeEvent,
   parsePacketEvent,
   parsePacketFeeEvent,
   parseReplaceClientEvent,
@@ -261,6 +263,7 @@ class SyncWorker {
   private async fetchEvents(height: number): Promise<{
     packetEvents: PacketEvent[]
     channelOpenEvents: ChannelOpenCloseEvent[]
+    channelUpgradeEvents: ChannelUpgradeEvent[]
     packetFeeEvents: PacketFeeEvent[]
     updateClientEvents: UpdateClientEvent[]
     replaceClientEvents: string[]
@@ -281,6 +284,7 @@ class SyncWorker {
 
     const packetEvents: PacketEvent[] = []
     const channelOpenEvents: ChannelOpenCloseEvent[] = []
+    const channelUpgradeEvents: ChannelUpgradeEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
     const updateClientEvents: UpdateClientEvent[] = []
     const replaceClientEvents: string[] = []
@@ -321,6 +325,20 @@ class SyncWorker {
         })
       }
 
+      if (
+        event.type === 'channel_upgrade_init' ||
+        event.type === 'channel_upgrade_try' ||
+        event.type === 'channel_upgrade_ack' ||
+        event.type === 'channel_upgrade_confirm' ||
+        event.type === 'channel_upgrade_open' ||
+        event.type === 'channel_upgrade_error'
+      ) {
+        channelUpgradeEvents.push({
+          type: event.type,
+          channelUpgradeInfo: parseChannelUpgradeEvent(event, height),
+        })
+      }
+
       if (event.type === 'incentivized_ibc_packet') {
         packetFeeEvents.push(parsePacketFeeEvent(event))
       }
@@ -337,6 +355,7 @@ class SyncWorker {
     return {
       packetEvents,
       channelOpenEvents,
+      channelUpgradeEvents,
       packetFeeEvents,
       updateClientEvents,
       replaceClientEvents,

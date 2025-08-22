@@ -3,6 +3,7 @@ import { ChainWorker } from './chain'
 import {
   Bool,
   ChannelOpenCloseTable,
+  ChannelUpgradeTable,
   ChannelState,
   PacketSendTable,
   PacketTimeoutTable,
@@ -18,10 +19,14 @@ import { bech32 } from 'bech32'
 import { setTimeout as delay } from 'timers/promises'
 import { Logger } from 'winston'
 import { ChannelController } from 'src/db/controller/channel'
-import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import { ChannelUpgradeController } from 'src/db/controller/channelUpgrade'
 import { PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
+import {
+  State,
+  stateFromJSON,
+} from '@initia/initia.proto/ibc/core/channel/v1/channel'
 
 export class WalletWorker {
   private sequence?: number
@@ -127,6 +132,7 @@ export class WalletWorker {
     )
 
     remain -= sendPackets.length
+    remain = Math.max(0, remain)
 
     const writeAckPackets =
       remain === 0
@@ -144,6 +150,7 @@ export class WalletWorker {
           )
 
     remain -= writeAckPackets.length
+    remain = Math.max(0, remain)
 
     const timeoutPackets =
       remain === 0
@@ -157,6 +164,7 @@ export class WalletWorker {
           )
 
     remain -= timeoutPackets.length
+    remain = Math.max(0, remain)
 
     const channelOpenEvents =
       remain === 0
@@ -174,6 +182,37 @@ export class WalletWorker {
                 .latestHeight
           )
 
+    remain -= channelOpenEvents.length
+    remain = Math.max(0, remain)
+
+    const channelUpgradeEvents =
+      remain === 0
+        ? []
+        : ChannelUpgradeController.getChannelUpgradeEvents(
+            this.chain.chainId,
+            counterpartyChainIds,
+            this.packetFilter,
+            undefined,
+            remain
+          )
+
+    for (const event of channelUpgradeEvents) {
+      const upgrade = await this.chain.rest.ibc.getUpgrade(
+        event.port_id,
+        event.channel_id
+      )
+
+      // if upgrade timeout, update state to UPGRADE_TIMEOUT
+      if (
+        (upgrade.timeout?.height.revision_height !== undefined &&
+          this.chain.latestHeight > upgrade.timeout?.height.revision_height) ||
+        (upgrade.timeout?.timestamp !== undefined &&
+          this.chain.latestTimestamp > upgrade.timeout?.timestamp)
+      ) {
+        event.state = ChannelState.UPGRADE_TIMEOUT
+      }
+    }
+
     // update packet in progress
     DB.transaction(() => {
       sendPackets.map((packet) =>
@@ -186,6 +225,9 @@ export class WalletWorker {
         PacketController.updateTimeoutPacketInProgress(packet)
       )
       channelOpenEvents.map((e) => ChannelController.updateInProgress(e.id))
+      channelUpgradeEvents
+        .filter((e) => e.id !== undefined)
+        .map((e) => ChannelUpgradeController.updateInProgress(e.id))
     })()
 
     try {
@@ -197,6 +239,8 @@ export class WalletWorker {
         await this.filterTimeoutPackets(timeoutPackets)
       const filteredChannelOpenCloseEvents =
         await this.filterChannelOpenCloseEvents(channelOpenEvents)
+      const filteredChannelUpgradeEvents =
+        await this.filterChannelUpgradeEvents(channelUpgradeEvents)
 
       // create msgs
 
@@ -206,6 +250,7 @@ export class WalletWorker {
         ...filteredWriteAckPackets.map((packet) => packet.src_connection_id),
         ...filteredTimeoutPackets.map((packet) => packet.src_connection_id),
         ...filteredChannelOpenCloseEvents.map((event) => event.connection_id),
+        ...filteredChannelUpgradeEvents.map((event) => event.connection_id),
       ].filter((v, i, a) => a.indexOf(v) === i)
 
       // get client ids from connections
@@ -373,6 +418,64 @@ export class WalletWorker {
                   height,
                   this.address()
                 )
+              default:
+                return undefined
+            }
+          })
+      )
+
+      // generate channel upgrade msgs
+      const channelUpgradeMsgs = await Promise.all(
+        filteredChannelUpgradeEvents
+          .sort((a, b) => b.state - a.state) // to make execute confirm first
+          .filter(
+            (event) =>
+              updateClientMsgs[connectionClientMap[event.connection_id]] !==
+              undefined
+          ) // filter expired client
+          .map(async (event) => {
+            const clientId = connectionClientMap[event.connection_id]
+            const height = updateClientMsgs[clientId].height
+
+            switch (event.state) {
+              case ChannelState.UPGRADE_TRY:
+                return await this.workerController.generateChannelUpgradeTryMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.UPGRADE_ACK:
+                return await this.workerController.generateChannelUpgradeAckMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.UPGRADE_CONFIRM:
+                return this.workerController.generateChannelUpgradeConfirmMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.UPGRADE_OPEN:
+                return this.workerController.generateChannelUpgradeOpenMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.UPGRADE_ERROR:
+                return this.workerController.generateChannelUpgradeCancelMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              case ChannelState.UPGRADE_TIMEOUT:
+                return this.workerController.generateChannelUpgradeTimeoutMsg(
+                  event,
+                  height,
+                  this.address()
+                )
+              default:
+                return undefined
             }
           })
       )
@@ -383,7 +486,8 @@ export class WalletWorker {
         ...ackMsgs,
         ...timeoutMsgs,
         ...channelOpenMsgs,
-      ]
+        ...channelUpgradeMsgs,
+      ].filter((msg) => msg !== undefined)
 
       if (msgs.length === 0) return
 
@@ -461,6 +565,9 @@ export class WalletWorker {
         channelOpenEvents.map((event) =>
           ChannelController.updateInProgress(event.id, false)
         )
+        channelUpgradeEvents.map((event) =>
+          ChannelUpgradeController.updateInProgress(event.id, false)
+        )
       })()
     }
 
@@ -515,6 +622,12 @@ export class WalletWorker {
       this.packetFilter
     )
 
+    count += ChannelUpgradeController.getChannelUpgradeEvents(
+      this.chain.chainId,
+      counterpartyChainIds,
+      this.packetFilter
+    ).length
+
     return count
   }
 
@@ -549,7 +662,7 @@ export class WalletWorker {
           sendPacketMap[path][0].dst_channel_id
         )
 
-        if (dstChannel.channel.state === State.STATE_CLOSED) {
+        if (stateFromJSON(dstChannel.channel.state) === State.STATE_CLOSED) {
           sendPacketsToDel.push(...sendPacketMap[path])
           delete sendPacketMap[path]
           return
@@ -562,7 +675,7 @@ export class WalletWorker {
           sendPacketMap[path][0].src_channel_id
         )
 
-        if (srcChannel.channel.state === State.STATE_CLOSED) {
+        if (stateFromJSON(srcChannel.channel.state) === State.STATE_CLOSED) {
           sendPacketsToDel.push(...sendPacketMap[path])
           delete sendPacketMap[path]
           return
@@ -784,24 +897,36 @@ export class WalletWorker {
         switch (v.state) {
           // check src channel state
           case ChannelState.INIT:
-            if (counterpartyChannel.channel.state === State.STATE_INIT) {
+            if (
+              stateFromJSON(counterpartyChannel.channel.state) ===
+              State.STATE_INIT
+            ) {
               return v
             }
             break
           // check src channel state
           case ChannelState.TRYOPEN:
-            if (channel && channel.channel.state === State.STATE_INIT) {
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) === State.STATE_INIT
+            ) {
               return v
             }
             break
           // check dst channel state
           case ChannelState.ACK:
-            if (channel && channel.channel.state === State.STATE_TRYOPEN) {
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) === State.STATE_TRYOPEN
+            ) {
               return v
             }
             break
           case ChannelState.CLOSE:
-            if (channel && channel.channel.state !== State.STATE_CLOSED) {
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) !== State.STATE_CLOSED
+            ) {
               return v
             }
             break
@@ -814,6 +939,118 @@ export class WalletWorker {
     )
 
     ChannelController.delOpenEvents(eventsToDel)
+
+    return res.filter((v) => v !== undefined)
+  }
+
+  private async filterChannelUpgradeEvents(
+    channelUpgrades: ChannelUpgradeTable[]
+  ): Promise<ChannelUpgradeTable[]> {
+    const eventsToDel: ChannelUpgradeTable[] = []
+
+    // check already executed
+    const res = await Promise.all(
+      channelUpgrades.map(async (v) => {
+        const channel =
+          v.channel_id !== ''
+            ? await this.chain.rest.ibc.channel(v.port_id, v.channel_id)
+            : undefined
+        const counterpartyChannel =
+          v.counterparty_channel_id !== ''
+            ? await this.workerController.chains[
+                v.counterparty_chain_id
+              ].rest.ibc.channel(
+                v.counterparty_port_id,
+                v.counterparty_channel_id
+              )
+            : undefined
+
+        // Check both our internal upgrade state AND the actual IBC channel state
+        switch (v.state) {
+          case ChannelState.UPGRADE_TRY:
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) === State.STATE_OPEN
+            ) {
+              return v
+            }
+            break
+          case ChannelState.UPGRADE_ACK:
+            if (
+              channel &&
+              (stateFromJSON(channel.channel.state) === State.STATE_OPEN ||
+                stateFromJSON(channel.channel.state) === State.STATE_FLUSHING)
+            ) {
+              return v
+            }
+            break
+          case ChannelState.UPGRADE_CONFIRM:
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) === State.STATE_FLUSHING
+            ) {
+              return v
+            }
+            break
+          case ChannelState.UPGRADE_OPEN:
+            if (
+              channel &&
+              stateFromJSON(channel.channel.state) ===
+                State.STATE_FLUSHCOMPLETE &&
+              counterpartyChannel &&
+              stateFromJSON(counterpartyChannel.channel.state) ===
+                State.STATE_FLUSHCOMPLETE
+            ) {
+              return v
+            } else if (
+              (channel &&
+                stateFromJSON(channel.channel.state) ===
+                  State.STATE_FLUSHING) ||
+              (counterpartyChannel &&
+                stateFromJSON(counterpartyChannel.channel.state) ===
+                  State.STATE_FLUSHING)
+            ) {
+              // need to wait for flush complete
+              return undefined
+            }
+            break
+          case ChannelState.UPGRADE_TIMEOUT:
+            if (
+              channel &&
+              (stateFromJSON(channel.channel.state) === State.STATE_FLUSHING ||
+                stateFromJSON(channel.channel.state) ===
+                  State.STATE_FLUSHCOMPLETE)
+            ) {
+              return v
+            }
+            break
+          case ChannelState.UPGRADE_ERROR:
+            // if there is no error receipt in the upgrade, return v
+            try {
+              await this.chain.rest.ibc.getUpgradeError(v.port_id, v.channel_id)
+            } catch (e) {
+              if (e instanceof Error && e.message.includes('not found')) {
+                return v
+              }
+
+              return undefined
+            }
+
+            break
+        }
+
+        eventsToDel.push(v)
+
+        return undefined
+      })
+    )
+
+    // Clean up completed/failed upgrades
+    for (const upgrade of eventsToDel) {
+      if (upgrade.id) {
+        ChannelUpgradeController.deleteUpgrade(upgrade.id)
+      }
+    }
 
     return res.filter((v) => v !== undefined)
   }
