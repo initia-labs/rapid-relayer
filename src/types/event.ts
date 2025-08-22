@@ -71,6 +71,34 @@ export interface ChannelOpenCloseInfo {
   dstChannelId: string
 }
 
+export interface ChannelUpgradeEvent {
+  type:
+    | 'channel_upgrade_init'
+    | 'channel_upgrade_try'
+    | 'channel_upgrade_ack'
+    | 'channel_upgrade_confirm'
+    | 'channel_upgrade_open'
+    | 'channel_upgrade_error'
+    // | 'channel_upgrade_timeout'
+    // | 'channel_upgrade_cancelled'
+    // | 'channel_flush_complete'
+  channelUpgradeInfo: ChannelUpgradeInfo
+}
+
+export interface ChannelUpgradeInfo {
+  height: number
+  srcPortId: string
+  srcChannelId: string
+  dstPortId: string
+  dstChannelId: string
+  upgradeSequence: number
+  upgradeVersion?: string
+  upgradeOrdering?: string
+  upgradeConnectionHops?: string
+  upgradeErrorReceipt?: string
+  channelState?: string
+}
+
 export interface PacketFeeEvent {
   portId: string
   channelId: string
