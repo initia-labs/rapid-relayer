@@ -193,8 +193,6 @@ export CHAIN_1_WALLET_0_MAX_HANDLE_PACKET=10
 
 **Note:** Environment variables have higher priority than the JSON configuration. If both are provided, the environment variables will override the corresponding values in the JSON configuration.
 
-````
-
 ### 2. Run relayer
 
 ```bash
@@ -289,13 +287,13 @@ Each node must have a unique `id`, its own `host`/`port`, and list all other nod
 - Nodes will automatically discover each other, elect a leader, and synchronize.
 - You can run a single node for development, or multiple nodes for production/high-availability.
 
-#### Example (single node):
+#### Example (single node)
 
 ```bash
 npm start
 ```
 
-#### Example (multi-node, on different machines or ports):
+#### Example (multi-node, on different machines or ports)
 
 ```bash
 # On node1

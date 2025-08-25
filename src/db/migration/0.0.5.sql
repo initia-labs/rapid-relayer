@@ -22,5 +22,5 @@ CREATE TABLE IF NOT EXISTS channel_upgrade (
   upgrade_ordering TEXT,
   upgrade_timeout_height BIGINT, -- Nullable, only available after ACK/TRY/CONFIRM
   upgrade_timeout_timestamp BIGINT, -- Nullable, only available after ACK/TRY/CONFIRM
-  upgrade_error_receipt TEXT, -- Nullable, only available after ERROR
+  upgrade_error_receipt TEXT -- Nullable, only available after ERROR
 );
