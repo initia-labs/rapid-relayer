@@ -9,7 +9,6 @@ import {
   generateMsgTimeout,
   generateMsgTimeoutOnClose,
   generateMsgUpdateClient,
-  getRevisionHeight,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import {
@@ -36,13 +35,10 @@ import {
   MsgChannelUpgradeTimeout,
   MsgChannelUpgradeCancel,
   MsgChannelUpgradeOpen,
-  Upgrade,
   UpgradeFields,
-  Timeout,
   RawKey,
   Wallet,
   Channel,
-  ErrorReceipt,
 } from '@initia/initia.js'
 import { Config, KeyConfig, PacketFee } from 'src/lib/config'
 import { env } from 'node:process'
@@ -61,7 +57,11 @@ import {
   getUpgradeProof,
 } from 'src/lib/proof'
 import { ClientController } from 'src/db/controller/client'
-import { Order, State, stateFromJSON } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import {
+  Order,
+  State,
+  stateFromJSON,
+} from '@initia/initia.proto/ibc/core/channel/v1/channel'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -358,7 +358,7 @@ export class WorkerController {
       event.upgrade_ordering === 'ORDER_ORDERED'
         ? Order.ORDER_ORDERED
         : Order.ORDER_UNORDERED,
-      [event.counterparty_connection_id],
+      [event.counterparty_upgrade_connection_id as string],
       event.upgrade_version || ''
     )
 
@@ -379,7 +379,7 @@ export class WorkerController {
     return new MsgChannelUpgradeTry(
       event.port_id,
       event.channel_id,
-      [event.connection_id],
+      [event.upgrade_connection_id as string],
       counterpartyUpgradeFields,
       event.upgrade_sequence || 0,
       proofChannel,
@@ -393,31 +393,17 @@ export class WorkerController {
     event: ChannelUpgradeTable,
     height: Height,
     executorAddress: string
-  ): Promise<MsgChannelUpgradeAck> {
+  ): Promise<MsgChannelUpgradeAck | undefined> {
     const counterpartyChain = this.chains[event.counterparty_chain_id]
 
     // Create Upgrade object from event data
-    const counterpartyUpgradeFields = new UpgradeFields(
-      event.upgrade_ordering === 'ORDER_ORDERED'
-        ? Order.ORDER_ORDERED
-        : Order.ORDER_UNORDERED,
-      [event.counterparty_connection_id],
-      event.upgrade_version || ''
+    const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
     )
-
-    // Create Timeout object using initia.js Height
-    const timeout = new Timeout(
-      Transform.height(
-        getRevisionHeight(
-          event.upgrade_timeout_height || 0,
-          counterpartyChain.chainId
-        )
-      ),
-      event.upgrade_timeout_timestamp || 0
-    )
-
-    // Create Upgrade object
-    const counterpartyUpgrade = new Upgrade(counterpartyUpgradeFields, timeout)
+    if (!counterpartyUpgrade) {
+      return undefined
+    }
 
     // Get actual proofs from the chain using existing proof system
     const proofChannel = await getChannelProof(
@@ -448,7 +434,7 @@ export class WorkerController {
     event: ChannelUpgradeTable,
     height: Height,
     executorAddress: string
-  ): Promise<MsgChannelUpgradeConfirm> {
+  ): Promise<MsgChannelUpgradeConfirm | undefined> {
     const counterpartyChain = this.chains[event.counterparty_chain_id]
 
     // Get counterparty channel
@@ -457,28 +443,13 @@ export class WorkerController {
       event.counterparty_channel_id
     )
 
-    // Create UpgradeFields from the event data
-    const counterpartyUpgradeFields = new UpgradeFields(
-      event.upgrade_ordering === 'ORDER_ORDERED'
-        ? Order.ORDER_ORDERED
-        : Order.ORDER_UNORDERED,
-      [event.counterparty_connection_id],
-      event.upgrade_version || ''
+    const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
     )
-
-    // Create Timeout object using initia.js Height
-    const timeout = new Timeout(
-      Transform.height(
-        getRevisionHeight(
-          event.upgrade_timeout_height || 0,
-          counterpartyChain.chainId
-        )
-      ),
-      event.upgrade_timeout_timestamp || 0
-    )
-
-    // Create Upgrade object
-    const counterpartyUpgrade = new Upgrade(counterpartyUpgradeFields, timeout)
+    if (!counterpartyUpgrade) {
+      return undefined
+    }
 
     // Get actual proofs from the chain using existing proof system
     const proofChannel = await getChannelProof(
@@ -494,7 +465,7 @@ export class WorkerController {
       height
     )
 
-    return new MsgChannelUpgradeConfirm(
+    const msg = new MsgChannelUpgradeConfirm(
       event.port_id,
       event.channel_id,
       stateFromJSON(counterpartyChannel.channel.state),
@@ -504,13 +475,14 @@ export class WorkerController {
       Transform.height(height),
       executorAddress
     )
+    return msg
   }
 
   async generateChannelUpgradeOpenMsg(
     event: ChannelUpgradeTable,
     height: Height,
     executorAddress: string
-  ): Promise<MsgChannelUpgradeOpen> {
+  ): Promise<MsgChannelUpgradeOpen | undefined> {
     const counterpartyChain = this.chains[event.counterparty_chain_id]
 
     // Get counterparty channel
@@ -572,7 +544,7 @@ export class WorkerController {
     event: ChannelUpgradeTable,
     height: Height,
     executorAddress: string
-  ): Promise<MsgChannelUpgradeCancel> {
+  ): Promise<MsgChannelUpgradeCancel | undefined> {
     const counterpartyChain = this.chains[event.counterparty_chain_id]
 
     // Get counterparty channel
@@ -580,6 +552,9 @@ export class WorkerController {
       event.counterparty_port_id,
       event.counterparty_channel_id
     )
+    if (!errorReceipt) {
+      return undefined
+    }
 
     // Get actual proofs from the chain
     const proofUpgradeError = await getUpgradeErrorProof(
@@ -592,7 +567,7 @@ export class WorkerController {
     return new MsgChannelUpgradeCancel(
       event.port_id,
       event.channel_id,
-      ErrorReceipt.fromData(errorReceipt.error_receipt),
+      errorReceipt,
       proofUpgradeError,
       Transform.height(height),
       executorAddress

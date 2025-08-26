@@ -82,19 +82,49 @@ class IbcAPI extends IbcAPI_ {
     )
   }
 
-  async getUpgrade(portId: string, channelId: string): Promise<Upgrade> {
-    return this.c.get<Upgrade>(
-      `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade`
-    )
+  async getUpgrade(
+    portId: string,
+    channelId: string
+  ): Promise<Upgrade | undefined> {
+    try {
+      const upgrade_response = await this.c.get<UpgradeResponse>(
+        `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade`
+      )
+      return Upgrade.fromData(upgrade_response.upgrade)
+    } catch (e) {
+      if (e.status === 404) {
+        return undefined
+      }
+
+      throw e
+    }
   }
 
   async getUpgradeError(
     portId: string,
     channelId: string
-  ): Promise<UpgradeErrorResponse> {
-    return this.c.get<UpgradeErrorResponse>(
-      `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade_error`
-    )
+  ): Promise<ErrorReceipt | undefined> {
+    try {
+      const error_receipt_response = await this.c.get<UpgradeErrorResponse>(
+        `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade_error`
+      )
+      return ErrorReceipt.fromData(error_receipt_response.error_receipt)
+    } catch (e) {
+      if (e.status === 404) {
+        return undefined
+      }
+
+      throw e
+    }
+  }
+}
+
+interface UpgradeResponse {
+  upgrade: Upgrade.Data
+  proof: null | string
+  proof_height: {
+    revision_number: number
+    revision_height: number
   }
 }
 

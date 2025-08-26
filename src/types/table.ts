@@ -112,17 +112,17 @@ export interface ChannelUpgradeTable {
   port_id: string
   channel_id: string
   connection_id: string
+  upgrade_connection_id?: string
 
   counterparty_chain_id: string
   counterparty_port_id: string
   counterparty_channel_id: string
   counterparty_connection_id: string
+  counterparty_upgrade_connection_id?: string
 
   upgrade_sequence?: number
   upgrade_version?: string
   upgrade_ordering?: string
-  upgrade_timeout_height?: number
-  upgrade_timeout_timestamp?: number
   upgrade_error_receipt?: string  
 }
 

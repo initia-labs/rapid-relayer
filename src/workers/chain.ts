@@ -27,6 +27,7 @@ import { PacketFeeController } from 'src/db/controller/packetFee'
 import { config, PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
+import { ChannelUpgradeController } from 'src/db/controller/channelUpgrade'
 
 export class ChainWorker {
   public latestTimestamp: number
@@ -164,7 +165,7 @@ class SyncWorker {
           { length: config.maxParallelBlocks ?? 20 },
           (_, i) => i + this.syncedHeight + 1
         ).filter(
-          (height) => height <= endHeight && height <= this.chain.latestHeight
+          (height) => height <= endHeight && height <= this.chain.latestHeight && height > 0
         )
 
         if (heights.length === 0) continue
@@ -181,6 +182,7 @@ class SyncWorker {
         const replaceClientEvents = events
           .map((e) => e.replaceClientEvents)
           .flat()
+        const channelUpgradeEvents = events.map((e) => e.channelUpgradeEvents).flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
@@ -218,9 +220,16 @@ class SyncWorker {
           channelOpenEvents
         )
 
+        const channelUpgradeEventFeed = await ChannelUpgradeController.feedEvents(
+          this.chain.rest,
+          this.chain.chainId,
+          channelUpgradeEvents
+        )
+
         DB.transaction(() => {
           packetEventFeed()
           channelOpenEventFeed()
+          channelUpgradeEventFeed()
           PacketFeeController.feedEvents(this.chain.chainId, packetFeeEvents)()
 
           finish = SyncInfoController.update(

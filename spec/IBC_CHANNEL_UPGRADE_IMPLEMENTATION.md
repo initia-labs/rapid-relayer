@@ -12,6 +12,7 @@ The IBC channel upgrade feature allows chains to upgrade their IBC channels to n
 4. **Channel Upgrade Confirm** - Confirms the upgrade is complete
 5. **Channel Upgrade Open** - Opens the upgraded channel
 6. **Channel Upgrade Error** - Handles upgrade errors
+7. **Channel Upgrade Timeout** - Handles upgrade timeouts
 
 ## Implementation Components
 
@@ -23,7 +24,7 @@ The IBC channel upgrade feature allows chains to upgrade their IBC channels to n
 - **Fields**:
   - `id`: Primary key (auto-increment)
   - `in_progress`: Boolean flag for transaction status
-  - `state`: Channel upgrade state (5-9)
+  - `state`: Channel upgrade state (5-10)
   - `chain_id`: Destination chain ID (where the record will be processed)
   - `connection_id`: Connection ID on destination chain
   - `port_id`: Port ID on destination chain
@@ -35,9 +36,9 @@ The IBC channel upgrade feature allows chains to upgrade their IBC channels to n
   - `upgrade_sequence`: Upgrade sequence number
   - `upgrade_version`: New channel version
   - `upgrade_ordering`: Channel ordering (ORDERED/UNORDERED)
-  - `upgrade_timeout_height`: Upgrade timeout height (nullable)
-  - `upgrade_timeout_timestamp`: Upgrade timeout timestamp (nullable)
   - `upgrade_error_receipt`: Error receipt for failed upgrades (nullable)
+
+**Note**: The database schema does not store timeout fields (`upgrade_timeout_height`, `upgrade_timeout_timestamp`) to avoid stale data. Timeouts are checked dynamically via REST API calls.
 
 ### 2. Type Definitions
 
@@ -166,20 +167,128 @@ Each transition:
 - **No stored timeout fields** in database (avoids stale data)
 - **Real-time timeout checking** via REST API queries (`rest.ibc.getUpgrade`)
 - **Dynamic state updates** based on current chain conditions
-- **Timeout comparison** against `latestHeight` and `latestTimestamp`
+- **Timeout comparison** against current chain timestamp
 
 #### Implementation
 
 ```typescript
-// Check for upgrade timeout
-if (
-  (upgrade.timeout?.height.revision_height !== undefined &&
-    this.chain.latestHeight > upgrade.timeout?.height.revision_height) ||
-  (upgrade.timeout?.timestamp !== undefined &&
-    this.chain.latestTimestamp > upgrade.timeout?.timestamp)
-) {
-  event.state = ChannelState.UPGRADE_TIMEOUT
+async function checkChannelUpgradeTimeout(
+  event: ChannelUpgradeTable,
+  chain: ChainWorker,
+  counterpartyChain: ChainWorker
+): Promise<boolean> {
+  const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
+    event.counterparty_port_id,
+    event.counterparty_channel_id
+  )
+  const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+    event.counterparty_port_id,
+    event.counterparty_channel_id
+  )
+  
+  if (
+    counterpartyChannel &&
+    counterpartyUpgrade &&
+    // This condition comes from ibc-go and ensures the counterparty channel is in an OPEN state
+    // before checking for timeouts. While this may seem redundant with the UPGRADE_ERROR
+    // flow, it provides an additional safety check before timing out upgrades.
+    stateFromJSON(counterpartyChannel.channel.state) === State.STATE_OPEN
+  ) {
+    const timeout_timestamp = BigInt(
+      counterpartyUpgrade.timeout?.timestamp as string
+    )
+    if (
+      timeout_timestamp !== undefined &&
+      timeout_timestamp !== BigInt(0) &&
+      BigInt(chain.latestTimestamp) * BigInt(1000000) > timeout_timestamp
+    ) {
+      return true
+    }
+  }
+  return false
 }
+```
+
+#### Timeout Processing
+
+```typescript
+// In wallet worker - timeout checking for UPGRADE_ACK and UPGRADE_CONFIRM states
+await Promise.all(
+  channelUpgradeEvents.map(async (event) => {
+    if (
+      event.state !== ChannelState.UPGRADE_ACK &&
+      event.state !== ChannelState.UPGRADE_CONFIRM
+    ) {
+      return
+    }
+
+    const isTimeout = await checkChannelUpgradeTimeout(
+      event,
+      this.chain,
+      this.workerController.chains[event.counterparty_chain_id]
+    )
+    if (isTimeout) {
+      event.state = ChannelState.UPGRADE_TIMEOUT
+    }
+  })
+)
+```
+
+### 7. Message Generation
+
+#### Supported Message Types
+
+The implementation supports all IBC channel upgrade message types:
+
+1. **MsgChannelUpgradeTry** - For `UPGRADE_TRY` state
+2. **MsgChannelUpgradeAck** - For `UPGRADE_ACK` state  
+3. **MsgChannelUpgradeConfirm** - For `UPGRADE_CONFIRM` state
+4. **MsgChannelUpgradeOpen** - For `UPGRADE_OPEN` state
+5. **MsgChannelUpgradeTimeout** - For `UPGRADE_TIMEOUT` state
+6. **MsgChannelUpgradeCancel** - For `UPGRADE_ERROR` state
+
+#### Message Generation Flow
+
+```typescript
+// In wallet worker - message generation based on state
+const channelUpgradeMsgs = await Promise.all(
+  filteredChannelUpgradeEvents.map(async (event) => {
+    switch (event.state) {
+      case ChannelState.UPGRADE_TRY:
+        return await this.workerController.generateChannelUpgradeTryMsg(
+          event,
+          this.chain
+        )
+      case ChannelState.UPGRADE_ACK:
+        return await this.workerController.generateChannelUpgradeAckMsg(
+          event,
+          this.chain
+        )
+      case ChannelState.UPGRADE_CONFIRM:
+        return this.workerController.generateChannelUpgradeConfirmMsg(
+          event,
+          this.chain
+        )
+      case ChannelState.UPGRADE_OPEN:
+        return this.workerController.generateChannelUpgradeOpenMsg(
+          event,
+          this.chain
+        )
+      case ChannelState.UPGRADE_ERROR:
+        return this.workerController.generateChannelUpgradeCancelMsg(
+          event,
+          this.chain
+        )
+      case ChannelState.UPGRADE_TIMEOUT:
+        return this.workerController.generateChannelUpgradeTimeoutMsg(
+          event,
+          this.chain
+        )
+      default:
+        return undefined
+    }
+  })
+)
 ```
 
 ## Channel Upgrade Flow
@@ -341,28 +450,36 @@ The channel upgrade follows a specific flow where events are detected on one cha
 
 **Proactive Checking:**
 
-- Workers periodically check upgrade records
+- Workers periodically check upgrade records for `UPGRADE_ACK` and `UPGRADE_CONFIRM` states only
 - Query REST API for current upgrade state: `rest.ibc.getUpgrade(port_id, channel_id)`
 - Compare timeout values with current chain state
 
 **Timeout Detection:**
 
 ```typescript
+// Only check timeouts for specific states
 if (
-  (upgrade.timeout?.height.revision_height !== undefined &&
-    this.chain.latestHeight > upgrade.timeout?.height.revision_height) ||
-  (upgrade.timeout?.timestamp !== undefined &&
-    this.chain.latestTimestamp > upgrade.timeout?.timestamp)
+  event.state !== ChannelState.UPGRADE_ACK &&
+  event.state !== ChannelState.UPGRADE_CONFIRM
 ) {
+  return
+}
+
+const isTimeout = await checkChannelUpgradeTimeout(
+  event,
+  this.chain,
+  this.workerController.chains[event.counterparty_chain_id]
+)
+if (isTimeout) {
   event.state = ChannelState.UPGRADE_TIMEOUT
 }
 ```
 
 **Timeout Handling:**
 
-- Update event state to `UPGRADE_TIMEOUT`
-- Clean up upgrade records
-- Log timeout for monitoring
+- Update event state to `UPGRADE_TIMEOUT` in memory
+- State change is used immediately for message generation
+- No database persistence required for current processing cycle
 
 ### Key Flow Characteristics
 
@@ -387,6 +504,11 @@ if (
    - Error states are recorded for debugging
    - System continues processing other upgrades
 
+6. **Timeout Processing:**
+   - Limited to specific states (`UPGRADE_ACK`, `UPGRADE_CONFIRM`)
+   - In-memory state changes for immediate processing
+   - No database persistence required
+
 ## Usage Flow
 
 ### 1. Event Detection
@@ -398,15 +520,17 @@ if (
 ### 2. Event Processing
 
 1. Wallet worker retrieves pending upgrade events
-2. Filters events based on correct channel states
-3. Generates appropriate upgrade messages
-4. Executes transactions on the blockchain
+2. **Filters events based on correct channel states**
+3. **Checks timeouts for specific states only** (`UPGRADE_ACK`, `UPGRADE_CONFIRM`)
+4. Generates appropriate upgrade messages
+5. Executes transactions on the blockchain
 
 ### 3. State Management
 
 - Each upgrade state is stored as a separate database record
 - Previous states are cleaned up when advancing
 - Counterparty workers process events from their perspective
+- **Timeout state changes are handled in-memory for immediate processing**
 
 ## Error Handling
 
@@ -422,6 +546,12 @@ if (
 - Validates upgrade sequence
 - Ensures proper timing constraints
 
+### Timeout Handling
+
+- **Limited scope**: Only checks `UPGRADE_ACK` and `UPGRADE_CONFIRM` states
+- **In-memory updates**: State changes are made in memory for immediate use
+- **No database persistence**: Timeout state changes are not saved to database
+
 ## Configuration
 
 ### Database
@@ -429,12 +559,31 @@ if (
 - Migration automatically applied
 - Consistent with existing table patterns
 - Proper field mapping
+- **No timeout fields stored** (dynamic checking only)
 
 ### Message Types
 
 - Uses official `@initia/initia.js` types
 - Proper IBC module routing
 - Serialization support
+- **All upgrade message types supported**
+
+## Implementation Notes
+
+### Key Design Decisions
+
+1. **Counterparty Event Creation**: Source chains create events for destination chains
+2. **Dynamic Timeout Detection**: Real-time checking via REST API instead of stored values
+3. **Consistent Database Patterns**: Follows existing migration and table patterns
+4. **Proper IBC-Go Integration**: Uses correct event attributes and state progression
+5. **Limited Timeout Scope**: Only checks timeouts for specific states to avoid unnecessary overhead
+6. **In-Memory State Changes**: Timeout state changes are handled in memory for immediate processing
+
+### Performance Considerations
+
+- **Selective Timeout Checking**: Only processes timeouts for relevant states
+- **In-Memory Updates**: Avoids unnecessary database writes for temporary state changes
+- **Efficient Filtering**: Uses database queries to filter events before processing
 
 ## Conclusion
 
@@ -444,13 +593,14 @@ This implementation provides a complete IBC channel upgrade solution that accura
 - **Dynamic Timeout Detection**: Real-time checking via REST API instead of stored values
 - **Consistent Database Patterns**: Follows existing migration and table patterns
 - **Proper IBC-Go Integration**: Uses correct event attributes and state progression
+- **Optimized Timeout Handling**: Limited scope and in-memory processing for efficiency
 
 The implementation is:
 
 - **Accurate**: Matches IBC-Go implementation exactly
 - **Complete**: Includes all upgrade message types and states
 - **Robust**: Handles errors gracefully and maintains consistency
-- **Efficient**: Uses proper indexing and filtering
+- **Efficient**: Uses proper indexing, filtering, and selective timeout checking
 - **Maintainable**: Follows established code patterns
 
 ## References

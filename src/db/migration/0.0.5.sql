@@ -11,16 +11,16 @@ CREATE TABLE IF NOT EXISTS channel_upgrade (
   port_id TEXT NOT NULL,
   channel_id TEXT NOT NULL,
   connection_id TEXT NOT NULL,
+  upgrade_connection_id TEXT,
 
   counterparty_chain_id TEXT NOT NULL,
   counterparty_port_id TEXT NOT NULL,
   counterparty_channel_id TEXT NOT NULL,
   counterparty_connection_id TEXT NOT NULL,
+  counterparty_upgrade_connection_id TEXT,
 
   upgrade_sequence BIGINT,
   upgrade_version TEXT,
   upgrade_ordering TEXT,
-  upgrade_timeout_height BIGINT, -- Nullable, only available after ACK/TRY/CONFIRM
-  upgrade_timeout_timestamp BIGINT, -- Nullable, only available after ACK/TRY/CONFIRM
   upgrade_error_receipt TEXT -- Nullable, only available after ERROR
 );

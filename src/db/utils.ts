@@ -263,6 +263,22 @@ export function In<T>(array: T[]): In<T> {
   return { in: array }
 }
 
+export function Gt<V>(value: V): Range<V> {
+  return { gt: value }
+}
+
+export function Gte<V>(value: V): Range<V> {
+  return { gte: value }
+}
+
+export function Lt<V>(value: V): Range<V> {
+  return { lt: value }
+}
+
+export function Lte<V>(value: V): Range<V> {
+  return { lte: value }
+}
+
 type ParamType = number | string | bigint | Buffer | null
 
 function toParamType<T>(p: T): ParamType {

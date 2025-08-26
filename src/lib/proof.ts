@@ -81,7 +81,7 @@ export async function getUpgradeErrorProof(
   headerHeight: Height
 ): Promise<string> {
   const key = new Uint8Array(
-    Buffer.from(`channelUpgrades/upgradeErrors/ports/${portId}/channels/${channelId}`)
+    Buffer.from(`channelUpgrades/upgradeError/ports/${portId}/channels/${channelId}`)
   )
   const proof = await getRawProof(chain, key, headerHeight)
   const ics23Proof = convertProofsToIcs23(proof)

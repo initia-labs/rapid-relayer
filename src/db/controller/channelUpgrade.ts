@@ -4,39 +4,73 @@ import {
   ChannelState,
   Bool,
   ChannelUpgradeEvent,
+  ConnectionTable,
 } from 'src/types'
 import { update, del, select, WhereOptions, In, insert } from '../utils'
 import { PacketFilter } from './packet'
 import { RESTClient } from 'src/lib/restClient'
 import { ConnectionController } from './connection'
-import {
-  State,
-  stateFromJSON,
-} from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { Database } from 'better-sqlite3'
+import { createLoggerWithPrefix } from 'src/lib/logger'
 
 export class ChannelUpgradeController {
   static tableName = 'channel_upgrade'
+  private static logger = createLoggerWithPrefix('[ChannelUpgradeController] ')
 
-  static async feedEvent(
+  static async feedEvents(
+    rest: RESTClient,
+    chainId: string,
+    events: ChannelUpgradeEvent[]
+  ): Promise<() => void> {
+    ChannelUpgradeController.logger.info(
+      `feedEvents: chainId=${chainId}, events.length=${events.length}`
+    )
+    const feedFns: (() => void)[] = []
+    for (const event of events) {
+      switch (event.type) {
+        case 'channel_upgrade_init':
+          feedFns.push(await this.feedUpgradeInitEvent(rest, chainId, event))
+          break
+        case 'channel_upgrade_try':
+          feedFns.push(await this.feedUpgradeTryEvent(rest, chainId, event))
+          break
+        case 'channel_upgrade_ack':
+          feedFns.push(await this.feedUpgradeAckEvent(rest, chainId, event))
+          break
+        case 'channel_upgrade_confirm':
+          feedFns.push(await this.feedUpgradeConfirmEvent(rest, chainId, event))
+          break
+        case 'channel_upgrade_open':
+          feedFns.push(await this.feedUpgradeOpenEvent(rest, chainId, event))
+          break
+        case 'channel_upgrade_error':
+          feedFns.push(await this.feedUpgradeErrorEvent(rest, chainId, event))
+          break
+      }
+    }
+
+    return () => {
+      for (const fn of feedFns) {
+        fn()
+      }
+    }
+  }
+
+  static async getOriginConnection(
     rest: RESTClient,
     chainId: string,
     event: ChannelUpgradeEvent
-  ): Promise<() => void> {
-    switch (event.type) {
-      case 'channel_upgrade_init':
-        return this.feedUpgradeInitEvent(rest, chainId, event)
-      case 'channel_upgrade_try':
-        return this.feedUpgradeTryEvent(rest, chainId, event)
-      case 'channel_upgrade_ack':
-        return this.feedUpgradeAckEvent(rest, chainId, event)
-      case 'channel_upgrade_confirm':
-        return this.feedUpgradeConfirmEvent(rest, chainId, event)
-      case 'channel_upgrade_open':
-        return this.feedUpgradeOpenEvent(rest, chainId, event)
-      case 'channel_upgrade_error':
-        return this.feedUpgradeErrorEvent(rest, chainId, event)
-    }
+  ): Promise<ConnectionTable> {
+    const channel = await rest.ibc.channel(
+      event.channelUpgradeInfo.srcPortId,
+      event.channelUpgradeInfo.srcChannelId
+    )
+    const connection_id = channel.channel.connection_hops[0]
+    return await ConnectionController.getConnection(
+      rest,
+      chainId,
+      connection_id
+    )
   }
 
   static async feedUpgradeInitEvent(
@@ -44,26 +78,31 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
+    const origin_connection =
+      await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
+    const upgrade_connection_id = event.channelUpgradeInfo
+      .upgradeConnectionHops as string
+    const upgrade_connection = await ConnectionController.getConnection(
       rest,
       chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
+      upgrade_connection_id
     )
 
     const channelUpgradeTry: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_TRY,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: origin_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: origin_connection.counterparty_connection_id,
+      upgrade_connection_id: upgrade_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: origin_connection.connection_id,
+      counterparty_upgrade_connection_id: upgrade_connection.connection_id,
 
       upgrade_version: event.channelUpgradeInfo.upgradeVersion,
       upgrade_ordering: event.channelUpgradeInfo.upgradeOrdering,
@@ -80,47 +119,49 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
-      rest,
-      chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
+    ChannelUpgradeController.logger.info(
+      `feedUpgradeTryEvent: chainId=${chainId}, event=${JSON.stringify(event)}`
     )
 
-    const upgrade = await rest.ibc.getUpgrade(
-      event.channelUpgradeInfo.dstPortId,
-      event.channelUpgradeInfo.dstChannelId
+    const origin_connection =
+      await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
+    const upgrade_connection_id = event.channelUpgradeInfo
+      .upgradeConnectionHops as string
+    const upgrade_connection = await ConnectionController.getConnection(
+      rest,
+      chainId,
+      upgrade_connection_id
     )
 
     const channelUpgradeAck: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_ACK,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: origin_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: origin_connection.counterparty_connection_id,
+      upgrade_connection_id: upgrade_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: origin_connection.connection_id,
+      counterparty_upgrade_connection_id: upgrade_connection.connection_id,
 
       upgrade_version: event.channelUpgradeInfo.upgradeVersion,
       upgrade_ordering: event.channelUpgradeInfo.upgradeOrdering,
       upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
-
-      upgrade_timeout_height: upgrade.timeout?.height.revision_height,
-      upgrade_timeout_timestamp: upgrade.timeout?.timestamp,
     }
 
     return () => {
       del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
         {
           state: ChannelState.UPGRADE_TRY,
-          counterparty_chain_id: connection.counterparty_chain_id,
+          counterparty_chain_id: origin_connection.counterparty_chain_id,
           counterparty_port_id: event.channelUpgradeInfo.dstPortId,
           counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
+          upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
         },
       ]) // remove INIT from the dst chain
       insert(DB, ChannelUpgradeController.tableName, channelUpgradeAck) // store ACK state to the src chain
@@ -132,47 +173,45 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
+    const origin_connection =
+      await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
+    const upgrade_connection_id = event.channelUpgradeInfo
+      .upgradeConnectionHops as string
+    const upgrade_connection = await ConnectionController.getConnection(
       rest,
       chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
-    )
-
-    const upgrade = await rest.ibc.getUpgrade(
-      event.channelUpgradeInfo.dstPortId,
-      event.channelUpgradeInfo.dstChannelId
+      upgrade_connection_id
     )
 
     const channelUpgradeConfirm: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_CONFIRM,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: origin_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: origin_connection.counterparty_connection_id,
+      upgrade_connection_id: upgrade_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: origin_connection.connection_id,
+      counterparty_upgrade_connection_id: upgrade_connection.connection_id,
 
       upgrade_version: event.channelUpgradeInfo.upgradeVersion,
       upgrade_ordering: event.channelUpgradeInfo.upgradeOrdering,
       upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
-
-      upgrade_timeout_height: upgrade.timeout?.height.revision_height,
-      upgrade_timeout_timestamp: upgrade.timeout?.timestamp,
     }
 
     return () => {
       del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
         {
           state: ChannelState.UPGRADE_ACK,
-          counterparty_chain_id: connection.counterparty_chain_id,
+          counterparty_chain_id: origin_connection.counterparty_chain_id,
           counterparty_port_id: event.channelUpgradeInfo.dstPortId,
           counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
+          upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
         },
       ]) // remove ACK from the src chain
       insert(DB, ChannelUpgradeController.tableName, channelUpgradeConfirm) // store CONFIRM state to the dst chain
@@ -184,47 +223,36 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
-      rest,
-      chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
-    )
-
-    const upgrade = await rest.ibc.getUpgrade(
-      event.channelUpgradeInfo.dstPortId,
-      event.channelUpgradeInfo.dstChannelId
-    )
+    const origin_connection =
+      await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
 
     const channelUpgradeOpen: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_OPEN,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: origin_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: origin_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: origin_connection.connection_id,
 
       upgrade_version: event.channelUpgradeInfo.upgradeVersion,
       upgrade_ordering: event.channelUpgradeInfo.upgradeOrdering,
       upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
-
-      upgrade_timeout_height: upgrade.timeout?.height.revision_height,
-      upgrade_timeout_timestamp: upgrade.timeout?.timestamp,
     }
 
     return () => {
       del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
         {
           state: ChannelState.UPGRADE_CONFIRM,
-          counterparty_chain_id: connection.counterparty_chain_id,
+          counterparty_chain_id: origin_connection.counterparty_chain_id,
           counterparty_port_id: event.channelUpgradeInfo.dstPortId,
           counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
+          upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
         },
       ]) // remove CONFIRM from the dst chain
       insert(DB, ChannelUpgradeController.tableName, channelUpgradeOpen) // store OPEN state to the src chain
@@ -238,31 +266,36 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
+    // During the UPGRADE_OPEN step, the channel has already switched to using the new connection.
+    // Getting the original connection requires accessing the counterparty channel's connection_hops
+    // via the counterparty chain's REST client. This lookup is deferred to the relaying phase
+    // in filterChannelUpgradeEvents() where we have access to both chain clients.
+    //
+    // const origin_connection =
+    //   await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
+    const upgrade_connection_id = event.channelUpgradeInfo
+      .upgradeConnectionHops as string
+    const upgrade_connection = await ConnectionController.getConnection(
       rest,
       chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
-    )
-
-    const counterpartyChannel = await rest.ibc.channel(
-      event.channelUpgradeInfo.dstPortId,
-      event.channelUpgradeInfo.dstChannelId
+      upgrade_connection_id
     )
 
     const channelUpgradeOpen: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_OPEN,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: upgrade_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: 'placeholder', // Will be replaced with original connection ID by wallet worker
+      upgrade_connection_id: upgrade_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: 'placeholder', // Will be replaced with original connection ID by wallet worker
+      counterparty_upgrade_connection_id: upgrade_connection.connection_id,
 
       upgrade_version: event.channelUpgradeInfo.upgradeVersion,
       upgrade_ordering: event.channelUpgradeInfo.upgradeOrdering,
@@ -271,25 +304,15 @@ export class ChannelUpgradeController {
 
     return () => {
       // remove any in progress upgrade from the both chains
-      del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
-        {
-          counterparty_chain_id: connection.counterparty_chain_id,
-          counterparty_port_id: event.channelUpgradeInfo.dstPortId,
-          counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
-        },
-        {
-          counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelUpgradeInfo.srcPortId,
-          counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-        },
-      ])
+      ChannelUpgradeController.cleanUpgrade(
+        chainId,
+        upgrade_connection.counterparty_chain_id,
+        event,
+        event.channelUpgradeInfo.upgradeSequence
+      )
 
       // create OPEN state only if the counterparty channel is not open
-      if (
-        stateFromJSON(counterpartyChannel.channel.state) !== State.STATE_OPEN
-      ) {
-        insert(DB, ChannelUpgradeController.tableName, channelUpgradeOpen) // store OPEN state to the dst chain
-      }
+      insert(DB, ChannelUpgradeController.tableName, channelUpgradeOpen) // store OPEN state to the dst chain
     }
   }
 
@@ -298,31 +321,22 @@ export class ChannelUpgradeController {
     chainId: string,
     event: ChannelUpgradeEvent
   ): Promise<() => void> {
-    const connection = await ConnectionController.getConnection(
-      rest,
-      chainId,
-      event.channelUpgradeInfo.upgradeConnectionHops as string
-    )
-
-    const counterpartyChannel = await rest.ibc.channel(
-      event.channelUpgradeInfo.dstPortId,
-      event.channelUpgradeInfo.dstChannelId
-    )
+    const origin_connection =
+      await ChannelUpgradeController.getOriginConnection(rest, chainId, event)
 
     const channelUpgradeError: ChannelUpgradeTable = {
       in_progress: Bool.FALSE,
       state: ChannelState.UPGRADE_ERROR,
 
-      chain_id: connection.counterparty_chain_id,
+      chain_id: origin_connection.counterparty_chain_id,
       port_id: event.channelUpgradeInfo.dstPortId,
       channel_id: event.channelUpgradeInfo.dstChannelId,
-      connection_id: connection.counterparty_connection_id,
+      connection_id: origin_connection.counterparty_connection_id,
 
       counterparty_chain_id: chainId,
       counterparty_port_id: event.channelUpgradeInfo.srcPortId,
       counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-      counterparty_connection_id: event.channelUpgradeInfo
-        .upgradeConnectionHops as string,
+      counterparty_connection_id: origin_connection.connection_id,
 
       upgrade_sequence: event.channelUpgradeInfo.upgradeSequence,
       upgrade_error_receipt: event.channelUpgradeInfo.upgradeErrorReceipt,
@@ -330,26 +344,38 @@ export class ChannelUpgradeController {
 
     return () => {
       // remove any in progress upgrade from the both chains
-      del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
-        {
-          counterparty_chain_id: connection.counterparty_chain_id,
-          counterparty_port_id: event.channelUpgradeInfo.dstPortId,
-          counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
-        },
-        {
-          counterparty_chain_id: chainId,
-          counterparty_port_id: event.channelUpgradeInfo.srcPortId,
-          counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
-        },
-      ])
+      ChannelUpgradeController.cleanUpgrade(
+        chainId,
+        origin_connection.counterparty_chain_id,
+        event,
+        event.channelUpgradeInfo.upgradeSequence
+      )
 
       // create error state only if the counterparty channel is not open (in upgrade)
-      if (
-        stateFromJSON(counterpartyChannel.channel.state) !== State.STATE_OPEN
-      ) {
-        insert(DB, ChannelUpgradeController.tableName, channelUpgradeError) // store ERROR state to the dst chain
-      }
+      insert(DB, ChannelUpgradeController.tableName, channelUpgradeError) // store ERROR state to the dst chain
     }
+  }
+
+  static cleanUpgrade(
+    chainId: string,
+    counterpartyChainId: string,
+    event: ChannelUpgradeEvent,
+    sequence: number
+  ): void {
+    del<ChannelUpgradeTable>(DB, ChannelUpgradeController.tableName, [
+      {
+        counterparty_chain_id: counterpartyChainId,
+        counterparty_port_id: event.channelUpgradeInfo.dstPortId,
+        counterparty_channel_id: event.channelUpgradeInfo.dstChannelId,
+        upgrade_sequence: sequence
+      },
+      {
+        counterparty_chain_id: chainId,
+        counterparty_port_id: event.channelUpgradeInfo.srcPortId,
+        counterparty_channel_id: event.channelUpgradeInfo.srcChannelId,
+        upgrade_sequence: sequence,
+      },
+    ])
   }
 
   static updateInProgress(id?: number, inProgress = true): void {

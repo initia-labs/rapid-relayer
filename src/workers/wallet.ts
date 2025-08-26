@@ -196,22 +196,25 @@ export class WalletWorker {
             remain
           )
 
-    for (const event of channelUpgradeEvents) {
-      const upgrade = await this.chain.rest.ibc.getUpgrade(
-        event.port_id,
-        event.channel_id
-      )
+    await Promise.all(
+      channelUpgradeEvents.map(async (event) => {
+        if (
+          event.state !== ChannelState.UPGRADE_ACK &&
+          event.state !== ChannelState.UPGRADE_CONFIRM
+        ) {
+          return
+        }
 
-      // if upgrade timeout, update state to UPGRADE_TIMEOUT
-      if (
-        (upgrade.timeout?.height.revision_height !== undefined &&
-          this.chain.latestHeight > upgrade.timeout?.height.revision_height) ||
-        (upgrade.timeout?.timestamp !== undefined &&
-          this.chain.latestTimestamp > upgrade.timeout?.timestamp)
-      ) {
-        event.state = ChannelState.UPGRADE_TIMEOUT
-      }
-    }
+        const isTimeout = await checkChannelUpgradeTimeout(
+          event,
+          this.chain,
+          this.workerController.chains[event.counterparty_chain_id]
+        )
+        if (isTimeout) {
+          event.state = ChannelState.UPGRADE_TIMEOUT
+        }
+      })
+    )
 
     // update packet in progress
     DB.transaction(() => {
@@ -951,91 +954,173 @@ export class WalletWorker {
     // check already executed
     const res = await Promise.all(
       channelUpgrades.map(async (v) => {
+        const counterpartyChain =
+          this.workerController.chains[v.counterparty_chain_id]
         const channel =
           v.channel_id !== ''
             ? await this.chain.rest.ibc.channel(v.port_id, v.channel_id)
             : undefined
         const counterpartyChannel =
           v.counterparty_channel_id !== ''
-            ? await this.workerController.chains[
-                v.counterparty_chain_id
-              ].rest.ibc.channel(
+            ? await counterpartyChain.rest.ibc.channel(
                 v.counterparty_port_id,
                 v.counterparty_channel_id
               )
             : undefined
+
+        const upgradeSequence = parseInt(
+          channel?.channel.upgrade_sequence || '0'
+        )
+        const counterpartyUpgradeSequence = parseInt(
+          counterpartyChannel?.channel.upgrade_sequence || '0'
+        )
+
+        const upgrade = await this.chain.rest.ibc.getUpgrade(
+          v.port_id,
+          v.channel_id
+        )
+        const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+          v.counterparty_port_id,
+          v.counterparty_channel_id
+        )
+
+        const channelState = stateFromJSON(channel?.channel.state)
+        const counterpartyChannelState = stateFromJSON(
+          counterpartyChannel?.channel.state
+        )
 
         // Check both our internal upgrade state AND the actual IBC channel state
         switch (v.state) {
           case ChannelState.UPGRADE_TRY:
             if (
               channel &&
-              stateFromJSON(channel.channel.state) === State.STATE_OPEN
+              counterpartyChannel &&
+              counterpartyUpgradeSequence === upgradeSequence + 1 &&
+              counterpartyUpgradeSequence === (v.upgrade_sequence as number) &&
+              channelState === State.STATE_OPEN
             ) {
               return v
             }
             break
           case ChannelState.UPGRADE_ACK:
+            // if upgrade sequence is different, then ignore
+            // if channel state is not open, then ignore
+            // if counterparty upgrade sequence is different, then ignore
             if (
               channel &&
-              (stateFromJSON(channel.channel.state) === State.STATE_OPEN ||
-                stateFromJSON(channel.channel.state) === State.STATE_FLUSHING)
+              counterpartyChannel &&
+              upgrade &&
+              counterpartyUpgrade &&
+              upgradeSequence === counterpartyUpgradeSequence &&
+              upgradeSequence === (v.upgrade_sequence as number) &&
+              (channelState === State.STATE_OPEN ||
+                channelState === State.STATE_FLUSHING)
             ) {
               return v
             }
             break
           case ChannelState.UPGRADE_CONFIRM:
+            // if upgrade sequence is different, then ignore
+            // if channel state is not flushing or flush complete, then ignore
+            // if counterparty upgrade sequence is different, then ignore
             if (
               channel &&
-              stateFromJSON(channel.channel.state) === State.STATE_FLUSHING
+              counterpartyChannel &&
+              upgrade &&
+              counterpartyUpgrade &&
+              upgradeSequence === counterpartyUpgradeSequence &&
+              upgradeSequence === (v.upgrade_sequence as number) &&
+              channelState === State.STATE_FLUSHING &&
+              (counterpartyChannelState === State.STATE_FLUSHING ||
+                counterpartyChannelState === State.STATE_FLUSHCOMPLETE)
             ) {
               return v
             }
             break
           case ChannelState.UPGRADE_OPEN:
+            // if upgrade sequence is different, then ignore
+            // if counterparty upgrade sequence is different, then ignore
+            // if both chain state is flushing, then wait for flush complete
+            // if channel state is not flush complete, then ignore
+            // if counterparty channel state is not flush complete or open, then ignore
             if (
               channel &&
-              stateFromJSON(channel.channel.state) ===
-                State.STATE_FLUSHCOMPLETE &&
               counterpartyChannel &&
-              stateFromJSON(counterpartyChannel.channel.state) ===
-                State.STATE_FLUSHCOMPLETE
+              upgrade &&
+              upgradeSequence === counterpartyUpgradeSequence &&
+              upgradeSequence === (v.upgrade_sequence as number) &&
+              channelState === State.STATE_FLUSHCOMPLETE &&
+              (counterpartyChannelState === State.STATE_FLUSHCOMPLETE ||
+                counterpartyChannelState === State.STATE_OPEN)
             ) {
+              // During the UPGRADE_OPEN step, the counterparty channel has already switched to using
+              // the new connection. However, we need to use the original connection for relaying this
+              // event since the upgrade is not yet complete on the current chain side.
+              // Get the original connection from the channel's connection_hops and update the event's
+              // connection IDs accordingly.
+              const oldConnection = await ConnectionController.getConnection(
+                this.chain.rest,
+                this.chain.chainId,
+                channel.channel.connection_hops[0]
+              )
+              v.connection_id = oldConnection.connection_id
+              v.counterparty_connection_id =
+                oldConnection.counterparty_connection_id
+
               return v
             } else if (
-              (channel &&
-                stateFromJSON(channel.channel.state) ===
-                  State.STATE_FLUSHING) ||
-              (counterpartyChannel &&
-                stateFromJSON(counterpartyChannel.channel.state) ===
-                  State.STATE_FLUSHING)
+              channel &&
+              counterpartyChannel &&
+              upgrade &&
+              counterpartyUpgrade &&
+              upgradeSequence === counterpartyUpgradeSequence &&
+              upgradeSequence === (v.upgrade_sequence as number) &&
+              (channelState === State.STATE_FLUSHING ||
+                counterpartyChannelState === State.STATE_FLUSHING)
             ) {
               // need to wait for flush complete
               return undefined
             }
             break
           case ChannelState.UPGRADE_TIMEOUT:
+            // if upgrade sequence is different, then ignore
+            // if channel state is not flushing or flush complete, then ignore
             if (
               channel &&
-              (stateFromJSON(channel.channel.state) === State.STATE_FLUSHING ||
-                stateFromJSON(channel.channel.state) ===
-                  State.STATE_FLUSHCOMPLETE)
+              upgrade &&
+              upgradeSequence === (v.upgrade_sequence as number) &&
+              (channelState === State.STATE_FLUSHING ||
+                channelState === State.STATE_FLUSHCOMPLETE)
             ) {
               return v
             }
             break
           case ChannelState.UPGRADE_ERROR:
-            // if there is no error receipt in the upgrade, return v
-            try {
-              await this.chain.rest.ibc.getUpgradeError(v.port_id, v.channel_id)
-            } catch (e) {
-              if (e instanceof Error && e.message.includes('not found')) {
-                return v
-              }
+            // if there is no error receipt in the chain state, return v
+            const errorReceipt = await this.chain.rest.ibc.getUpgradeError(
+              v.port_id,
+              v.channel_id
+            )
+            const counterpartyErrorReceipt =
+              await counterpartyChain.rest.ibc.getUpgradeError(
+                v.counterparty_port_id,
+                v.counterparty_channel_id
+              )
 
-              return undefined
+            // if upgrade sequence is different, then ignore
+            // if there is no error receipt in the counterparty chain state, then ignore
+            // if there is error receipt and sequence is same or higher, then ignore
+            if (
+              upgrade &&
+              (!errorReceipt ||
+                errorReceipt.sequence < (v.upgrade_sequence || 0)) &&
+              counterpartyErrorReceipt &&
+              counterpartyErrorReceipt.sequence ===
+                (v.upgrade_sequence as number) &&
+              upgradeSequence === (v.upgrade_sequence as number)
+            ) {
+              return v
             }
-
             break
         }
 
@@ -1062,4 +1147,40 @@ async function asyncFilter<T>(
 ): Promise<T[]> {
   const filterRes = await Promise.all(array.map((v) => filter(v)))
   return array.filter((v, i) => filterRes[i])
+}
+
+async function checkChannelUpgradeTimeout(
+  event: ChannelUpgradeTable,
+  chain: ChainWorker,
+  counterpartyChain: ChainWorker
+): Promise<boolean> {
+  const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
+    event.counterparty_port_id,
+    event.counterparty_channel_id
+  )
+  const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+    event.counterparty_port_id,
+    event.counterparty_channel_id
+  )
+  if (
+    counterpartyChannel &&
+    counterpartyUpgrade &&
+    // This condition comes from ibc-go and ensures the counterparty channel is in an OPEN state
+    // before checking for timeouts. While this may seem redundant with the UPGRADE_ERROR
+    // flow, it provides an additional safety check before timing out upgrades.
+    stateFromJSON(counterpartyChannel.channel.state) === State.STATE_OPEN
+  ) {
+    const timeout_timestamp = BigInt(
+      counterpartyUpgrade.timeout?.timestamp as string
+    )
+    if (
+      timeout_timestamp !== undefined &&
+      timeout_timestamp !== BigInt(0) &&
+      BigInt(chain.latestTimestamp) * BigInt(1000000) > timeout_timestamp
+    ) {
+      return true
+    }
+  }
+
+  return false
 }
