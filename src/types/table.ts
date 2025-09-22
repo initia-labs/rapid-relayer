@@ -103,6 +103,29 @@ export interface ChannelOpenCloseTable {
   counterparty_channel_id: string
 }
 
+export interface ChannelUpgradeTable {
+  id?: number
+  in_progress: Bool
+  state: ChannelState
+
+  chain_id: string
+  port_id: string
+  channel_id: string
+  connection_id: string
+  upgrade_connection_id?: string
+
+  counterparty_chain_id: string
+  counterparty_port_id: string
+  counterparty_channel_id: string
+  counterparty_connection_id: string
+  counterparty_upgrade_connection_id?: string
+
+  upgrade_sequence?: number
+  upgrade_version?: string
+  upgrade_ordering?: string
+  upgrade_error_receipt?: string  
+}
+
 export interface PacketFeeTable {
   chain_id: string
   channel_id: string
@@ -128,6 +151,12 @@ export enum ChannelState {
   TRYOPEN = 2,
   ACK = 3,
   CLOSE = 4,
+  UPGRADE_TRY = 5,
+  UPGRADE_ACK = 6,
+  UPGRADE_CONFIRM = 7,
+  UPGRADE_OPEN = 8,
+  UPGRADE_ERROR = 9,
+  UPGRADE_TIMEOUT = 10,
 }
 
 export enum FeeType {

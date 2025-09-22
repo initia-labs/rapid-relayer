@@ -3,6 +3,7 @@ import fs from 'fs'
 import { VersionTable } from 'src/types'
 import { PacketController } from '../controller/packet'
 import { ChannelController } from '../controller/channel'
+import { ChannelUpgradeController } from '../controller/channelUpgrade'
 
 export function migrate(db: Database): Database {
   // create version table
@@ -44,6 +45,7 @@ export function migrate(db: Database): Database {
   // reset in progress
   PacketController.resetPacketInProgress(db)
   ChannelController.resetPacketInProgress(db)
+  ChannelUpgradeController.resetUpgradeInProgress(db)
   return db
 }
 

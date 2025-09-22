@@ -11,9 +11,9 @@ import {
   generateMsgUpdateClient,
 } from 'src/msgs'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
-import { ClientController } from 'src/db/controller/client'
 import {
   ChannelOpenCloseTable,
+  ChannelUpgradeTable,
   PacketSendTable,
   PacketTimeoutTable,
   PacketWriteAckTable,
@@ -29,8 +29,16 @@ import {
   MsgChannelOpenTry,
   MsgRecvPacket,
   MsgUpdateClient,
+  MsgChannelUpgradeTry,
+  MsgChannelUpgradeAck,
+  MsgChannelUpgradeConfirm,
+  MsgChannelUpgradeTimeout,
+  MsgChannelUpgradeCancel,
+  MsgChannelUpgradeOpen,
+  UpgradeFields,
   RawKey,
   Wallet,
+  Channel,
 } from '@initia/initia.js'
 import { Config, KeyConfig, PacketFee } from 'src/lib/config'
 import { env } from 'node:process'
@@ -40,9 +48,20 @@ import * as https from 'https'
 import { PacketFilter } from 'src/db/controller/packet'
 import { RESTClient } from 'src/lib/restClient'
 
-import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { generateMsgChannelCloseConfirm } from 'src/msgs/channelCloseConfirm'
 import { bech32 } from 'bech32'
+import { Transform } from 'src/lib/transform'
+import {
+  getChannelProof,
+  getUpgradeErrorProof,
+  getUpgradeProof,
+} from 'src/lib/proof'
+import { ClientController } from 'src/db/controller/client'
+import {
+  Order,
+  State,
+  stateFromJSON,
+} from '@initia/initia.proto/ibc/core/channel/v1/channel'
 
 export class WorkerController {
   public chains: Record<string, ChainWorker> // chainId => ChainWorker
@@ -248,7 +267,7 @@ export class WorkerController {
       packet.dst_port,
       packet.dst_channel_id
     )
-    if (channel.channel.state === State.STATE_CLOSED) {
+    if (stateFromJSON(channel.channel.state) === State.STATE_CLOSED) {
       return generateMsgTimeoutOnClose(
         dstChain,
         packet,
@@ -323,6 +342,234 @@ export class WorkerController {
       event.port_id,
       event.channel_id,
       height,
+      executorAddress
+    )
+  }
+
+  async generateChannelUpgradeTryMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeTry> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Create UpgradeFields from the event data
+    const counterpartyUpgradeFields = new UpgradeFields(
+      event.upgrade_ordering === 'ORDER_ORDERED'
+        ? Order.ORDER_ORDERED
+        : Order.ORDER_UNORDERED,
+      [event.counterparty_upgrade_connection_id as string],
+      event.upgrade_version || ''
+    )
+
+    // Get actual proofs from the chain using existing proof system
+    const proofChannel = await getChannelProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+    const proofUpgrade = await getUpgradeProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    return new MsgChannelUpgradeTry(
+      event.port_id,
+      event.channel_id,
+      [event.upgrade_connection_id as string],
+      counterpartyUpgradeFields,
+      event.upgrade_sequence || 0,
+      proofChannel,
+      proofUpgrade,
+      Transform.height(height),
+      executorAddress
+    )
+  }
+
+  async generateChannelUpgradeAckMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeAck | undefined> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Create Upgrade object from event data
+    const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+    if (!counterpartyUpgrade) {
+      return undefined
+    }
+
+    // Get actual proofs from the chain using existing proof system
+    const proofChannel = await getChannelProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+    const proofUpgrade = await getUpgradeProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    return new MsgChannelUpgradeAck(
+      event.port_id,
+      event.channel_id,
+      counterpartyUpgrade,
+      proofChannel,
+      proofUpgrade,
+      Transform.height(height),
+      executorAddress
+    )
+  }
+
+  async generateChannelUpgradeConfirmMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeConfirm | undefined> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Get counterparty channel
+    const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+
+    const counterpartyUpgrade = await counterpartyChain.rest.ibc.getUpgrade(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+    if (!counterpartyUpgrade) {
+      return undefined
+    }
+
+    // Get actual proofs from the chain using existing proof system
+    const proofChannel = await getChannelProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+    const proofUpgrade = await getUpgradeProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    const msg = new MsgChannelUpgradeConfirm(
+      event.port_id,
+      event.channel_id,
+      stateFromJSON(counterpartyChannel.channel.state),
+      counterpartyUpgrade,
+      proofChannel,
+      proofUpgrade,
+      Transform.height(height),
+      executorAddress
+    )
+    return msg
+  }
+
+  async generateChannelUpgradeOpenMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeOpen | undefined> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Get counterparty channel
+    const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+
+    const proofChannel = await getChannelProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    return new MsgChannelUpgradeOpen(
+      event.port_id,
+      event.channel_id,
+      stateFromJSON(counterpartyChannel.channel.state),
+      event.upgrade_sequence || 0,
+      proofChannel,
+      Transform.height(height),
+      executorAddress
+    )
+  }
+
+  async generateChannelUpgradeTimeoutMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeTimeout> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Get counterparty channel
+    const counterpartyChannel = await counterpartyChain.rest.ibc.channel(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+
+    // Get actual proofs from the chain
+    const proofChannel = await getChannelProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    return new MsgChannelUpgradeTimeout(
+      event.port_id,
+      event.channel_id,
+      Channel.fromData(counterpartyChannel.channel),
+      proofChannel,
+      Transform.height(height),
+      executorAddress
+    )
+  }
+
+  async generateChannelUpgradeCancelMsg(
+    event: ChannelUpgradeTable,
+    height: Height,
+    executorAddress: string
+  ): Promise<MsgChannelUpgradeCancel | undefined> {
+    const counterpartyChain = this.chains[event.counterparty_chain_id]
+
+    // Get counterparty channel
+    const errorReceipt = await counterpartyChain.rest.ibc.getUpgradeError(
+      event.counterparty_port_id,
+      event.counterparty_channel_id
+    )
+    if (!errorReceipt) {
+      return undefined
+    }
+
+    // Get actual proofs from the chain
+    const proofUpgradeError = await getUpgradeErrorProof(
+      counterpartyChain,
+      event.counterparty_port_id,
+      event.counterparty_channel_id,
+      height
+    )
+
+    return new MsgChannelUpgradeCancel(
+      event.port_id,
+      event.channel_id,
+      errorReceipt,
+      proofUpgradeError,
+      Transform.height(height),
       executorAddress
     )
   }

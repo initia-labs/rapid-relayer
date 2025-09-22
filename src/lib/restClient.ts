@@ -1,11 +1,18 @@
 import {
   APIRequester,
   Channel,
+  ErrorReceipt,
   IbcAPI as IbcAPI_,
   RESTClientConfig,
   RESTClient as RESTClient_,
+  Upgrade,
 } from '@initia/initia.js'
-import { Order, State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import {
+  Order,
+  orderToJSON,
+  State,
+  stateToJSON,
+} from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { ClientState, ConnectionInfo } from 'src/types'
 
 export class RESTClient extends RESTClient_ {
@@ -38,11 +45,12 @@ class IbcAPI extends IbcAPI_ {
 
     return {
       channel: {
-        state,
-        ordering,
+        state: stateToJSON(state),
+        ordering: orderToJSON(ordering),
         counterparty: rawRes.channel.counterparty,
         connection_hops: rawRes.channel.connection_hops,
         version: rawRes.channel.version,
+        upgrade_sequence: rawRes.channel.upgrade_sequence,
       },
       proof: rawRes.proof,
       proof_height: rawRes.proof_height,
@@ -73,6 +81,60 @@ class IbcAPI extends IbcAPI_ {
       `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/next_sequence`
     )
   }
+
+  async getUpgrade(
+    portId: string,
+    channelId: string
+  ): Promise<Upgrade | undefined> {
+    try {
+      const upgrade_response = await this.c.get<UpgradeResponse>(
+        `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade`
+      )
+      return Upgrade.fromData(upgrade_response.upgrade)
+    } catch (e) {
+      if (e.status === 404) {
+        return undefined
+      }
+
+      throw e
+    }
+  }
+
+  async getUpgradeError(
+    portId: string,
+    channelId: string
+  ): Promise<ErrorReceipt | undefined> {
+    try {
+      const error_receipt_response = await this.c.get<UpgradeErrorResponse>(
+        `/ibc/core/channel/v1/channels/${channelId}/ports/${portId}/upgrade_error`
+      )
+      return ErrorReceipt.fromData(error_receipt_response.error_receipt)
+    } catch (e) {
+      if (e.status === 404) {
+        return undefined
+      }
+
+      throw e
+    }
+  }
+}
+
+interface UpgradeResponse {
+  upgrade: Upgrade.Data
+  proof: null | string
+  proof_height: {
+    revision_number: number
+    revision_height: number
+  }
+}
+
+interface UpgradeErrorResponse {
+  error_receipt: ErrorReceipt.Data
+  proof: null | string
+  proof_height: {
+    revision_number: number
+    revision_height: number
+  }
 }
 
 interface ChannelResponse {
@@ -94,6 +156,7 @@ interface ChannelResponseRaw {
     }
     connection_hops: string[]
     version: string
+    upgrade_sequence: string
   }
   proof: null | string
   proof_height: {

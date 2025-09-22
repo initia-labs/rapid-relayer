@@ -59,6 +59,36 @@ export async function getChannelProof(
   return Buffer.from(ics23Proof).toString('base64')
 }
 
+export async function getUpgradeProof(
+  chain: ChainWorker,
+  portId: string,
+  channelId: string,
+  headerHeight: Height
+): Promise<string> {
+  const key = new Uint8Array(
+    Buffer.from(`channelUpgrades/upgrades/ports/${portId}/channels/${channelId}`)
+  )
+  const proof = await getRawProof(chain, key, headerHeight)
+  const ics23Proof = convertProofsToIcs23(proof)
+
+  return Buffer.from(ics23Proof).toString('base64')
+}
+
+export async function getUpgradeErrorProof(
+  chain: ChainWorker,
+  portId: string,
+  channelId: string,
+  headerHeight: Height
+): Promise<string> {
+  const key = new Uint8Array(
+    Buffer.from(`channelUpgrades/upgradeError/ports/${portId}/channels/${channelId}`)
+  )
+  const proof = await getRawProof(chain, key, headerHeight)
+  const ics23Proof = convertProofsToIcs23(proof)
+
+  return Buffer.from(ics23Proof).toString('base64')
+}
+
 export function convertProofsToIcs23(ops: ProofOps): Uint8Array {
   const proofs = ops.ops.map((op) => CommitmentProof.decode(op.data))
   const resp = MerkleProof.fromPartial({

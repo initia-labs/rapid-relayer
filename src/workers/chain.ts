@@ -2,6 +2,7 @@ import { RPCClient } from 'src/lib/rpcClient'
 import { createLoggerWithPrefix } from 'src/lib/logger'
 import {
   ChannelOpenCloseEvent,
+  ChannelUpgradeEvent,
   PacketEvent,
   PacketFeeEvent,
   UpdateClientEvent,
@@ -9,6 +10,7 @@ import {
 import {
   parseChannelCloseEvent,
   parseChannelOpenEvent,
+  parseChannelUpgradeEvent,
   parsePacketEvent,
   parsePacketFeeEvent,
   parseReplaceClientEvent,
@@ -25,6 +27,7 @@ import { PacketFeeController } from 'src/db/controller/packetFee'
 import { config, PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
+import { ChannelUpgradeController } from 'src/db/controller/channelUpgrade'
 
 export class ChainWorker {
   public latestTimestamp: number
@@ -162,7 +165,7 @@ class SyncWorker {
           { length: config.maxParallelBlocks ?? 20 },
           (_, i) => i + this.syncedHeight + 1
         ).filter(
-          (height) => height <= endHeight && height <= this.chain.latestHeight
+          (height) => height <= endHeight && height <= this.chain.latestHeight && height > 0
         )
 
         if (heights.length === 0) continue
@@ -179,6 +182,7 @@ class SyncWorker {
         const replaceClientEvents = events
           .map((e) => e.replaceClientEvents)
           .flat()
+        const channelUpgradeEvents = events.map((e) => e.channelUpgradeEvents).flat()
 
         this.logger.debug(
           `Fetched block results for heights (${JSON.stringify(heights)})`
@@ -216,9 +220,16 @@ class SyncWorker {
           channelOpenEvents
         )
 
+        const channelUpgradeEventFeed = await ChannelUpgradeController.feedEvents(
+          this.chain.rest,
+          this.chain.chainId,
+          channelUpgradeEvents
+        )
+
         DB.transaction(() => {
           packetEventFeed()
           channelOpenEventFeed()
+          channelUpgradeEventFeed()
           PacketFeeController.feedEvents(this.chain.chainId, packetFeeEvents)()
 
           finish = SyncInfoController.update(
@@ -261,6 +272,7 @@ class SyncWorker {
   private async fetchEvents(height: number): Promise<{
     packetEvents: PacketEvent[]
     channelOpenEvents: ChannelOpenCloseEvent[]
+    channelUpgradeEvents: ChannelUpgradeEvent[]
     packetFeeEvents: PacketFeeEvent[]
     updateClientEvents: UpdateClientEvent[]
     replaceClientEvents: string[]
@@ -281,6 +293,7 @@ class SyncWorker {
 
     const packetEvents: PacketEvent[] = []
     const channelOpenEvents: ChannelOpenCloseEvent[] = []
+    const channelUpgradeEvents: ChannelUpgradeEvent[] = []
     const packetFeeEvents: PacketFeeEvent[] = []
     const updateClientEvents: UpdateClientEvent[] = []
     const replaceClientEvents: string[] = []
@@ -321,6 +334,20 @@ class SyncWorker {
         })
       }
 
+      if (
+        event.type === 'channel_upgrade_init' ||
+        event.type === 'channel_upgrade_try' ||
+        event.type === 'channel_upgrade_ack' ||
+        event.type === 'channel_upgrade_confirm' ||
+        event.type === 'channel_upgrade_open' ||
+        event.type === 'channel_upgrade_error'
+      ) {
+        channelUpgradeEvents.push({
+          type: event.type,
+          channelUpgradeInfo: parseChannelUpgradeEvent(event, height),
+        })
+      }
+
       if (event.type === 'incentivized_ibc_packet') {
         packetFeeEvents.push(parsePacketFeeEvent(event))
       }
@@ -337,6 +364,7 @@ class SyncWorker {
     return {
       packetEvents,
       channelOpenEvents,
+      channelUpgradeEvents,
       packetFeeEvents,
       updateClientEvents,
       replaceClientEvents,

@@ -4,6 +4,7 @@ import {
   PacketFeeEvent,
   PacketInfo,
   UpdateClientEvent,
+  ChannelUpgradeInfo,
 } from 'src/types'
 
 export function parsePacketEvent(event: Event, height: number): PacketInfo {
@@ -103,6 +104,36 @@ export function parseChannelCloseEvent(
     dstConnectionId: isSrc ? '' : connectionId,
     dstPortId: isSrc ? counterpartyPortId : portId,
     dstChannelId: isSrc ? counterpartyChannelId : channelId,
+  }
+}
+
+export function parseChannelUpgradeEvent(
+  event: Event,
+  height: number
+): ChannelUpgradeInfo {
+  const portId = find(event, 'port_id') as string
+  const channelId = find(event, 'channel_id') as string
+  const counterpartyPortId = find(event, 'counterparty_port_id') as string
+  const counterpartyChannelId = find(event, 'counterparty_channel_id') as string
+  const upgradeSequence = find(event, 'upgrade_sequence') as string
+  const upgradeVersion = find(event, 'version')
+  const upgradeOrdering = find(event, 'ordering')
+  const upgradeConnectionHops = find(event, 'connection_hops')
+  const upgradeErrorReceipt = find(event, 'error_receipt')
+  const channelState = find(event, 'channel_state')
+
+  return {
+    height,
+    channelState,
+    srcPortId: portId,
+    srcChannelId: channelId,
+    dstPortId: counterpartyPortId,
+    dstChannelId: counterpartyChannelId,
+    upgradeSequence: parseInt(upgradeSequence),
+    upgradeVersion,
+    upgradeOrdering,
+    upgradeConnectionHops,
+    upgradeErrorReceipt,
   }
 }
 
