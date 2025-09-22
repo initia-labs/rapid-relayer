@@ -1,4 +1,4 @@
-import { Registry, Counter, collectDefaultMetrics } from 'prom-client'
+import { Registry, Counter, collectDefaultMetrics, Gauge } from 'prom-client'
 
 export const registry = new Registry()
 
@@ -18,6 +18,22 @@ export const metrics = {
 function createChainMetric(): ChainMetric {
   const labelNames = ['chainId', 'connectionId']
   return {
+    heights: {
+      latestHeight: register(
+        new Gauge({
+          labelNames: ['chainId'],
+          name: 'relayer_latest_height',
+          help: 'fetched latest height',
+        })
+      ),
+      lastSyncedHeight: register(
+        new Gauge({
+          labelNames: ['chainId'],
+          name: 'relayer_last_synced_height',
+          help: 'highest indexed height among the sync infos',
+        })
+      ),
+    },
     latestHeightWorker: register(
       new Counter({
         labelNames,
@@ -77,6 +93,10 @@ function createChainMetric(): ChainMetric {
 }
 
 interface ChainMetric {
+  heights: {
+    latestHeight: Gauge
+    lastSyncedHeight: Gauge // highest synced height among the sync infos
+  }
   latestHeightWorker: Counter
   eventFeederWorker: {
     sendPacket: Counter
@@ -90,7 +110,7 @@ interface ChainMetric {
   }
 }
 
-function register(metric: Counter): Counter {
+function register<T extends Gauge | Counter>(metric: T): T {
   registry.registerMetric(metric)
   return metric
 }

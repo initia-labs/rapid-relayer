@@ -25,6 +25,7 @@ import { PacketFeeController } from 'src/db/controller/packetFee'
 import { config, PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
+import { metrics } from '../lib/metric'
 
 export class ChainWorker {
   public latestTimestamp: number
@@ -118,7 +119,9 @@ export class ChainWorker {
     this.latestHeight = await queryLatestHeight(this.rpc)
     this.latestTimestamp = new Date().valueOf() // is it okay to use local timestamp?
 
-    // this.inc(metrics.chain.latestHeightWorker)
+    metrics.chain.heights.latestHeight
+      .labels({ chainId: this.chainId })
+      .set(this.latestHeight)
   }
 }
 
@@ -332,6 +335,13 @@ class SyncWorker {
       if (event.type === 'upgrade_client' || event.type === 'recover_client') {
         replaceClientEvents.push(parseReplaceClientEvent(event))
       }
+    }
+
+    // update metric, only if end is latest
+    if (this.endHeight === -1) {
+      metrics.chain.heights.lastSyncedHeight
+        .labels({ chainId: this.chain.chainId })
+        .set(height)
     }
 
     return {
