@@ -19,3 +19,5 @@ storage:
   requests: 10Gi
 
 annotations: {}
+
+podAnnotations: {}
