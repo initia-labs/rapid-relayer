@@ -24,6 +24,10 @@ spec:
     metadata:
       labels:
         app: {{ quote .Release.Name }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.podAnnotations  | nindent 8 }}
+      {{- end }}      
     spec:
       {{- if .Values.imagePullSecret }}
       imagePullSecrets:
