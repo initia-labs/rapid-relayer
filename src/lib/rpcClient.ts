@@ -71,7 +71,10 @@ export class RPCClient {
         this.currentIndex = (this.currentIndex + 1) % this.rpcUris.length
 
         if (this.currentIndex === 0) {
-          const backoff = Math.pow(2, retryCount) * 1000 // exponential backoff
+          let backoff = Math.pow(2, retryCount) * 1000 // exponential backoff
+          if (backoff > 10000) {
+            backoff = 10 * 1000 // cap backoff at 10 seconds
+          }
           logger.info(`[RPC] All endpoints failed. Retrying in ${backoff}ms`)
           await new Promise((resolve) => setTimeout(resolve, backoff))
           retryCount++
