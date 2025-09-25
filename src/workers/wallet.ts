@@ -198,10 +198,7 @@ export class WalletWorker {
 
     await Promise.all(
       channelUpgradeEvents.map(async (event) => {
-        if (
-          event.state !== ChannelState.UPGRADE_ACK &&
-          event.state !== ChannelState.UPGRADE_CONFIRM
-        ) {
+        if (event.state !== ChannelState.UPGRADE_CONFIRM) {
           return
         }
 
