@@ -35,8 +35,8 @@ import {
 import { Config, KeyConfig, PacketFee } from 'src/lib/config'
 import { env } from 'node:process'
 import { RPCClient } from 'src/lib/rpcClient'
-import * as http from 'http'
-import * as https from 'https'
+import * as http from 'node:http'
+import * as https from 'node:https'
 import { PacketFilter } from 'src/db/controller/packet'
 import { RESTClient } from 'src/lib/restClient'
 
