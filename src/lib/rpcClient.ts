@@ -2,8 +2,8 @@ import { Responses } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/response
 import { Params } from '@cosmjs/tendermint-rpc/build/comet38/adaptor/requests'
 import { Method } from '@cosmjs/tendermint-rpc/build/comet38/requests'
 
-import * as http from 'http'
-import * as https from 'https'
+import * as http from 'node:http'
+import * as https from 'node:https'
 import axios, { AxiosInstance } from 'axios'
 import {
   JsonRpcSuccessResponse,
