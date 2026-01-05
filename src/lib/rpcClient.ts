@@ -46,6 +46,7 @@ export class RPCClient {
     path: string,
     query?: APIParams | string | JsonRpcRequest
   ): Promise<{ response: T; uri: string }> {
+    const MAX_RETRY = 10
     let retryCount = 0
 
     while (true) {
@@ -78,6 +79,10 @@ export class RPCClient {
           logger.info(`[RPC] All endpoints failed. Retrying in ${backoff}ms`)
           await new Promise((resolve) => setTimeout(resolve, backoff))
           retryCount++
+          if (retryCount > MAX_RETRY) {
+            logger.error(`[RPC] Max Retry Reached.`)
+            throw error
+          }
         } else {
           logger.info(`[RPC] Fallback to ${this.rpcUris[this.currentIndex]}`)
         }
