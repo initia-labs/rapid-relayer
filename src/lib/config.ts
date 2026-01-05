@@ -44,6 +44,8 @@ export const loadEnvConfig = (): Partial<Config> => {
   if (env.MAX_PARALLEL_BLOCKS)
     envConfig.maxParallelBlocks = Number(env.MAX_PARALLEL_BLOCKS)
   if (env.DB_PATH) envConfig.dbPath = env.DB_PATH
+  if (env.CLIENT_REFRESH_RATE)
+    envConfig.clientRefreshRate = Number(env.CLIENT_REFRESH_RATE)
 
   // chains configuration
   if (env.CHAINS) {
@@ -314,6 +316,7 @@ export interface Config {
   maxParallelBlocks?: number
   chains: ChainConfig[]
   raft?: RaftConfig
+  clientRefreshRate?: number
 }
 
 export interface RaftConfig {

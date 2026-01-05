@@ -137,7 +137,8 @@ export class WorkerController {
           walletConfig.maxHandlePacket ?? 100,
           new Wallet(rest, key),
           balance,
-          walletConfig.packetFilter
+          walletConfig.packetFilter,
+          config.clientRefreshRate
         )
       }
     }
