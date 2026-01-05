@@ -279,6 +279,8 @@ export const mergeConfigs = (
     merged.rpcRequestTimeout = envConfig.rpcRequestTimeout
   if (envConfig.maxParallelBlocks !== undefined)
     merged.maxParallelBlocks = envConfig.maxParallelBlocks
+  if (envConfig.clientRefreshRate !== undefined)
+    merged.clientRefreshRate = envConfig.clientRefreshRate
 
   // merge chains if provided in environment variables
   if (envConfig.chains && envConfig.chains.length > 0) {
