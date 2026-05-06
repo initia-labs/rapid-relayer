@@ -170,6 +170,26 @@ describe('Configuration Loading', () => {
       ])
     })
 
+    it('should parse REST URI as array when formatted as JSON array', () => {
+      process.env.CHAIN_1_CHAIN_ID = 'test-chain-1'
+      process.env.CHAIN_1_BECH32_PREFIX = 'test'
+      process.env.CHAIN_1_GAS_PRICE = '0.01'
+      process.env.CHAIN_1_REST_URI =
+        '["http://localhost:1317", "http://localhost:1318"]'
+      process.env.CHAIN_1_RPC_URI = 'http://localhost:26657'
+
+      // Setup wallet env vars
+      process.env.CHAIN_1_WALLET_1_KEY_TYPE = 'raw'
+      process.env.CHAIN_1_WALLET_1_KEY_PRIVATE_KEY = 'testkey'
+
+      const config = loadEnvConfig()
+
+      expect(config.chains?.[0].restUri).toEqual([
+        'http://localhost:1317',
+        'http://localhost:1318',
+      ])
+    })
+
     it('should parse fee filter from env vars', () => {
       const feeFilter: PacketFee = {
         recvFee: [{ denom: 'token', amount: 100 }],

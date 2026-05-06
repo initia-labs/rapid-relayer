@@ -6,18 +6,164 @@ import {
   RESTClient as RESTClient_,
 } from '@initia/initia.js'
 import { Order, State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
+import { logger } from './logger'
 import { ClientState, ConnectionInfo } from 'src/types'
+
+export type RESTUri = string | string[]
+
+type APIRequesterConfig = ConstructorParameters<typeof APIRequester>[1]
+type RESTParams = Parameters<APIRequester['get']>[1]
+type RESTHeaders = Parameters<APIRequester['get']>[2]
+type RESTData = Parameters<APIRequester['post']>[1]
+type RESTRequesterOptions = APIRequester | APIRequesterConfig
+interface RESTRequestState {
+  restUris: string[]
+  currentIndex: number
+  requesterConfig?: APIRequesterConfig
+}
+
+const MAX_RETRY = 10
+
+const normalizeRestUris = (URL: RESTUri): string[] => {
+  const restUris = Array.isArray(URL) ? URL : [URL]
+
+  if (restUris.length === 0) {
+    throw new Error('REST URI list cannot be empty')
+  }
+
+  return restUris
+}
 
 export class RESTClient extends RESTClient_ {
   public ibc: IbcAPI
+
   constructor(
-    URL: string,
+    URL: RESTUri,
     config?: RESTClientConfig,
-    apiRequester?: APIRequester
+    requesterOptions?: RESTRequesterOptions
   ) {
-    super(URL, config, apiRequester)
+    const requestState: RESTRequestState = {
+      restUris: normalizeRestUris(URL),
+      currentIndex: 0,
+      requesterConfig:
+        requesterOptions instanceof APIRequester ? undefined : requesterOptions,
+    }
+    const apiRequester =
+      requesterOptions instanceof APIRequester
+        ? requesterOptions
+        : RESTClient.createApiRequester(requestState)
+
+    super(requestState.restUris[0], config, apiRequester)
 
     this.ibc = new IbcAPI(this.apiRequester)
+  }
+
+  private static createApiRequester(state: RESTRequestState): APIRequester {
+    const client = RESTClient.getRequester(state.restUris[0], state)
+
+    client.getRaw = async <T>(
+      endpoint: string,
+      params?: RESTParams
+    ): Promise<T> => {
+      const { response } = await RESTClient.request<T>(
+        state,
+        'getRaw',
+        endpoint,
+        params
+      )
+      return response
+    }
+
+    client.get = async <T>(
+      endpoint: string,
+      params?: RESTParams,
+      headers?: RESTHeaders
+    ): Promise<T> => {
+      const { response } = await RESTClient.request<T>(
+        state,
+        'get',
+        endpoint,
+        params,
+        headers
+      )
+      return response
+    }
+
+    client.post = async <T>(endpoint: string, data?: RESTData): Promise<T> => {
+      const { response } = await RESTClient.request<T>(
+        state,
+        'post',
+        endpoint,
+        data
+      )
+      return response
+    }
+
+    return client
+  }
+
+  private static getRequester(
+    uri: string,
+    state: RESTRequestState
+  ): APIRequester {
+    return new APIRequester(uri, state.requesterConfig)
+  }
+
+  private static async request<T>(
+    state: RESTRequestState,
+    method: 'getRaw' | 'get' | 'post',
+    endpoint: string,
+    query?: RESTParams | RESTData,
+    headers?: RESTHeaders
+  ): Promise<{ response: T; uri: string }> {
+    let retryCount = 0
+
+    while (true) {
+      const uri = state.restUris[state.currentIndex]
+
+      try {
+        let response: T
+        const requester = RESTClient.getRequester(uri, state)
+
+        if (method === 'post') {
+          response = await requester.post<T>(endpoint, query)
+        } else if (method === 'getRaw') {
+          response = await requester.getRaw<T>(endpoint, query as RESTParams)
+        } else {
+          response = await requester.get<T>(
+            endpoint,
+            query as RESTParams,
+            headers
+          )
+        }
+
+        return { response, uri }
+      } catch (error) {
+        const errorContext = `[REST] Failed to request to ${uri} - ${endpoint}`
+
+        logger.error(`${errorContext}: ${String(error)}`)
+        state.currentIndex = (state.currentIndex + 1) % state.restUris.length
+
+        if (state.currentIndex === 0) {
+          let backoff = Math.pow(2, retryCount) * 1000
+          if (backoff > 10000) {
+            backoff = 10 * 1000
+          }
+
+          logger.info(`[REST] All endpoints failed. Retrying in ${backoff}ms`)
+          await new Promise((resolve) => setTimeout(resolve, backoff))
+          retryCount++
+          if (retryCount > MAX_RETRY) {
+            logger.error(`[REST] Max Retry Reached.`)
+            throw error
+          }
+        } else {
+          logger.info(
+            `[REST] Fallback to ${state.restUris[state.currentIndex]}`
+          )
+        }
+      }
+    }
   }
 }
 

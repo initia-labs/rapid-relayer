@@ -31,6 +31,16 @@ export const safeJsonParse = <T>(json: string, defaultValue: T): T => {
   }
 }
 
+const parseUriConfig = (rawUri: string): string | string[] => {
+  const trimmedUri = rawUri.trim()
+
+  if (trimmedUri.startsWith('[') && trimmedUri.endsWith(']')) {
+    return safeJsonParse<string[]>(trimmedUri, [trimmedUri])
+  }
+
+  return trimmedUri
+}
+
 // load configuration from environment variables
 export const loadEnvConfig = (): Partial<Config> => {
   const envConfig: Partial<Config> = {}
@@ -79,16 +89,15 @@ export const loadEnvConfig = (): Partial<Config> => {
         chain.bech32Prefix = env[`CHAIN_${index}_BECH32_PREFIX`]
       if (env[`CHAIN_${index}_GAS_PRICE`])
         chain.gasPrice = env[`CHAIN_${index}_GAS_PRICE`]
-      if (env[`CHAIN_${index}_REST_URI`])
-        chain.restUri = env[`CHAIN_${index}_REST_URI`]
+
+      const rawRestUri = env[`CHAIN_${index}_REST_URI`]?.trim()
+      if (rawRestUri) {
+        chain.restUri = parseUriConfig(rawRestUri)
+      }
 
       const rawRpcUri = env[`CHAIN_${index}_RPC_URI`]?.trim()
       if (rawRpcUri) {
-        if (rawRpcUri.startsWith('[') && rawRpcUri.endsWith(']')) {
-          chain.rpcUri = safeJsonParse<string[]>(rawRpcUri, [rawRpcUri])
-        } else {
-          chain.rpcUri = rawRpcUri
-        }
+        chain.rpcUri = parseUriConfig(rawRpcUri)
       }
 
       // fee filter
@@ -331,7 +340,7 @@ interface ChainConfig {
   bech32Prefix: string
   chainId: string
   gasPrice: string
-  restUri: string
+  restUri: string | string[]
   rpcUri: string | string[]
   wallets: WalletConfig[]
   feeFilter?: PacketFee
