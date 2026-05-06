@@ -18,20 +18,31 @@ type RESTData = Parameters<APIRequester['post']>[1]
 type RESTRequesterOptions = APIRequester | APIRequesterConfig
 interface RESTRequestState {
   restUris: string[]
-  currentIndex: number
+  preferredIndex: number
   requesterConfig?: APIRequesterConfig
 }
 
 const MAX_RETRY = 10
 
 const normalizeRestUris = (URL: RESTUri): string[] => {
-  const restUris = Array.isArray(URL) ? URL : [URL]
+  const restUris = (Array.isArray(URL) ? URL : [URL]).map((uri) => uri.trim())
 
-  if (restUris.length === 0) {
-    throw new Error('REST URI list cannot be empty')
+  if (restUris.length === 0 || restUris.some((uri) => uri === '')) {
+    throw new Error(
+      'REST URI list must contain at least one non-empty endpoint'
+    )
   }
 
   return restUris
+}
+
+const getHttpStatus = (error: unknown): number | undefined => {
+  if (typeof error !== 'object' || error === null) {
+    return undefined
+  }
+
+  const response = (error as { response?: { status?: unknown } }).response
+  return typeof response?.status === 'number' ? response.status : undefined
 }
 
 export class RESTClient extends RESTClient_ {
@@ -44,7 +55,7 @@ export class RESTClient extends RESTClient_ {
   ) {
     const requestState: RESTRequestState = {
       restUris: normalizeRestUris(URL),
-      currentIndex: 0,
+      preferredIndex: 0,
       requesterConfig:
         requesterOptions instanceof APIRequester ? undefined : requesterOptions,
     }
@@ -117,9 +128,11 @@ export class RESTClient extends RESTClient_ {
     headers?: RESTHeaders
   ): Promise<{ response: T; uri: string }> {
     let retryCount = 0
+    const startIndex = state.preferredIndex
+    let currentIndex = startIndex
 
     while (true) {
-      const uri = state.restUris[state.currentIndex]
+      const uri = state.restUris[currentIndex]
 
       try {
         let response: T
@@ -137,14 +150,21 @@ export class RESTClient extends RESTClient_ {
           )
         }
 
+        state.preferredIndex = currentIndex
         return { response, uri }
       } catch (error) {
         const errorContext = `[REST] Failed to request to ${uri} - ${endpoint}`
 
         logger.error(`${errorContext}: ${String(error)}`)
-        state.currentIndex = (state.currentIndex + 1) % state.restUris.length
 
-        if (state.currentIndex === 0) {
+        const httpStatus = getHttpStatus(error)
+        if (httpStatus !== undefined && httpStatus >= 400 && httpStatus < 500) {
+          throw error
+        }
+
+        currentIndex = (currentIndex + 1) % state.restUris.length
+
+        if (currentIndex === startIndex) {
           let backoff = Math.pow(2, retryCount) * 1000
           if (backoff > 10000) {
             backoff = 10 * 1000
@@ -158,9 +178,7 @@ export class RESTClient extends RESTClient_ {
             throw error
           }
         } else {
-          logger.info(
-            `[REST] Fallback to ${state.restUris[state.currentIndex]}`
-          )
+          logger.info(`[REST] Fallback to ${state.restUris[currentIndex]}`)
         }
       }
     }

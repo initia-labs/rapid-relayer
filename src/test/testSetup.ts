@@ -11,7 +11,13 @@ import { setupServer } from 'msw/node'
 export let mockServers: { rest: RestMockServer }[] = []
 
 const firstUri = (uri: string | string[]): string => {
-  return Array.isArray(uri) ? uri[0] : uri
+  if (Array.isArray(uri)) {
+    if (uri.length === 0) {
+      throw new Error('restUri must contain at least one entry')
+    }
+    return uri[0]
+  }
+  return uri
 }
 
 const setup = () => {

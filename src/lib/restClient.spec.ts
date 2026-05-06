@@ -46,4 +46,39 @@ describe('RESTClient', () => {
       )
     )
   })
+
+  it('should not fallback on client errors', async () => {
+    nock(mockRestUris[0]).get('/cosmos/base/node/v1beta1/config').reply(404)
+    const fallback = nock(mockRestUris[1])
+      .get('/cosmos/base/node/v1beta1/config')
+      .reply(200, {
+        minimum_gas_price: '0.02uinit',
+      })
+
+    const client = new RESTClient(mockRestUris)
+
+    await expect(
+      client.apiRequester.get('/cosmos/base/node/v1beta1/config')
+    ).rejects.toThrow()
+    expect(fallback.isDone()).toBe(false)
+  })
+
+  it('should prefer the last successful endpoint for later requests', async () => {
+    nock(mockRestUris[0]).get('/cosmos/base/node/v1beta1/config').reply(500)
+    nock(mockRestUris[1]).get('/cosmos/base/node/v1beta1/config').reply(200, {
+      minimum_gas_price: '0.02uinit',
+    })
+    nock(mockRestUris[1]).get('/cosmos/base/node/v1beta1/config').reply(200, {
+      minimum_gas_price: '0.03uinit',
+    })
+
+    const client = new RESTClient(mockRestUris)
+
+    await client.apiRequester.get('/cosmos/base/node/v1beta1/config')
+    const result = await client.apiRequester.get<{ minimum_gas_price: string }>(
+      '/cosmos/base/node/v1beta1/config'
+    )
+
+    expect(result.minimum_gas_price).toBe('0.03uinit')
+  })
 })

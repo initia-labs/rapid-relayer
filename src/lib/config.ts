@@ -35,7 +35,22 @@ const parseUriConfig = (rawUri: string): string | string[] => {
   const trimmedUri = rawUri.trim()
 
   if (trimmedUri.startsWith('[') && trimmedUri.endsWith(']')) {
-    return safeJsonParse<string[]>(trimmedUri, [trimmedUri])
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(trimmedUri)
+    } catch (err) {
+      throw new Error(`Invalid URI array JSON: ${err}`)
+    }
+
+    if (
+      !Array.isArray(parsed) ||
+      parsed.length === 0 ||
+      parsed.some((uri) => typeof uri !== 'string' || uri.trim() === '')
+    ) {
+      throw new Error('URI array must contain at least one non-empty string')
+    }
+
+    return parsed.map((uri) => uri.trim())
   }
 
   return trimmedUri
