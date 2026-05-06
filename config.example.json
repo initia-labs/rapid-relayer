@@ -50,7 +50,10 @@
       "bech32Prefix": "init",
       "chainId": "chain-2",
       "gasPrice": "0umin",
-      "restUri": "https://rest.chain-2.com",
+      "restUri": [
+        "https://rest.chain-2.com",
+        "https://rest.chain-2.com/fallback"
+      ],
       "rpcUri": "https://rpc.chain-2.com",
       "wallets": [
         {

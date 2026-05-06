@@ -10,6 +10,16 @@ import { setupServer } from 'msw/node'
 
 export let mockServers: { rest: RestMockServer }[] = []
 
+const firstUri = (uri: string | string[]): string => {
+  if (Array.isArray(uri)) {
+    if (uri.length === 0) {
+      throw new Error('restUri must contain at least one entry')
+    }
+    return uri[0]
+  }
+  return uri
+}
+
 const setup = () => {
   // remove db
   const dbPath = config.dbPath as string
@@ -26,7 +36,8 @@ const setup = () => {
   mockServers = config.chains.map((chain, i) => {
     const index = i + 1
     const counterpartyIndex = index + (index % 2 === 0 ? -1 : 1)
-    const restServer = new RestMockServer(chain.chainId, chain.restUri)
+    const restUri = firstUri(chain.restUri)
+    const restServer = new RestMockServer(chain.chainId, restUri)
 
     restServer.addClientState(`07-tendermint-${index}`, {
       client_state: {
@@ -49,10 +60,8 @@ const setup = () => {
 
     handlers.push(
       http.get(
-        new URL(
-          '/ibc/core/connection/v1/connections/:connectionId',
-          chain.restUri
-        ).href,
+        new URL('/ibc/core/connection/v1/connections/:connectionId', restUri)
+          .href,
         ({ params }) => {
           const { connectionId } = params
           // ...and respond to them using this JSON response.
@@ -72,8 +81,7 @@ const setup = () => {
 
     handlers.push(
       http.get(
-        new URL('/ibc/core/client/v1/client_states/:clientId', chain.restUri)
-          .href,
+        new URL('/ibc/core/client/v1/client_states/:clientId', restUri).href,
         ({ params }) => {
           const { clientId } = params
 
@@ -93,7 +101,7 @@ const setup = () => {
       http.get(
         new URL(
           '/ibc/core/client/v1/consensus_states/:clientId/revision/0/height/0',
-          chain.restUri
+          restUri
         ).href,
         () => {
           return HttpResponse.json({

@@ -90,7 +90,10 @@ Create a `config.json` file with the following structure:
       "bech32Prefix": "init",
       "chainId": "chain-2",
       "gasPrice": "0umin",
-      "restUri": "https://rest.chain-2.com",
+      "restUri": [
+        "https://rest.chain-2.com",
+        "https://rest.chain-2.com/fallback"
+      ],
       "rpcUri": ["https://rpc.chain-2.com", "https://rpc.chain-2.com/fallback"],
       "wallets": [
         {
@@ -129,7 +132,7 @@ You can configure chains in two ways:
    - `CHAIN_<index>_CHAIN_ID`: Chain ID for the chain at index `<index>`
    - `CHAIN_<index>_BECH32_PREFIX`: Bech32 prefix for the chain
    - `CHAIN_<index>_GAS_PRICE`: Gas price for the chain
-   - `CHAIN_<index>_REST_URI`: REST URI for the chain
+   - `CHAIN_<index>_REST_URI`: REST URI for the chain (can be a single URI string or JSON array of URI strings)
    - `CHAIN_<index>_RPC_URI`: RPC URI for the chain (can be a single URI string or array of URI strings)
    - `CHAIN_<index>_FEE_FILTER`: JSON string containing the fee filter configuration
 
@@ -182,7 +185,7 @@ export CHAIN_0_FEE_FILTER='{"recvFee":[{"denom":"gas","amount":100}],"timeoutFee
 export CHAIN_1_CHAIN_ID=chain-2
 export CHAIN_1_BECH32_PREFIX=init
 export CHAIN_1_GAS_PRICE=0umin
-export CHAIN_1_REST_URI=https://rest.chain-2.com
+export CHAIN_1_REST_URI='["https://rest.chain-2.com", "https://rest-fallback.chain-2.com"]'  # JSON array of URI strings for fallback
 export CHAIN_1_RPC_URI='["https://rpc.chain-2.com", "https://rpc-fallback.chain-2.com"]'  # JSON array of URI strings for fallback
 
 # Chain 2 wallet 1 configuration
