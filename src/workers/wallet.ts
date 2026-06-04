@@ -22,10 +22,10 @@ import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { PacketFee } from 'src/lib/config'
 import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
+import { AccountSequenceTracker } from './accountSequence'
 
 export class WalletWorker {
-  private sequence?: number
-  private accountNumber?: number
+  private sequenceTracker: AccountSequenceTracker
   private logger: Logger
   private errorTracker = new Map<string, number>()
   public lastExecutionTimestamp: Date
@@ -37,13 +37,23 @@ export class WalletWorker {
     private maxHandlePacket: number,
     public wallet: Wallet,
     public gasTokenBalance: bigint,
-    public packetFilter?: PacketFilter
+    public packetFilter?: PacketFilter,
+    private options: { autoStart?: boolean } = {}
   ) {
     this.logger = createLoggerWithPrefix(
       `<Wallet(${this.chain.chainId}-${this.address()})>`
     )
+    this.sequenceTracker = new AccountSequenceTracker(async () => {
+      const accInfo = await this.wallet.rest.auth.accountInfo(this.address())
+      return {
+        sequence: accInfo.getSequenceNumber(),
+        accountNumber: accInfo.getAccountNumber(),
+      }
+    })
     this.lastExecutionTimestamp = new Date()
-    void this.run()
+    if (this.options.autoStart !== false) {
+      void this.run()
+    }
   }
 
   public stop() {
@@ -78,18 +88,76 @@ export class WalletWorker {
     }
   }
 
-  private async initAccInfo() {
-    const accInfo = await this.wallet.rest.auth.accountInfo(this.address())
-    this.sequence = accInfo.getSequenceNumber()
-    this.accountNumber = accInfo.getAccountNumber()
-  }
-
   private async checkAndStoreError(code: string, error: Error) {
     const now = Date.now()
     const lastErrorTime = this.errorTracker.get(code) ?? 0
     if (now - lastErrorTime > 10 * 60 * 1000) {
       this.errorTracker.set(code, now)
       await captureException(error)
+    }
+  }
+
+  private async signAndBroadcast(
+    msgs: Parameters<Wallet['createAndSignTx']>[0]['msgs']
+  ): Promise<void> {
+    await this.sequenceTracker.ensureInitialized()
+
+    const signedSequence = this.sequenceTracker.sequence()
+    const signedTx = await this.wallet.createAndSignTx({
+      msgs,
+      sequence: signedSequence,
+      accountNumber: this.sequenceTracker.accountNumber(),
+    })
+
+    let reconciliationAttempted = false
+
+    try {
+      const result = await this.wallet.rest.tx.broadcast(signedTx)
+
+      if (isTxError(result)) {
+        const txError = new Error(
+          `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
+        )
+
+        try {
+          reconciliationAttempted = true
+          await this.sequenceTracker.reconcileTxError(result.raw_log)
+          this.logger.warn(
+            `Broadcast failed; reconciled account sequence. signedSequence=${signedSequence}, currentSequence=${this.sequenceTracker.sequence()}`
+          )
+        } catch (sequenceError) {
+          this.logger.error(
+            `Failed to reconcile account sequence: ${String(sequenceError)}`
+          )
+        }
+
+        await this.checkAndStoreError(result.code.toString(), txError)
+        this.logger.error(txError)
+        throw txError
+      }
+
+      this.logger.info(
+        `Handled msgs(${msgs.length}). txhash - ${result.txhash}`
+      )
+
+      this.sequenceTracker.markBroadcastSuccess()
+      this.lastExecutionTimestamp = new Date()
+    } catch (e) {
+      if (!reconciliationAttempted) {
+        try {
+          reconciliationAttempted = true
+          await this.sequenceTracker.reconcileBroadcastException()
+          this.logger.warn(
+            `Broadcast failed; reconciled account sequence. signedSequence=${signedSequence}, currentSequence=${this.sequenceTracker.sequence()}`
+          )
+        } catch (sequenceError) {
+          this.logger.error(
+            `Failed to reconcile account sequence: ${String(sequenceError)}`
+          )
+        }
+      }
+
+      throw e
     }
   }
 
@@ -394,55 +462,12 @@ export class WalletWorker {
         return
       }
 
-      // init sequence
-      if (!this.sequence) {
-        await this.initAccInfo()
-        if (this.sequence === undefined) {
-          throw Error('Failed to update sequence number')
-        }
-      }
-
-      const signedTx = await this.wallet.createAndSignTx({
-        msgs,
-        sequence: this.sequence,
-        accountNumber: this.accountNumber,
-      })
-
-      const result = await this.wallet.rest.tx.broadcast(signedTx)
-
-      if (isTxError(result)) {
-        if (result.raw_log.startsWith('account sequence mismatch')) {
-          try {
-            const expected = result.raw_log.split(', ')[1]
-            this.sequence = Number(expected.split(' ')[1])
-            this.logger.info(`update sequence`)
-          } catch {
-            this.logger.warn(`error to parse sequence`)
-          }
-        }
-
-        const error = new Error(
-          `Tx failed. raw log - ${result.raw_log}, code - ${result.code}`
-        )
-
-        await this.checkAndStoreError(result.code.toString(), error)
-        this.logger.error(error)
-        throw error
-      }
-
-      this.logger.info(
-        `Handled msgs(${msgs.length}). txhash - ${result.txhash}`
-      )
-
-      this.sequence++
-      this.lastExecutionTimestamp = new Date()
+      await this.signAndBroadcast(msgs)
     } catch (e) {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       if (e?.response?.data) {
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
         this.logger.error(e.response.data)
-        // tmp: refresh sequence when got error. TODO: parse sequence from error
-        await this.initAccInfo()
       } else {
         this.logger.error(e)
       }
