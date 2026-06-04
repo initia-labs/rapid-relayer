@@ -195,9 +195,9 @@ class IbcAPI extends IbcAPI_ {
     )
 
     const state =
-      State[rawRes.channel.state as keyof typeof State] || State.UNRECOGNIZED
+      State[rawRes.channel.state as keyof typeof State] ?? State.UNRECOGNIZED
     const ordering =
-      Order[rawRes.channel.ordering as keyof typeof Order] || Order.UNRECOGNIZED
+      Order[rawRes.channel.ordering as keyof typeof Order] ?? Order.UNRECOGNIZED
 
     return {
       channel: {

@@ -150,4 +150,14 @@ describe('RESTClient', () => {
     expect(res.channel.state).toBe(State.UNRECOGNIZED)
     expect(res.channel.ordering).toBe(Order.UNRECOGNIZED)
   })
+
+  it('preserves zero-value enum members instead of coercing to UNRECOGNIZED', async () => {
+    mockChannel('STATE_UNINITIALIZED_UNSPECIFIED', 'ORDER_NONE_UNSPECIFIED')
+
+    const client = new RESTClient(mockRestUris)
+    const res = await client.ibc.channel('transfer', 'channel-0')
+
+    expect(res.channel.state).toBe(State.STATE_UNINITIALIZED_UNSPECIFIED)
+    expect(res.channel.ordering).toBe(Order.ORDER_NONE_UNSPECIFIED)
+  })
 })
