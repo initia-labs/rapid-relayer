@@ -1,6 +1,5 @@
 import {
   APIRequester,
-  Channel,
   IbcAPI as IbcAPI_,
   RESTClientConfig,
   RESTClient as RESTClient_,
@@ -196,9 +195,9 @@ class IbcAPI extends IbcAPI_ {
     )
 
     const state =
-      State[rawRes.channel.state as keyof typeof State] || State.UNRECOGNIZED
+      State[rawRes.channel.state as keyof typeof State] ?? State.UNRECOGNIZED
     const ordering =
-      Order[rawRes.channel.ordering as keyof typeof Order] || Order.UNRECOGNIZED
+      Order[rawRes.channel.ordering as keyof typeof Order] ?? Order.UNRECOGNIZED
 
     return {
       channel: {
@@ -240,7 +239,19 @@ class IbcAPI extends IbcAPI_ {
 }
 
 interface ChannelResponse {
-  channel: Channel.Data
+  // initia.js@1.1.0 changed `Channel.Data.state`/`ordering` to `string`. We keep
+  // proto enums here so downstream comparisons (e.g. `=== State.STATE_CLOSED`)
+  // stay type-safe; the string→enum conversion happens in `channel()` above.
+  channel: {
+    state: State
+    ordering: Order
+    counterparty?: {
+      port_id: string
+      channel_id: string
+    }
+    connection_hops: string[]
+    version: string
+  }
   proof: null | string
   proof_height: {
     revision_number: number

@@ -7,8 +7,10 @@ import { initDBConnection } from 'src/db'
 import { RestMockServer } from './mockServer/rest'
 import { http, RequestHandler, HttpResponse } from 'msw'
 import { setupServer } from 'msw/node'
+import type { SetupServerApi } from 'msw/node'
 
 export let mockServers: { rest: RestMockServer }[] = []
+let server: SetupServerApi | undefined
 
 const firstUri = (uri: string | string[]): string => {
   if (Array.isArray(uri)) {
@@ -18,6 +20,11 @@ const firstUri = (uri: string | string[]): string => {
     return uri[0]
   }
   return uri
+}
+
+const shouldBypassUnhandledRequest = (request: Request): boolean => {
+  const hostname = new URL(request.url).hostname
+  return /^(doi|moro|rene)-(rest|rpc)-\d+\.com$/.test(hostname)
 }
 
 const setup = () => {
@@ -126,7 +133,21 @@ const setup = () => {
     return { rest: restServer }
   })
 
-  setupServer(...handlers).listen()
+  server = setupServer(...handlers)
+  server.listen({
+    onUnhandledRequest(request, print) {
+      if (shouldBypassUnhandledRequest(request)) {
+        return
+      }
+
+      print.warning()
+    },
+  })
 }
 
 beforeAll(() => setup())
+
+afterAll(() => {
+  server?.close()
+  server = undefined
+})
