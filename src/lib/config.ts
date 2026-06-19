@@ -69,6 +69,8 @@ export const loadEnvConfig = (): Partial<Config> => {
   if (env.MAX_PARALLEL_BLOCKS)
     envConfig.maxParallelBlocks = Number(env.MAX_PARALLEL_BLOCKS)
   if (env.DB_PATH) envConfig.dbPath = env.DB_PATH
+  if (env.CLIENT_REFRESH_RATE)
+    envConfig.clientRefreshRate = Number(env.CLIENT_REFRESH_RATE)
 
   // chains configuration
   if (env.CHAINS) {
@@ -301,6 +303,8 @@ export const mergeConfigs = (
     merged.rpcRequestTimeout = envConfig.rpcRequestTimeout
   if (envConfig.maxParallelBlocks !== undefined)
     merged.maxParallelBlocks = envConfig.maxParallelBlocks
+  if (envConfig.clientRefreshRate !== undefined)
+    merged.clientRefreshRate = envConfig.clientRefreshRate
 
   // merge chains if provided in environment variables
   if (envConfig.chains && envConfig.chains.length > 0) {
@@ -338,6 +342,7 @@ export interface Config {
   maxParallelBlocks?: number
   chains: ChainConfig[]
   raft?: RaftConfig
+  clientRefreshRate?: number
 }
 
 export interface RaftConfig {

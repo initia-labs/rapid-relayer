@@ -53,6 +53,7 @@ Create a `config.json` file with the following structure:
   "metricPort": 70001,
   "logLevel": "info",
   "rpcRequestTimeout": 5000,
+  "clientRefreshRate": 0.1,
   "chains": [
     {
       "bech32Prefix": "init",
@@ -120,6 +121,7 @@ You can also configure Rapid Relayer using environment variables. The following 
 - `LOG_LEVEL`: Log level
 - `RPC_REQUEST_TIMEOUT`: Timeout for RPC requests in milliseconds
 - `DB_PATH`: Path to the database directory
+- `CLIENT_REFRESH_RATE`: The rate at which to refresh the client. Fraction of the trusting period. Default: 1/3
 
 **Chain configuration:**
 You can configure chains in two ways:

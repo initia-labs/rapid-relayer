@@ -136,12 +136,13 @@ export class ClientController {
       },
     ])
 
-    return client ?? this.addClient(rest, chainId, clientId)
+    return client ?? (await this.addClient(rest, chainId, clientId))
   }
 
   public static getClientsToUpdate(
     chainId: string,
-    counterpartyChainIds: string[]
+    counterpartyChainIds: string[],
+    clientRefreshRate?: number
   ): ClientTable[] {
     ClientController.logger.info(
       `getClientsToUpdate: chainId=${chainId}, counterpartyChainIds=${counterpartyChainIds.join(',')}`
@@ -166,7 +167,8 @@ export class ClientController {
 
       // check need update
       if (
-        client.last_update_time + client.trusting_period * 0.666 <
+        client.last_update_time +
+          client.trusting_period * (clientRefreshRate ?? 0.333) <
         currentTimestamp
       ) {
         return true

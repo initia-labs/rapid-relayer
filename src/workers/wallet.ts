@@ -38,6 +38,7 @@ export class WalletWorker {
     public wallet: Wallet,
     public gasTokenBalance: bigint,
     public packetFilter?: PacketFilter,
+    public clientRefreshRate?: number,
     private options: { autoStart?: boolean } = {}
   ) {
     this.logger = createLoggerWithPrefix(
@@ -292,7 +293,8 @@ export class WalletWorker {
       // check clients that need to update
       const clientsToUpdate = ClientController.getClientsToUpdate(
         this.chain.chainId,
-        counterpartyChainIdsWithFeeFilter.map((f) => f.chainId)
+        counterpartyChainIdsWithFeeFilter.map((f) => f.chainId),
+        this.clientRefreshRate
       )
 
       // get unique client id
