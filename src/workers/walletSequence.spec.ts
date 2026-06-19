@@ -42,6 +42,7 @@ interface TestWalletWorker {
   sequenceTracker: {
     sequence(): number
   }
+  gasAdjustment: number
 }
 
 function accountInfo(sequence: number, accountNumber = 7): TestAccountInfo {
@@ -139,6 +140,7 @@ describe('WalletWorker account sequence reconciliation', () => {
       msgs: [{}],
       sequence: 10,
       accountNumber: 7,
+      gasAdjustment: 1.75,
     })
     expect(worker.sequenceTracker.sequence()).toBe(11)
     expect(authAccountInfo).toHaveBeenCalledTimes(1)
@@ -197,6 +199,57 @@ describe('WalletWorker account sequence reconciliation', () => {
     expect(mockLogger.warn).toHaveBeenCalledWith(
       'Broadcast failed; reconciled account sequence. signedSequence=10, currentSequence=11'
     )
+  })
+
+  test('increases gasAdjustment after an out of gas error', async () => {
+    const { worker, createAndSignTx } = makeWorker({
+      accountInfoResponses: [accountInfo(10), accountInfo(11)],
+      broadcastResult: {
+        code: 11,
+        raw_log:
+          'out of gas in location: ReadFlat; gasWanted: 1856904, gasUsed: 1857904: out of gas',
+        txhash: 'hash',
+      },
+    })
+
+    expect(worker.gasAdjustment).toBe(1.75)
+
+    await expect(worker.signAndBroadcast([{}])).rejects.toThrow('out of gas')
+
+    expect(createAndSignTx).toHaveBeenLastCalledWith({
+      msgs: [{}],
+      sequence: 10,
+      accountNumber: 7,
+      gasAdjustment: 1.75,
+    })
+    expect(worker.gasAdjustment).toBeCloseTo(2.1)
+  })
+
+  test('resets gasAdjustment after a successful broadcast', async () => {
+    const { worker, createAndSignTx } = makeWorker({
+      accountInfoResponses: [accountInfo(10)],
+      broadcastResult: {
+        txhash: 'hash',
+        raw_log: '',
+        gas_wanted: 1,
+        gas_used: 1,
+        height: 1,
+        logs: [],
+        timestamp: '',
+      },
+    })
+
+    worker.gasAdjustment = 3
+
+    await worker.signAndBroadcast([{}])
+
+    expect(createAndSignTx).toHaveBeenCalledWith({
+      msgs: [{}],
+      sequence: 10,
+      accountNumber: 7,
+      gasAdjustment: 3,
+    })
+    expect(worker.gasAdjustment).toBe(1.75)
   })
 
   test('does not retry sequence refresh when tx error reconciliation query fails', async () => {

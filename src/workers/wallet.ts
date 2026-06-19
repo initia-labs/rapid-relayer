@@ -24,10 +24,26 @@ import { ClientController } from 'src/db/controller/client'
 import { captureException } from 'src/lib/sentry'
 import { AccountSequenceTracker } from './accountSequence'
 
+// initia.js default gas adjustment applied to the simulated gas.
+const BASE_GAS_ADJUSTMENT = 1.75
+// multiplier applied to the gas adjustment after an out of gas failure.
+const GAS_ADJUSTMENT_STEP = 1.2
+// upper bound to avoid unbounded fee growth on repeated failures.
+const MAX_GAS_ADJUSTMENT = 4
+
+export function isOutOfGasError(rawLog?: string): boolean {
+  if (!rawLog) {
+    return false
+  }
+
+  return /out of gas/i.test(rawLog)
+}
+
 export class WalletWorker {
   private sequenceTracker: AccountSequenceTracker
   private logger: Logger
   private errorTracker = new Map<string, number>()
+  private gasAdjustment = BASE_GAS_ADJUSTMENT
   public lastExecutionTimestamp: Date
   public stopped = false
 
@@ -107,6 +123,7 @@ export class WalletWorker {
       msgs,
       sequence: signedSequence,
       accountNumber: this.sequenceTracker.accountNumber(),
+      gasAdjustment: this.gasAdjustment,
     })
 
     let reconciliationAttempted = false
@@ -131,6 +148,16 @@ export class WalletWorker {
           )
         }
 
+        if (isOutOfGasError(result.raw_log)) {
+          this.gasAdjustment = Math.min(
+            this.gasAdjustment * GAS_ADJUSTMENT_STEP,
+            MAX_GAS_ADJUSTMENT
+          )
+          this.logger.warn(
+            `Tx ran out of gas; increased gasAdjustment to ${this.gasAdjustment} for retry`
+          )
+        }
+
         await this.checkAndStoreError(result.code.toString(), txError)
         this.logger.error(txError)
         throw txError
@@ -141,6 +168,7 @@ export class WalletWorker {
       )
 
       this.sequenceTracker.markBroadcastSuccess()
+      this.gasAdjustment = BASE_GAS_ADJUSTMENT
       this.lastExecutionTimestamp = new Date()
     } catch (e) {
       if (!reconciliationAttempted) {
