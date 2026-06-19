@@ -12,6 +12,14 @@ describe('parseExpectedSequenceFromRawLog', () => {
     ).toBe(42)
   })
 
+  test('extracts expected sequence from stale nonce raw log', () => {
+    expect(
+      parseExpectedSequenceFromRawLog(
+        'nonce 14299 is stale for sender init1ueyyepx649e67zjremxgfqvyn6fuyl2d3gnrl5 (expected >= 14300): incorrect account sequence, code - 32'
+      )
+    ).toBe(14300)
+  })
+
   test('returns undefined for unrelated tx errors', () => {
     expect(parseExpectedSequenceFromRawLog('packet already received')).toBe(
       undefined

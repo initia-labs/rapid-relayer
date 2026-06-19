@@ -12,7 +12,9 @@ export function parseExpectedSequenceFromRawLog(
     return undefined
   }
 
-  const match = rawLog.match(/account sequence mismatch.*expected\s+(\d+)/i)
+  const match =
+    rawLog.match(/account sequence mismatch.*expected\s+(\d+)/i) ??
+    rawLog.match(/nonce\s+\d+\s+is\s+stale.*expected\s*>=\s*(\d+)/i)
   if (!match) {
     return undefined
   }
