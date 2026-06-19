@@ -201,19 +201,30 @@ describe('WalletWorker account sequence reconciliation', () => {
     )
   })
 
-  test('increases gasAdjustment after an out of gas error', async () => {
-    const { worker, createAndSignTx } = makeWorker({
+  test('increases gasAdjustment after an out of gas error and uses it on retry', async () => {
+    const successResult = {
+      txhash: 'retry-hash',
+      raw_log: '',
+      gas_wanted: 1,
+      gas_used: 1,
+      height: 1,
+      logs: [],
+      timestamp: '',
+    }
+    const { worker, createAndSignTx, broadcast } = makeWorker({
       accountInfoResponses: [accountInfo(10), accountInfo(11)],
-      broadcastResult: {
-        code: 11,
-        raw_log:
-          'out of gas in location: ReadFlat; gasWanted: 1856904, gasUsed: 1857904: out of gas',
-        txhash: 'hash',
-      },
+      broadcastResult: successResult,
+    })
+    broadcast.mockResolvedValueOnce({
+      code: 11,
+      raw_log:
+        'out of gas in location: ReadFlat; gasWanted: 1856904, gasUsed: 1857904: out of gas',
+      txhash: 'hash',
     })
 
     expect(worker.gasAdjustment).toBe(1.75)
 
+    // first attempt: signs with base adjustment, fails out of gas, bumps
     await expect(worker.signAndBroadcast([{}])).rejects.toThrow('out of gas')
 
     expect(createAndSignTx).toHaveBeenLastCalledWith({
@@ -223,6 +234,17 @@ describe('WalletWorker account sequence reconciliation', () => {
       gasAdjustment: 1.75,
     })
     expect(worker.gasAdjustment).toBeCloseTo(2.1)
+
+    // retry: signs with the bumped adjustment, succeeds, resets to base
+    await worker.signAndBroadcast([{}])
+
+    expect(createAndSignTx.mock.calls[1][0]).toMatchObject({
+      msgs: [{}],
+      sequence: 11,
+      accountNumber: 7,
+    })
+    expect(createAndSignTx.mock.calls[1][0].gasAdjustment).toBeCloseTo(2.1)
+    expect(worker.gasAdjustment).toBe(1.75)
   })
 
   test('resets gasAdjustment after a successful broadcast', async () => {
