@@ -1,5 +1,6 @@
-import { Channel, ChannelCounterparty, State } from '@initia/initia.js'
+import { Channel, ChannelCounterparty } from '@initia/initia.js'
 import { MsgChannelOpenTry } from '@initia/initia.js'
+import { State } from '@initia/initia.proto/ibc/core/channel/v1/channel'
 import { Height } from 'cosmjs-types/ibc/core/client/v1/client'
 import { getChannelProof } from 'src/lib/proof'
 import { ChainWorker } from 'src/workers/chain'
@@ -23,7 +24,8 @@ export async function generateMsgChannelOpenTry(
     ordering,
     new ChannelCounterparty(srcPortId, srcChannelId),
     [dstConnectionId],
-    version
+    version,
+    0 // upgrade_sequence: 0 for a freshly opened channel (initia.js@1.1.0)
   )
 
   return new MsgChannelOpenTry(

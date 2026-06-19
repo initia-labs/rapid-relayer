@@ -1,9 +1,9 @@
-FROM node:20-bullseye
+FROM node:22-bookworm
 
 WORKDIR /usr/rapid-relayer
 
-# Copy package.json early to leverage Docker layer caching
-COPY package.json .
+# Copy package metadata early to leverage Docker layer caching
+COPY package.json package-lock.json .npmrc ./
 
 # Install build dependencies for native modules
 RUN apt-get update && apt-get install -y \
@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y \
  && rm -rf /var/lib/apt/lists/*
 
 # Install npm dependencies
-RUN npm install
+RUN npx -y npm@11 ci
 # RUN npm install -g typescript  # Uncomment if needed
 
 # Copy the rest of the app

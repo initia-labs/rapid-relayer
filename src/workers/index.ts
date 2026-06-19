@@ -19,7 +19,6 @@ import {
   PacketWriteAckTable,
 } from 'src/types'
 import {
-  APIRequester,
   Coins,
   Key,
   MnemonicKey,
@@ -95,11 +94,11 @@ export class WorkerController {
           chainId: chainConfig.chainId,
           gasPrices: chainConfig.gasPrice,
         },
-        new APIRequester(chainConfig.restUri, {
+        {
           httpAgent: new http.Agent({ keepAlive: true }),
           httpsAgent: new https.Agent({ keepAlive: true }),
           timeout: 60000,
-        })
+        }
       )
       const rpc = new RPCClient(chainConfig.rpcUri)
       const latestHeight = await queryLatestHeight(rpc)

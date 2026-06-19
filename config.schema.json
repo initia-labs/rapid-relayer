@@ -121,8 +121,18 @@
             "description": "gas price in format 0.1denom"
           },
           "restUri": {
-            "type": "string",
-            "description": "cosmos rest api uri"
+            "description": "cosmos rest api uri",
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
           },
           "rpcUri": {
             "description": "cosmos rest rpc uri",
