@@ -160,4 +160,52 @@ describe('RESTClient', () => {
     expect(res.channel.state).toBe(State.STATE_UNINITIALIZED_UNSPECIFIED)
     expect(res.channel.ordering).toBe(Order.ORDER_NONE_UNSPECIFIED)
   })
+
+  describe('auth.accountInfo', () => {
+    it('parses a plain BaseAccount', async () => {
+      nock(mockRestUris[0])
+        .get('/cosmos/auth/v1beta1/accounts/init1qqqq')
+        .reply(200, {
+          account: {
+            '@type': '/cosmos.auth.v1beta1.BaseAccount',
+            address: 'init1qqqq',
+            pub_key: null,
+            account_number: '7',
+            sequence: '42',
+          },
+        })
+
+      const client = new RESTClient(mockRestUris)
+      const account = await client.auth.accountInfo('init1qqqq')
+
+      expect(account.getAccountNumber()).toBe(7)
+      expect(account.getSequenceNumber()).toBe(42)
+    })
+
+    it('unwraps an ethermint-style EthAccount (Injective)', async () => {
+      nock(mockRestUris[0])
+        .get('/cosmos/auth/v1beta1/accounts/inj1qqqq')
+        .reply(200, {
+          account: {
+            '@type': '/injective.types.v1beta1.EthAccount',
+            base_account: {
+              address: 'inj1qqqq',
+              pub_key: {
+                '@type': '/injective.crypto.v1beta1.ethsecp256k1.PubKey',
+                key: 'AsV5oddeB+hkByIJo/4lZiVUgXTzNfBPKC73cZ4K1YD2',
+              },
+              account_number: '13',
+              sequence: '5',
+            },
+            code_hash: '',
+          },
+        })
+
+      const client = new RESTClient(mockRestUris)
+      const account = await client.auth.accountInfo('inj1qqqq')
+
+      expect(account.getAccountNumber()).toBe(13)
+      expect(account.getSequenceNumber()).toBe(5)
+    })
+  })
 })
