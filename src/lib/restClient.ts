@@ -1,5 +1,9 @@
 import {
+  AccAddress,
+  Account,
   APIRequester,
+  AuthAPI as AuthAPI_,
+  BaseAccount,
   IbcAPI as IbcAPI_,
   RESTClientConfig,
   RESTClient as RESTClient_,
@@ -66,6 +70,7 @@ export class RESTClient extends RESTClient_ {
     super(requestState.restUris[0], config, apiRequester)
 
     this.ibc = new IbcAPI(this.apiRequester)
+    this.auth = new AuthAPI(this.apiRequester)
   }
 
   private static createApiRequester(state: RESTRequestState): APIRequester {
@@ -181,6 +186,43 @@ export class RESTClient extends RESTClient_ {
         }
       }
     }
+  }
+}
+
+// ethermint-style chains (e.g. Injective) wrap the base account in an
+// EthAccount type that initia.js cannot parse
+const ETH_ACCOUNT_TYPE_URLS: string[] = [
+  '/injective.types.v1beta1.EthAccount',
+]
+
+interface EthAccountData {
+  '@type': string
+  base_account?: Omit<BaseAccount.Data, '@type'>
+}
+
+class AuthAPI extends AuthAPI_ {
+  public async accountInfo(
+    address: AccAddress,
+    params: RESTParams = {},
+    headers: Record<string, string> = {}
+  ): Promise<Account> {
+    const { account } = await this.c.get<{
+      account: Account.Data | EthAccountData
+    }>(`/cosmos/auth/v1beta1/accounts/${address}`, params, headers)
+
+    if (
+      ETH_ACCOUNT_TYPE_URLS.includes(account['@type']) &&
+      'base_account' in account &&
+      account.base_account
+    ) {
+      return BaseAccount.fromData({
+        ...account.base_account,
+        '@type': '/cosmos.auth.v1beta1.BaseAccount',
+        pub_key: undefined,
+      })
+    }
+
+    return Account.fromData(account as Account.Data)
   }
 }
 

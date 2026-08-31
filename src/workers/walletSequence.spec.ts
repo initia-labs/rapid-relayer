@@ -104,6 +104,7 @@ function makeWorker(options: {
     wallet,
     0n,
     undefined,
+    undefined,
     { autoStart: false }
   ) as unknown as TestWalletWorker
 
