@@ -243,7 +243,37 @@ function decodeBlockResults(
     rpcBlockResult.result.end_block_events = end_block_events
   }
 
+  rpcBlockResult.result.validator_updates =
+    rpcBlockResult.result.validator_updates?.map(normalizeValidatorUpdate) ??
+    null
+
   return Responses.decodeBlockResults(rpcBlockResult)
+}
+
+const PUB_KEY_AMINO_TYPES: Record<string, string> = {
+  ed25519: 'tendermint/PubKeyEd25519',
+  secp256k1: 'tendermint/PubKeySecp256k1',
+}
+
+// cometbft v1 flattened `pub_key` into `pub_key_bytes`/`pub_key_type`, which
+// the cosmjs decoder rejects. Blocks carrying a validator set change would
+// otherwise stall the sync worker forever.
+function normalizeValidatorUpdate(
+  update: RpcValidatorUpdate
+): RpcValidatorUpdate {
+  if (update.pub_key !== undefined || update.pub_key_bytes === undefined) {
+    return update
+  }
+
+  const type = PUB_KEY_AMINO_TYPES[update.pub_key_type ?? '']
+  if (type === undefined) {
+    throw Error(`unknown pubkey type ${update.pub_key_type}`)
+  }
+
+  return {
+    power: update.power,
+    pub_key: { type, value: update.pub_key_bytes },
+  }
 }
 
 interface Header {
@@ -287,6 +317,16 @@ interface RpcBlockResultsResponse {
   begin_block_events: RpcEvent[] | null
   end_block_events: RpcEvent[] | null
   finalize_block_events: RpcEvent[] | null
+  validator_updates: RpcValidatorUpdate[] | null
+}
+
+interface RpcValidatorUpdate {
+  power?: string
+  /** pre-cometbft-v1 shape */
+  pub_key?: { type: string; value: string }
+  /** cometbft v1 flattened shape */
+  pub_key_bytes?: string
+  pub_key_type?: string
 }
 
 interface RpcTxData {
