@@ -209,4 +209,77 @@ describe('RPCClient', () => {
     // Verify the response is defined
     expect(result).toBeDefined()
   })
+
+  describe('blockResults validator updates', () => {
+    const blockResults = (validatorUpdates: unknown) => ({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        height: '1',
+        txs_results: null,
+        finalize_block_events: [],
+        validator_updates: validatorUpdates,
+        consensus_param_updates: null,
+      },
+    })
+
+    it('decodes the cometbft v1 flattened pub_key shape', async () => {
+      nock(mockRpcUris[0])
+        .get('/block_results')
+        .query(true)
+        .reply(
+          200,
+          blockResults([
+            {
+              power: '3469906',
+              pub_key_bytes: 'fZqZqbnw0nQBHe76t9qIcvOyyHjoMH3upoHsUqRvcBU=',
+              pub_key_type: 'ed25519',
+            },
+          ])
+        )
+
+      const client = new RPCClient(mockRpcUris[0])
+      const result = await client.blockResults(1)
+
+      expect(result.validatorUpdates).toHaveLength(1)
+      expect(result.validatorUpdates[0].pubkey.algorithm).toBe('ed25519')
+      expect(result.validatorUpdates[0].votingPower).toBe(3469906n)
+    })
+
+    it('still decodes the legacy nested pub_key shape', async () => {
+      nock(mockRpcUris[0])
+        .get('/block_results')
+        .query(true)
+        .reply(
+          200,
+          blockResults([
+            {
+              power: '100',
+              pub_key: {
+                type: 'tendermint/PubKeyEd25519',
+                value: 'fZqZqbnw0nQBHe76t9qIcvOyyHjoMH3upoHsUqRvcBU=',
+              },
+            },
+          ])
+        )
+
+      const client = new RPCClient(mockRpcUris[0])
+      const result = await client.blockResults(1)
+
+      expect(result.validatorUpdates).toHaveLength(1)
+      expect(result.validatorUpdates[0].votingPower).toBe(100n)
+    })
+
+    it('handles blocks without validator updates', async () => {
+      nock(mockRpcUris[0])
+        .get('/block_results')
+        .query(true)
+        .reply(200, blockResults(null))
+
+      const client = new RPCClient(mockRpcUris[0])
+      const result = await client.blockResults(1)
+
+      expect(result.validatorUpdates).toHaveLength(0)
+    })
+  })
 })
