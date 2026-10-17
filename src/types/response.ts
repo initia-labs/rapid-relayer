@@ -1,5 +1,6 @@
 export interface ClientState {
   client_state: {
+    '@type'?: string
     chain_id: string
     trusting_period: string
     latest_height: {

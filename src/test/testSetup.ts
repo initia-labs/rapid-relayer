@@ -65,6 +65,27 @@ const setup = () => {
       },
     })
 
+    // a third-party solo machine client/connection living on this chain
+    restServer.addClientState(`06-solomachine-${index}`, {
+      client_state: {
+        '@type': '/ibc.lightclients.solomachine.v3.ClientState',
+        chain_id: '',
+        trusting_period: '',
+        latest_height: {
+          revision_height: '0',
+        },
+      },
+    })
+    restServer.addConnection(`connection-solomachine-${index}`, {
+      connection: {
+        client_id: `06-solomachine-${index}`,
+        counterparty: {
+          client_id: '07-tendermint-eb1d76d1a3',
+          connection_id: 'connection-eb1d76d1a3',
+        },
+      },
+    })
+
     handlers.push(
       http.get(
         new URL('/ibc/core/connection/v1/connections/:connectionId', restUri)
@@ -110,7 +131,29 @@ const setup = () => {
           '/ibc/core/client/v1/consensus_states/:clientId/revision/0/height/0',
           restUri
         ).href,
-        () => {
+        ({ params }) => {
+          const { clientId } = params
+          const clientState = restServer.getClientState(clientId as string)
+          if (clientState === undefined) {
+            return HttpResponse.json(
+              { code: 5, message: 'client state not found', details: [] },
+              { status: 404 }
+            )
+          }
+          if (
+            clientState.client_state['@type'] !==
+              '/ibc.lightclients.tendermint.v1.ClientState' &&
+            clientState.client_state['@type'] !== undefined
+          ) {
+            return HttpResponse.json(
+              {
+                code: 3,
+                message: 'consensus state height cannot be 0',
+                details: [],
+              },
+              { status: 400 }
+            )
+          }
           return HttpResponse.json({
             consensus_state: {
               '@type': 'mock',

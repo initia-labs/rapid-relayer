@@ -8,6 +8,9 @@ import { PacketController } from './packet'
 import { ChannelController } from './channel'
 import { createLoggerWithPrefix } from 'src/lib/logger'
 
+const TENDERMINT_CLIENT_STATE_TYPE_URL =
+  '/ibc.lightclients.tendermint.v1.ClientState'
+
 export class ClientController {
   static tableName = 'client'
   private static logger = createLoggerWithPrefix('[ClientController] ')
@@ -184,6 +187,28 @@ export class ClientController {
     clientId: string
   ): Promise<ClientTable> {
     const state = await rest.ibc.getClientState(clientId)
+
+    // Only tendermint light clients carry chain_id / trusting_period and a
+    // consensus state at latest_height. Other client types return 4xx,
+    // which would fail the whole sync batch and wedge the sync worker on
+    // that height forever.
+    const clientType = state.client_state['@type']
+    if (
+      clientType !== undefined &&
+      clientType !== TENDERMINT_CLIENT_STATE_TYPE_URL
+    ) {
+      ClientController.logger.warn(
+        `fetchClient: unsupported client type ${clientType} for chainId=${chainId}, clientId=${clientId}; registering as untracked`
+      )
+      return {
+        chain_id: chainId,
+        client_id: clientId,
+        counterparty_chain_id: '',
+        trusting_period: 0,
+        revision_height: 0,
+        last_update_time: 0,
+      }
+    }
 
     // get latest cons state
     const consState = await rest.ibc.lastConsensusState(clientId)
