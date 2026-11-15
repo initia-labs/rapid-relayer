@@ -127,6 +127,7 @@ export class ChainWorker {
 
 class SyncWorker {
   private logger: Logger
+  private rpc: RPCClient
   public stopped = false
   public constructor(
     public chain: ChainWorker,
@@ -137,6 +138,7 @@ class SyncWorker {
     this.logger = createLoggerWithPrefix(
       `<SyncWorker(${this.chain.chainId}-{${this.startHeight}}-{${this.endHeight}})>`
     )
+    this.rpc = this.chain.rpc.clone()
     this.logger.info(
       'SyncWorker started for chain: ' +
         this.chain.chainId +
@@ -269,7 +271,7 @@ class SyncWorker {
     replaceClientEvents: string[]
   }> {
     this.logger.debug(`Fetch new block results (height - ${height})`)
-    const blockResult = await this.chain.rpc.blockResults(height)
+    const blockResult = await this.rpc.blockResults(height)
 
     const events = [
       // parse events from begin block
