@@ -64,6 +64,33 @@ describe('RPCClient', () => {
     )
   })
 
+  // a clone keeps its own endpoint pointer. One sync range falling back must
+  // not move the endpoint used by another range.
+  it('should not share the endpoint pointer between a client and its clone', async () => {
+    const live = new RPCClient(mockRpcUris)
+    const backfill = live.clone()
+
+    // The backfill range fails on the first endpoint and falls back
+    nock(mockRpcUris[0]).get('/abci_info').reply(500)
+    nock(mockRpcUris[1])
+      .get('/abci_info')
+      .reply(200, { result: { response: { data: 'backfill' } } })
+    expect((await backfill.abciInfo()).data).toBe('backfill')
+
+    // Both endpoints can answer now. The live range must still ask the first
+    // one. With a shared pointer it would be sent to the second.
+    nock(mockRpcUris[0])
+      .get('/abci_info')
+      .reply(200, { result: { response: { data: 'first' } } })
+    nock(mockRpcUris[1])
+      .get('/abci_info')
+      .reply(200, { result: { response: { data: 'second' } } })
+    expect((await live.abciInfo()).data).toBe('first')
+
+    // The clone stays on the endpoint it fell back to
+    expect((await backfill.abciInfo()).data).toBe('second')
+  })
+
   // Test case: Retry with exponential backoff when all endpoints fail initially
   it('should retry with exponential backoff if all endpoints fail', async () => {
     // Mock all endpoints to fail with HTTP 500

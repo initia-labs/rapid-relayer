@@ -15,7 +15,7 @@ export class SyncInfoController {
     SyncInfoController.logger.info(
       `init: chainId=${chainId}, startHeights=${JSON.stringify(startHeights)}, latestHeight=${latestHeight}`
     )
-    startHeights = startHeights.sort()
+    startHeights = [...startHeights].sort((a, b) => a - b)
     const syncInfos = this.getSyncInfos(chainId)
 
     if (syncInfos.length === 0) {

@@ -29,6 +29,10 @@ export class RPCClient {
     this.requestTimeout = config.rpcRequestTimeout || 5000
   }
 
+  public clone(): RPCClient {
+    return new RPCClient([...this.rpcUris])
+  }
+
   private getAxiosInstance(uri: string): AxiosInstance {
     return axios.create({
       baseURL: uri,
