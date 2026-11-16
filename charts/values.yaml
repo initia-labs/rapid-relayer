@@ -3,6 +3,13 @@ imagePullPolicy: null
 imagePullSecret: null
 replicas: 1
 
+serviceAccountName: null
+
+command: []
+
+extraVolumes: []
+extraVolumeMounts: []
+
 env: {}
 
 envFrom: []
